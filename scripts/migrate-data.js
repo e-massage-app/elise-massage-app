@@ -10,7 +10,7 @@ const path = require('path');
 // CONFIGURATION - A REMPLIR AVANT EXECUTION
 // ============================================================
 const SUPABASE_URL = 'https://ixuwialfycbzvliezliv.supabase.co';
-const SUPABASE_SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml4dXdpYWxmeWNienZsaWV6bGl2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NTA3NDEwOSwiZXhwIjoyMDkwNjUwMTA5fQ.HGWVbmGDPRPgPHIKJIW1yVFuuNqiJ6FcmAF1lIwCTRg';
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'VOTRE_SERVICE_ROLE_KEY_ICI'; // Ne JAMAIS commiter la vraie cle ici
 const USER_ID = '3bdf06ef-9bbe-4777-9ae4-68f7cd94d127';
 // ============================================================
 
