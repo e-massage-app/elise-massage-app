@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Elise Massage - Connexion</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#d4a574">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #1a1a2e 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #F5F0E8;
+        }
+
+        .login-container {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(212, 165, 116, 0.2);
+            border-radius: 16px;
+            padding: 2.5rem;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .login-logo {
+            width: 120px;
+            height: auto;
+            margin-bottom: 1rem;
+            border-radius: 12px;
+        }
+
+        .login-title {
+            font-size: 1.5rem;
+            color: #d4a574;
+            margin-bottom: 0.5rem;
+        }
+
+        .login-subtitle {
+            font-size: 0.9rem;
+            color: rgba(245, 240, 232, 0.6);
+            margin-bottom: 2rem;
+            font-style: italic;
+        }
+
+        .form-group {
+            margin-bottom: 1.2rem;
+            text-align: left;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.4rem;
+            font-size: 0.85rem;
+            color: rgba(245, 240, 232, 0.8);
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1px solid rgba(212, 165, 116, 0.3);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.08);
+            color: #F5F0E8;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #d4a574;
+        }
+
+        .form-group input::placeholder {
+            color: rgba(245, 240, 232, 0.3);
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 0.85rem;
+            background: linear-gradient(135deg, #d4a574, #c4956a);
+            color: #1a1a2e;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
+            margin-top: 0.5rem;
+        }
+
+        .login-btn:hover {
+            opacity: 0.9;
+        }
+
+        .login-btn:active {
+            transform: scale(0.98);
+        }
+
+        .login-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .error-message {
+            background: rgba(231, 76, 60, 0.15);
+            border: 1px solid rgba(231, 76, 60, 0.3);
+            color: #e74c3c;
+            padding: 0.7rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-size: 0.85rem;
+            display: none;
+        }
+
+        .error-message.visible {
+            display: block;
+        }
+    </style>
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script src="js/supabase-client.js"></script>
+</head>
+<body>
+    <div class="login-container">
+        <img src="assets/logo.png" alt="Elise Massage" class="login-logo" onerror="this.style.display='none'">
+        <h1 class="login-title">Elise Massage</h1>
+        <p class="login-subtitle">"Pour un moment, rien qu'a vous."</p>
+
+        <div id="error-msg" class="error-message"></div>
+
+        <form id="login-form">
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" placeholder="votre@email.com" required autocomplete="email">
+            </div>
+            <div class="form-group">
+                <label for="password">Mot de passe</label>
+                <input type="password" id="password" placeholder="Votre mot de passe" required autocomplete="current-password">
+            </div>
+            <button type="submit" class="login-btn" id="login-btn">Se connecter</button>
+        </form>
+    </div>
+
+    <script>
+        // Si deja connecte, rediriger vers l'app
+        (async () => {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (session) {
+                window.location.href = 'index.html';
+            }
+        })();
+
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            const btn = document.getElementById('login-btn');
+            const errorDiv = document.getElementById('error-msg');
+
+            btn.disabled = true;
+            btn.textContent = 'Connexion...';
+            errorDiv.classList.remove('visible');
+
+            try {
+                const { data, error } = await supabaseClient.auth.signInWithPassword({
+                    email,
+                    password
+                });
+
+                if (error) {
+                    throw error;
+                }
+
+                window.location.href = 'index.html';
+            } catch (error) {
+                errorDiv.textContent = 'Email ou mot de passe incorrect.';
+                errorDiv.classList.add('visible');
+                btn.disabled = false;
+                btn.textContent = 'Se connecter';
+            }
+        });
+    </script>
+</body>
+</html>

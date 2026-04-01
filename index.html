@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Elise - Massage & Bien-être</title>
+
+    <!-- PWA -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#d4a574">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+
+    <!-- Styles CSS modulaires -->
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/views.css">
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script src="js/supabase-client.js"></script>
+    <script src="js/auth.js"></script>
+
+    <!-- Libraries externes -->
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <script src="https://cdn.jsdelivr.net/npm/date-fns@2.30.0/index.min.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-content">
+                <div class="logo">
+                    <img src="assets/logo.png" alt="Elise Massage & Bien-être" class="app-logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                    <div class="logo-text" style="display: none;">
+                        <h1>Elise</h1>
+                        <p>Massage & Bien-être</p>
+                    </div>
+                </div>
+                <div class="header-quote">
+                    <p>"Pour un moment, rien qu'à vous."</p>
+                </div>
+                <div class="header-actions">
+                    <button class="btn-secondary" onclick="exportDataUI()">Exporter</button>
+                    <button class="btn-secondary" onclick="importDataUI()">Importer</button>
+                    <button class="btn-secondary" onclick="showParametresModal()" title="Paramètres" style="padding: 0.5rem 0.75rem; font-size: 1.1rem;">&#9881;</button>
+                    <button class="btn-secondary" onclick="logout()" title="Deconnexion" style="padding: 0.5rem 0.75rem; font-size: 0.85rem; color: #e74c3c; border-color: #e74c3c;">Deconnexion</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="app-nav">
+            <button class="nav-tab active" onclick="showTab('dashboard')">Dashboard</button>
+            <button class="nav-tab" onclick="showTab('calendrier')">Calendrier</button>
+            <button class="nav-tab" onclick="showTab('prestations')">Prestations</button>
+            <button class="nav-tab" onclick="showTab('bons-cadeaux')">Bons Cadeaux</button>
+            <button class="nav-tab" onclick="showTab('clients')">Annuaire</button>
+            <button class="nav-tab" onclick="showTab('analytics')">Analytics</button>
+            <button class="nav-tab" onclick="showTab('depenses')">Dépenses</button>
+        </nav>
+
+        <!-- Dashboard Tab -->
+        <div id="dashboard" class="tab-content active">
+            <div class="dashboard-grid">
+                <!-- KPIs Personnalisables -->
+                <div class="kpi-section">
+                    <div class="dashboard-kpis">
+                        <!-- KPIs générés dynamiquement -->
+                    </div>
+                </div>
+
+                <!-- Prochains RDV -->
+                <div class="rdv-section">
+                    <h2>Prochains rendez-vous</h2>
+                    <div id="prochains-rdv" class="rdv-list">
+                        <!-- RDV générés dynamiquement -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Calendrier Tab -->
+        <div id="calendrier" class="tab-content">
+            <div class="calendar-header">
+                <h2>Calendrier des rendez-vous</h2>
+                <div class="calendar-controls">
+                    <button onclick="previousMonth()">&lt;</button>
+                    <span id="current-month-year"></span>
+                    <button onclick="nextMonth()">&gt;</button>
+                    <button class="btn-primary" onclick="showAddRdvModal()">Nouveau RDV</button>
+                    <button class="btn-secondary" onclick="exportCalendar()">Export .ics</button>
+                </div>
+            </div>
+            <div id="calendar-grid" class="calendar-grid">
+                <!-- Calendrier généré dynamiquement -->
+            </div>
+        </div>
+
+        <!-- Prestations Tab -->
+        <div id="prestations" class="tab-content">
+            <div class="prestations-header">
+                <h2>Historique des prestations</h2>
+                <div class="prestations-controls">
+                    <button class="btn-primary" onclick="showAddPrestationModal()">Nouvelle prestation</button>
+                </div>
+            </div>
+            <div class="table-container">
+                <table id="prestations-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Client</th>
+                            <th>Type</th>
+                            <th>Durée</th>
+                            <th>Prix</th>
+                            <th>Frais de route</th>
+                            <th>Marge</th>
+                            <th>Notes</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Prestations générées dynamiquement -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Bons Cadeaux Tab -->
+        <div id="bons-cadeaux" class="tab-content">
+            <div class="bons-cadeaux-header">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+                    <div>
+                        <h2 style="margin: 0 0 0.5rem 0;">🎁 Gestion des Bons Cadeaux</h2>
+                        <div id="bons-cadeaux-resume" style="display: flex; gap: 1.5rem; flex-wrap: wrap; margin-top: 0.5rem;">
+                            <!-- Résumé généré dynamiquement -->
+                        </div>
+                    </div>
+
+                    <!-- Barre de recherche -->
+                    <div class="search-container" style="flex: 1; max-width: 350px; min-width: 200px;">
+                        <div style="position: relative;">
+                            <input
+                                type="text"
+                                id="bons-cadeaux-search"
+                                placeholder="🔍 Rechercher un bon..."
+                                style="width: 100%; padding: 0.6rem 2.5rem 0.6rem 1rem; border: 2px solid #e0e0e0; border-radius: 20px; font-size: 0.9rem;"
+                            >
+                            <button
+                                id="clear-bons-search"
+                                style="position: absolute; right: 0.6rem; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 1rem; cursor: pointer; color: #999; display: none;"
+                            >✖️</button>
+                        </div>
+                        <div id="bons-search-results-count" style="text-align: center; margin-top: 0.25rem; font-size: 0.8rem;"></div>
+                    </div>
+
+                    <!-- Bouton + Filtre -->
+                    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.75rem;">
+                        <button class="btn-primary" onclick="showAddBonCadeauModal()">Nouveau bon cadeau</button>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <select id="bons-cadeaux-filter" style="padding: 0.5rem; border: 1px solid #ddd; border-radius: 6px;">
+                                <option value="tous">Tous les bons</option>
+                                <option value="actif">🟢 Actifs</option>
+                                <option value="utilise">✅ Utilisés</option>
+                                <option value="expire">❌ Expirés</option>
+                                <option value="rembourse">💸 Remboursés</option>
+                                <option value="expire-bientot">⚠️ Expirent bientôt</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Alerte bons expirant bientôt -->
+            <div id="bons-expiration-alert" style="display: none; margin: 1rem 0; padding: 1rem; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; border-left: 4px solid #ffc107;">
+                <!-- Alerte générée dynamiquement -->
+            </div>
+
+            <!-- Liste des bons cadeaux -->
+            <div id="bons-cadeaux-list" class="bons-cadeaux-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; margin-top: 1rem;">
+                <!-- Bons générés dynamiquement -->
+            </div>
+        </div>
+
+        <!-- Clients Tab -->
+        <div id="clients" class="tab-content">
+<div class="clients-header">
+  <!-- Ligne principale : Titre + Recherche + Boutons principaux + Boutons tags -->
+  <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+    <div>
+      <h2 style="margin: 0 0 0.75rem 0;">Gestion Clients, Prospects & Collaborateurs</h2>
+      <!-- Filtres par ville -->
+      <div class="ville-filter-buttons" style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+        <button 
+          class="ville-filter-btn active" 
+          data-ville="Ajaccio" 
+          onclick="ViewManager.filterByVille('Ajaccio')"
+          style="padding: 0.4rem 1rem; border: 2px solid var(--beige-dore); background: var(--beige-dore); color: white; border-radius: 20px; cursor: pointer; font-weight: 600; transition: all 0.3s ease;"
+          onmouseover="if(!this.classList.contains('active')) { this.style.background='#f5f5f5'; }"
+          onmouseout="if(!this.classList.contains('active')) { this.style.background='white'; }"
+        >
+          📍 Ajaccio
+        </button>
+        <button 
+          class="ville-filter-btn" 
+          data-ville="Porto-Vecchio" 
+          onclick="ViewManager.filterByVille('Porto-Vecchio')"
+          style="padding: 0.4rem 1rem; border: 2px solid #ddd; background: white; color: var(--text-dark); border-radius: 20px; cursor: pointer; font-weight: 500; transition: all 0.3s ease;"
+          onmouseover="if(!this.classList.contains('active')) { this.style.background='#f5f5f5'; }"
+          onmouseout="if(!this.classList.contains('active')) { this.style.background='white'; }"
+        >
+          📍 Porto-Vecchio
+        </button>
+        <button 
+          class="ville-filter-btn" 
+          data-ville="Tous" 
+          onclick="ViewManager.filterByVille('Tous')"
+          style="padding: 0.4rem 1rem; border: 2px solid #ddd; background: white; color: var(--text-dark); border-radius: 20px; cursor: pointer; font-weight: 500; transition: all 0.3s ease;"
+          onmouseover="if(!this.classList.contains('active')) { this.style.background='#f5f5f5'; }"
+          onmouseout="if(!this.classList.contains('active')) { this.style.background='white'; }"
+        >
+          🌍 Tous
+        </button>
+      </div>
+    </div>
+    
+    <!-- Barre de recherche centrée -->
+    <div class="search-container" style="flex: 1; max-width: 400px; min-width: 250px;">
+      <div class="search-input-wrapper" style="position: relative;">
+        <input 
+          type="text" 
+          id="client-search" 
+          placeholder="🔍 Rechercher..." 
+          style="width: 100%; padding: 0.6rem 2.5rem 0.6rem 1rem; border: 2px solid #e0e0e0; border-radius: 20px; font-size: 0.9rem; transition: all 0.3s ease; background: #fff;"
+        >
+        <button 
+          id="clear-search" 
+          style="position: absolute; right: 0.6rem; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 1rem; cursor: pointer; color: #999; display: none;"
+          title="Effacer la recherche"
+        >✖️</button>
+      </div>
+      <div id="search-results-count" style="text-align: center; margin-top: 0.25rem; font-size: 0.8rem;"></div>
+<div class="filter-group" style="margin: 0.5rem 0;">
+  <label for="client-canal-filter">Canal d'acquisition :</label>
+  <select id="client-canal-filter" style="padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; width: 200px;">
+    <option value="">Tous les canaux</option>
+  </select>
+</div>
+    </div>
+    
+    <!-- Bloc de droite : Boutons principaux + Boutons tags en dessous -->
+    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.75rem;">
+      <!-- Boutons principaux -->
+      <div class="clients-controls" style="display: flex; align-items: center; gap: 0.5rem;">
+        <div class="dropdown-container" style="position: relative;">
+          <button class="btn-primary dropdown-btn" onclick="toggleAddDropdown()">
+            ➕ Ajouter <span style="margin-left: 0.5rem;">▼</span>
+          </button>
+          <div id="add-dropdown" class="dropdown-menu" style="display: none; position: absolute; top: 100%; right: 0; background: white; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); min-width: 180px; z-index: 1000;">
+            <button onclick="showAddClientModal(); hideAddDropdown()" style="width: 100%; padding: 0.75rem 1rem; border: none; background: none; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 0.5rem;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='none'">
+              👤 Nouveau client
+            </button>
+            <button onclick="showAddProspectModal(); hideAddDropdown()" style="width: 100%; padding: 0.75rem 1rem; border: none; background: none; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 0.5rem;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='none'">
+              👁️ Nouveau prospect
+            </button>
+            <button onclick="showAddCollaborateurModal(); hideAddDropdown()" style="width: 100%; padding: 0.75rem 1rem; border: none; background: none; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 0.5rem;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='none'">
+              🤝 Nouveau collaborateur
+            </button>
+          </div>
+        </div>
+        <span style="color: var(--text-light); margin: 0 0.5rem;">|</span>
+        <button class="btn-primary" onclick="showTopClients()">🏆 Top Clients</button>
+      </div>
+      
+      <!-- Boutons tags en dessous -->
+      <div style="display: flex; gap: 0.5rem;">
+        <button class="btn-secondary" onclick="ClientServices.showTagsFilter()" style="font-size: 0.85rem; padding: 0.4rem 0.8rem;">🏷️ Filtrer par tags</button>
+        <button class="btn-secondary" onclick="ClientServices.showTagsManagementModal()" style="font-size: 0.85rem; padding: 0.4rem 0.8rem;">⚙️ Gérer les tags</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Barre de contrôle des vues -->
+  <div class="view-controls-bar">
+    <!-- Gauche : Toggle vue grille/liste -->
+    <div class="view-controls-group">
+      <span class="view-control-label">Vue :</span>
+      <button id="view-grid-btn" class="view-toggle-btn active" onclick="ViewManager.setViewMode('grid')" title="Vue grille">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
+      </button>
+      <button id="view-list-btn" class="view-toggle-btn" onclick="ViewManager.setViewMode('list')" title="Vue liste">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="2" width="14" height="2" rx="0.5"/><rect x="1" y="7" width="14" height="2" rx="0.5"/><rect x="1" y="12" width="14" height="2" rx="0.5"/></svg>
+      </button>
+    </div>
+
+    <!-- Centre : Toggles sections -->
+    <div class="view-controls-sections">
+      <label class="section-toggle">
+        <input type="checkbox" id="toggle-fideles" checked onchange="ViewManager.toggleSection('fideles', this.checked)">
+        <span>⭐ Fidèles</span>
+      </label>
+      <label class="section-toggle">
+        <input type="checkbox" id="toggle-nouveaux" checked onchange="ViewManager.toggleSection('nouveaux', this.checked)">
+        <span>🌱 Nouveaux</span>
+      </label>
+      <label class="section-toggle">
+        <input type="checkbox" id="toggle-prospects" checked onchange="ViewManager.toggleSection('prospects', this.checked)">
+        <span>👁️ Prospects</span>
+      </label>
+      <label class="section-toggle">
+        <input type="checkbox" id="toggle-collaborateurs" checked onchange="ViewManager.toggleSection('collaborateurs', this.checked)">
+        <span>🤝 Collab.</span>
+      </label>
+    </div>
+
+    <!-- Droite : Tri -->
+    <div class="view-controls-group">
+      <span class="view-control-label">Tri :</span>
+      <select id="client-sort-select" class="view-sort-select" onchange="ViewManager.setSortMode(this.value)">
+        <option value="massages-desc">Nb massages ↓</option>
+        <option value="massages-asc">Nb massages ↑</option>
+        <option value="ca-desc">CA ↓</option>
+        <option value="ca-asc">CA ↑</option>
+        <option value="nom-asc">Nom A-Z</option>
+        <option value="nom-desc">Nom Z-A</option>
+        <option value="recent-desc">Plus récent ↓</option>
+        <option value="recent-asc">Plus ancien ↓</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+            <!-- Grille 2x2 pour clients, prospects et collaborateurs -->
+            <div class="clients-sections" id="clients-sections-container">
+                <div class="clients-section fideles-section">
+                    <h3>⭐ Clients fidèles <span class="section-subtitle">(2+ massages)</span></h3>
+                    <div id="clients-fideles-list" class="clients-grid">
+                        <!-- Clients fidèles générés dynamiquement -->
+                    </div>
+                </div>
+
+                <div class="clients-section nouveaux-section">
+                    <h3>🌱 Nouveaux clients <span class="section-subtitle">(1 massage)</span></h3>
+                    <div id="clients-list" class="clients-grid">
+                        <!-- Nouveaux clients générés dynamiquement -->
+                    </div>
+                </div>
+
+                <div class="prospects-section">
+                    <h3>👁️ Prospects</h3>
+                    <div id="prospects-list" class="clients-grid">
+                        <!-- Prospects générés dynamiquement -->
+                    </div>
+                </div>
+
+                <div class="collaborateurs-section">
+                    <h3>🤝 Collaborateurs</h3>
+                    <div id="collaborateurs-list" class="clients-grid">
+                        <!-- Collaborateurs générés dynamiquement -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== ✅ REMPLACEZ VOTRE SECTION ANALYTICS DANS index.html ===== -->
+
+<!-- Analytics Tab -->
+<div id="analytics" class="tab-content">
+    <h2>Analyses et statistiques</h2>
+    
+    <div class="global-analytics-controls" style="grid-column: 1 / -1; background: white; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; border: 1px solid #e8e3d8; display: flex; align-items: center; gap: 2rem; justify-content: center;">
+        <h3 style="margin: 0; color: #8B4513;">Filtres globaux Analytics</h3>
+        <div style="display: flex; gap: 1rem; align-items: center;">
+            <div>
+                <label for="global-year-selector" style="margin-right: 0.5rem;">Année :</label>
+                <select id="global-year-selector" style="padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+                    <option value="current">Année actuelle</option>
+                </select>
+            </div>
+            <div>
+                <label for="global-month-selector" style="margin-right: 0.5rem;">Mois :</label>
+                <select id="global-month-selector" style="padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+                    <option value="">Toute l'année</option>
+                    <option value="1">Janvier</option>
+                    <option value="2">Février</option>
+                    <option value="3">Mars</option>
+                    <option value="4">Avril</option>
+                    <option value="5">Mai</option>
+                    <option value="6">Juin</option>
+                    <option value="7">Juillet</option>
+                    <option value="8">Août</option>
+                    <option value="9">Septembre</option>
+                    <option value="10">Octobre</option>
+                    <option value="11">Novembre</option>
+                    <option value="12">Décembre</option>
+                </select>
+            </div>
+        </div>
+    </div>
+    
+    <div class="analytics-grid">        
+        <div class="analytics-container">
+            <div class="analytics-header">
+                <h3>Évolution annuelle</h3>
+                <div class="analytics-period-selector">
+                    <select id="year-selector" style="padding: 0.4rem 0.8rem; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.1); color: white; border-radius: 6px; margin-right: 1rem;">
+                        <!-- Années générées dynamiquement -->
+                    </select>
+                    <button class="period-btn active" data-period="12">12 mois</button>
+                    <button class="period-btn" data-period="6">6 mois</button>
+                    <button class="period-btn" data-period="3">3 mois</button>
+                    <button class="period-btn" data-period="current-month">Ce mois-ci</button>
+                </div>
+            </div>
+            
+            <div class="chart-wrapper">
+                <div id="revenue-chart"></div>
+            </div>
+            
+            <div class="modern-filters">
+                <h4>Filtrer les données</h4>
+                <div class="filter-pills">
+                    <label class="filter-pill active">
+                        <input type="checkbox" id="filter-massages" checked>
+                        <span class="pill-content">💆 Massages</span>
+                        <span class="pill-amount" id="massages-amount">0€</span>
+                    </label>
+                    <label class="filter-pill active">
+                        <input type="checkbox" id="filter-headspa" checked>
+                        <span class="pill-content">💆‍♀️ HeadSpa</span>
+                        <span class="pill-amount" id="headspa-amount">0€</span>
+                    </label>
+                    <label class="filter-pill active">
+                        <input type="checkbox" id="filter-bons-cadeaux" checked>
+                        <span class="pill-content">🎁 Bons Cadeaux</span>
+                        <span class="pill-amount" id="bons-cadeaux-amount">0€</span>
+                    </label>
+                    <label class="filter-pill active">
+                        <input type="checkbox" id="filter-tips" checked>
+                        <span class="pill-content">💸 Tips</span>
+                        <span class="pill-amount" id="tips-amount">0€</span>
+                    </label>
+                    <label class="filter-pill active">
+                        <input type="checkbox" id="filter-depenses-huiles" checked>
+                        <span class="pill-content">🫒 Huiles</span>
+                        <span class="pill-amount" id="huiles-amount">0€</span>
+                    </label>
+                    <label class="filter-pill active">
+                        <input type="checkbox" id="filter-depenses-materiel" checked>
+                        <span class="pill-content">🛠️ Matériel</span>
+                        <span class="pill-amount" id="materiel-amount">0€</span>
+                    </label>
+                    <label class="filter-pill active">
+                        <input type="checkbox" id="filter-depenses-formation" checked>
+                        <span class="pill-content">📚 Formation</span>
+                        <span class="pill-amount" id="formation-amount">0€</span>
+                    </label>
+                    <label class="filter-pill active">
+                        <input type="checkbox" id="filter-depenses-transport" checked>
+                        <span class="pill-content">🚗 Transport</span>
+                        <span class="pill-amount" id="transport-amount">0€</span>
+                    </label>
+                    <label class="filter-pill active">
+                        <input type="checkbox" id="filter-depenses-marketing" checked>
+                        <span class="pill-content">📢 Marketing</span>
+                        <span class="pill-amount" id="marketing-amount">0€</span>
+                    </label>
+                    <label class="filter-pill active">
+                        <input type="checkbox" id="filter-depenses-loyer" checked>
+                        <span class="pill-content">🏠 Loyer</span>
+                        <span class="pill-amount" id="loyer-amount">0€</span>
+                    </label>
+                    <label class="filter-pill active">
+                        <input type="checkbox" id="filter-depenses-autre" checked>
+                        <span class="pill-content">📦 Autres</span>
+                        <span class="pill-amount" id="autre-amount">0€</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+        
+        <div class="chart-container modern-chart">
+            <div class="chart-header">
+                <h3>Types de prestations</h3>
+                <div class="chart-stats">
+                    <span class="total-prestations">0 prestations</span>
+                </div>
+            </div>
+            <div class="chart-wrapper">
+                <div id="prestations-chart"></div>
+            </div>
+        </div>
+        
+        <div class="chart-container modern-chart">
+            <div class="chart-header">
+                <h3>Durées populaires</h3>
+                <div class="chart-stats">
+                    <span class="avg-duration">0 min moyenne</span>
+                </div>
+            </div>
+            <div class="chart-wrapper">
+                <div id="durees-chart"></div>
+            </div>
+        </div>
+        
+        <div class="chart-container modern-chart">
+            <div class="chart-header">
+                <h3>Moyens de paiement</h3>
+                <div class="chart-stats">
+                    <span class="total-paiements">0 paiements</span>
+                </div>
+            </div>
+            <div class="chart-wrapper">
+                <div id="moyens-paiement-chart"></div>
+            </div>
+        </div>
+        
+        <div class="chart-container modern-chart">
+            <div class="chart-header">
+                <h3>📈 Canaux d'acquisition</h3>
+                <div class="chart-stats">
+                    <span class="total-canaux">0 canaux</span>
+                </div>
+            </div>
+            <div class="chart-wrapper">
+                <div id="canaux-chart"></div>
+            </div>
+        </div>
+        
+        <div class="chart-container modern-chart">
+            <div class="chart-header">
+                <h3>👥 Répartition par genre</h3>
+                <div class="chart-stats">
+                    <span class="total-genre">0 clients</span>
+                </div>
+            </div>
+            <div class="chart-wrapper">
+                <div id="genre-chart"></div>
+            </div>
+        </div>
+        
+        <div class="chart-container modern-chart">
+            <div class="chart-header">
+                <h3>💰 Revenus par canal d'acquisition</h3>
+            </div>
+            <div class="table-wrapper">
+                <table id="canaux-revenus-table" class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Canal</th>
+                            <th>Clients</th>
+                            <th>Prospects</th>
+                            <th>Revenus</th>
+                            <th>Rev./Client</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Données générées par JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div class="stats-container modern-stats">
+            <div class="stats-header">
+                <h3>Statistiques clés</h3>
+                <div class="stats-period">Cette année</div>
+            </div>
+            <div id="key-stats" class="stats-grid">
+                <!-- Stats générées dynamiquement -->
+            </div>
+        </div>
+    </div>
+
+    <div id="google-ads-analytics" style="margin-top: 2rem;">
+        <!-- Le contenu sera généré dynamiquement par JavaScript -->
+    </div>
+</div>
+
+        <!-- Dépenses Tab -->
+        <div id="depenses" class="tab-content">
+            <div class="depenses-header">
+                <h2>Gestion des dépenses</h2>
+                <div class="depenses-controls">
+  <div class="depenses-actions-row">
+    <button class="btn-primary" onclick="showAddDepenseModal()">Nouvelle dépense</button>
+    
+    <!-- Barre de recherche -->
+    <div class="search-container">
+      <input type="text" id="depenses-search" placeholder="Rechercher une dépense..." style="width: 250px; padding: 0.5rem; border: 1px solid #ddd; border-radius: 6px;">
+      <button id="clear-depenses-search" style="display: none; margin-left: 0.5rem; background: #e74c3c; color: white; border: none; padding: 0.5rem; border-radius: 4px; cursor: pointer;">✕</button>
+    </div>
+  </div>
+  
+  <!-- Filtres -->
+  <div class="depenses-filters" style="margin-top: 1rem; display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
+    <div class="filter-group">
+      <label>Catégorie :</label>
+      <select id="depenses-filter-categorie" style="padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+        <option value="">Toutes les catégories</option>
+        <option value="Huiles">Huiles</option>
+        <option value="Matériel">Matériel</option>
+        <option value="Formation">Formation</option>
+        <option value="Transport">Transport</option>
+        <option value="Marketing">Marketing</option>
+        <option value="Abonnement">Abonnement</option>
+        <option value="Loyer">Loyer</option>
+        <option value="Autre">Autre</option>
+      </select>
+    </div>
+    
+    <div class="filter-group">
+      <label>Période :</label>
+      <select id="depenses-filter-periode" style="padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+        <option value="">Toutes les périodes</option>
+        <option value="ce-mois">Ce mois</option>
+        <option value="mois-dernier">Mois dernier</option>
+        <option value="3-mois">3 derniers mois</option>
+        <option value="cette-annee">Cette année</option>
+      </select>
+    </div>
+    
+    <div class="filter-group">
+      <label>Montant :</label>
+      <select id="depenses-filter-montant" style="padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+        <option value="">Tous les montants</option>
+        <option value="0-50">0 - 50€</option>
+        <option value="50-100">50 - 100€</option>
+        <option value="100-200">100 - 200€</option>
+        <option value="200+">Plus de 200€</option>
+      </select>
+    </div>
+    
+    <button id="reset-depenses-filters" style="padding: 0.5rem 1rem; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">Réinitialiser</button>
+    
+    <div id="depenses-results-count" style="margin-left: auto; font-size: 0.9rem; color: #666;"></div>
+  </div>
+</div>
+            </div>
+            
+            <div class="depenses-summary">
+                <h3>Résumé des dépenses</h3>
+                <div id="depenses-resume">
+                    <!-- Résumé généré dynamiquement -->
+                </div>
+            </div>
+            
+            <div class="table-container">
+                <table id="depenses-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Catégorie</th>
+                            <th>Description</th>
+                            <th>Fournisseur</th>
+                            <th>Montant</th>
+                            <th>Notes</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Dépenses générées dynamiquement -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Overlay -->
+    <div id="modal-overlay" class="modal-overlay">
+        <!-- Toutes les modales seront générées dynamiquement par modal-manager.js -->
+    </div>
+
+    <!-- ✅ NOUVEAU : Scripts pour le dropdown et collaborateurs -->
+    <script>
+        // Gestion du dropdown "Ajouter"
+        function toggleAddDropdown() {
+            const dropdown = document.getElementById('add-dropdown');
+            dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+        }
+        
+        function hideAddDropdown() {
+            document.getElementById('add-dropdown').style.display = 'none';
+        }
+        
+        // Fermer le dropdown si on clique ailleurs
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.dropdown-container')) {
+                hideAddDropdown();
+            }
+        });
+    </script>
+
+    <!-- Scripts JavaScript modulaires -->
+    <!-- Core : Données et calculs -->
+    <script src="js/core/data-manager.js"></script>
+    <script src="js/core/calculations.js"></script>
+    
+    <!-- Services : Logique métier -->
+    <script src="js/services/business-services.js"></script>
+    <script src="js/services/client-services.js"></script>
+    <script src="js/services/utils-services.js"></script>
+    
+    <!-- UI : Interface utilisateur -->
+    <script src="js/ui/modal-manager.js"></script>
+    <script src="js/ui/view-manager.js"></script>
+    <script src="js/ui/form-manager.js"></script>
+    
+    <!-- Analytics : ROI et statistiques -->
+    <script src="js/analytics/google-ads-roi.js"></script>
+    
+    <!-- Point d'entrée principal -->
+    <script src="js/app.js"></script>
+</body>
+</html>

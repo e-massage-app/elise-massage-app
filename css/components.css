@@ -1,0 +1,613 @@
+/* ===== css/components.css ===== */
+/* Modales, formulaires, cartes, tables, boutons */
+
+/* Buttons */
+.btn-primary {
+  background: var(--beige-dore);
+  color: var(--white);
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  box-shadow: var(--shadow);
+}
+
+.btn-primary:hover {
+  background: #c2956a;
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-2px);
+}
+
+.btn-secondary {
+  background: var(--rose-poudre);
+  color: var(--text-dark);
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.btn-secondary:hover {
+  background: var(--rose-accent);
+  transform: translateY(-2px);
+}
+
+.btn-danger {
+  background: #e74c3c;
+  color: var(--white);
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+}
+
+.btn-danger:hover {
+  background: #c0392b;
+}
+
+/* Tables */
+.table-container {
+  background: var(--white);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  margin-top: 1.5rem;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th {
+  background: var(--beige-dore);
+  color: var(--white);
+  padding: 1.2rem;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+td {
+  padding: 1.2rem;
+  border-bottom: 1px solid var(--rose-poudre);
+  vertical-align: top;
+}
+
+tr:hover {
+  background: var(--beige-clair);
+}
+
+/* Cards */
+.client-card {
+  background: var(--white);
+  padding: 1.5rem;
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow);
+  transition: transform 0.3s ease;
+}
+
+.client-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-hover);
+}
+
+.client-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.client-name {
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: var(--text-dark);
+}
+
+.client-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.client-actions button {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+  border-radius: 6px;
+}
+
+.client-info {
+  color: var(--text-light);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.client-info div {
+  margin-bottom: 0.25rem;
+}
+
+.client-fidele {
+  background: linear-gradient(135deg, #fff9e6, #fff) !important;
+  box-shadow: 0 2px 8px rgba(212, 165, 116, 0.1) !important;
+}
+
+.client-fidele .client-name {
+  font-weight: 600 !important;
+}
+
+/* Modals */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  justify-content: center;
+  align-items: center;
+}
+
+.modal-overlay.active {
+  display: flex;
+}
+
+.modal {
+  display: none;
+  background: var(--white);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow-hover);
+  max-width: 600px;
+  width: 90%;
+  max-height: 90%;
+  overflow-y: auto;
+}
+
+.modal.active {
+  display: block;
+}
+
+.modal-content {
+  padding: 2rem;
+}
+
+.modal-content h3 {
+  margin-bottom: 1.5rem;
+  color: var(--text-dark);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--rose-poudre);
+}
+
+/* Force l'activation des inputs dans les modals */
+.modal.active input,
+.modal.active textarea,
+.modal.active select {
+  pointer-events: auto !important;
+  user-select: auto !important;
+  -webkit-user-select: auto !important;
+  -moz-user-select: auto !important;
+  cursor: text !important;
+}
+
+.modal.active input:not([readonly]):not([disabled]),
+.modal.active textarea:not([readonly]):not([disabled]) {
+  background-color: #fff !important;
+  border: 1px solid #ddd !important;
+}
+
+/* Croix de fermeture pour les modales */
+.modal-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #666;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  z-index: 1001;
+}
+
+.modal-close:hover {
+  background: #f0f0f0;
+  color: #333;
+  transform: scale(1.1);
+}
+
+.modal-close:active {
+  transform: scale(0.95);
+}
+
+/* Ajustement du contenu modal pour laisser place à la croix */
+.modal-content {
+  padding: 2rem;
+  position: relative; /* Pour le positionnement absolu de la croix */
+}
+
+/* Style spécial pour les titres de modales avec croix */
+.modal-content h3 {
+  margin-bottom: 1.5rem;
+  color: var(--text-dark);
+  padding-right: 2rem; /* Espace pour la croix */
+}
+
+/* Animation d'entrée/sortie améliorée */
+.modal-overlay {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.modal-overlay.active {
+  opacity: 1;
+}
+
+.modal {
+  transform: scale(0.7) translateY(-50px);
+  opacity: 0;
+  transition: all 0.3s ease;
+}
+
+.modal.active {
+  transform: scale(1) translateY(0);
+  opacity: 1;
+}
+
+/* Forms */
+.form-group {
+  margin-bottom: 1rem;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: var(--text-dark);
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 2px solid var(--rose-poudre);
+  border-radius: var(--border-radius);
+  font-family: inherit;
+  transition: border-color 0.3s ease;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: var(--beige-dore);
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+/* Checkbox Groups */
+.checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: var(--beige-clair);
+  border-radius: var(--border-radius);
+  border: 1px solid var(--rose-poudre);
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-weight: normal !important;
+  margin-bottom: 0 !important;
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: auto !important;
+  margin: 0;
+  transform: scale(1.2);
+}
+
+.checkbox-label span {
+  min-width: 120px;
+  font-weight: 500;
+}
+
+.action-date {
+  flex: 1;
+  min-width: 140px;
+}
+
+/* Status badges */
+.rdv-statut,
+.prospect-statut {
+  font-size: 0.8rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 16px;
+  font-weight: 500;
+  margin-top: 0.5rem;
+  display: inline-block;
+}
+
+.rdv-statut.confirmé,
+.prospect-statut.intérêt-fort {
+  background: #d4edda;
+  color: #155724;
+}
+
+.rdv-statut.en-attente,
+.prospect-statut.intérêt-moyen {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.rdv-statut.annulé,
+.prospect-statut.intérêt-faible {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+/* RDV Actions */
+.rdv-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--rose-poudre);
+  flex-wrap: wrap;
+}
+
+.rdv-actions button {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.8rem;
+  border-radius: 6px;
+}
+
+/* Actions des dépenses harmonisées */
+.depenses-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 80px;
+}
+
+.depenses-actions .btn-secondary {
+  padding: 0.3rem 0.6rem;
+  font-size: 0.8rem;
+  border-radius: 4px;
+  margin: 0;
+  text-align: center;
+}
+
+.depenses-actions .btn-danger {
+  padding: 0.3rem 0.6rem;
+  font-size: 0.8rem;
+  border-radius: 4px;
+  background: #f8d7da;
+  color: #721c24;
+  border: none;
+  cursor: pointer;
+  margin: 0;
+}
+
+.depenses-actions .btn-danger:hover {
+  background: #f1c2c7;
+}
+
+/* Style spécial pour les notes avec lien */
+.note-with-link {
+  cursor: pointer;
+  color: var(--beige-dore);
+  text-decoration: underline;
+  font-weight: 500;
+}
+
+.note-with-link:hover {
+  color: #c2956a;
+}
+
+/* Style pour les dépenses transport automatiques */
+.depense-auto {
+  background-color: #f8f9fa !important;
+  border-left: 3px solid var(--beige-dore);
+}
+
+.depense-auto .note-with-link {
+  font-style: italic;
+}
+
+/* Fix pour le sélecteur d'année - contraste */
+#year-selector {
+  color: #333 !important;
+  background-color: #fff !important;
+}
+
+#year-selector option {
+  color: #333 !important;
+  background-color: #fff !important;
+}
+
+/* Responsive components */
+@media (max-width: 768px) {
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .modal {
+    width: 95%;
+    margin: 1rem;
+  }
+
+  .modal-content {
+    padding: 1.5rem;
+  }
+
+  .rdv-actions {
+    flex-direction: column;
+  }
+
+  .depenses-actions {
+    flex-direction: row;
+    justify-content: center;
+  }
+  
+  .depenses-actions .btn-secondary,
+  .depenses-actions .btn-danger {
+    font-size: 0.7rem;
+    padding: 0.25rem 0.4rem;
+  }
+}
+
+/* Styles pour les tags clients */
+.tags-container {
+  margin-top: 0.5rem;
+}
+
+.client-tag {
+  transition: all 0.3s ease;
+}
+
+.client-tag:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.tags-label-clickable:hover {
+  color: var(--beige-dore) !important;
+  font-weight: 500;
+}
+
+.add-tag-link:hover {
+  text-decoration: none !important;
+  font-weight: 600;
+}
+
+.tag-option {
+  position: relative;
+}
+
+.tag-option:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.tag-option.selected {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+}
+
+/* Responsive pour les contrôles clients */
+@media (max-width: 768px) {
+  .clients-header > div {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .clients-controls-main,
+  .clients-controls-tags {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  
+  .search-container {
+    max-width: none;
+    min-width: auto;
+  }
+}
+
+/* Responsive pour les boutons tags */
+@media (max-width: 768px) {
+  .clients-header > div:first-child {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+  
+  .clients-header > div:first-child .clients-controls {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  
+  .clients-header > div:first-child .search-container {
+    max-width: none;
+    min-width: auto;
+    order: -1; /* Mettre la recherche en premier sur mobile */
+  }
+  
+  /* Centrer les boutons tags sur mobile */
+  .clients-header > div:last-child {
+    justify-content: center !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .clients-header > div:last-child > div {
+    flex-direction: column;
+    width: 100%;
+  }
+  
+  .clients-header > div:last-child button {
+    width: 100%;
+    text-align: center;
+  }
+}
+
+.btn-duplicate {
+  background: var(--beige-dore);
+  color: white;
+  border: none;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.8rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-duplicate:hover {
+  background: #c2956a;
+  transform: translateY(-1px);
+}
+
+/* Style pour les boutons dupliquer dans les tableaux */
+.btn-duplicate {
+  background: var(--beige-dore) !important;
+  color: white !important;
+  transition: all 0.3s ease;
+}
+
+.btn-duplicate:hover {
+  background: #c2956a !important;
+  transform: translateY(-1px);
+}

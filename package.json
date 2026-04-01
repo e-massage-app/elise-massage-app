@@ -1,0 +1,12 @@
+{
+  "name": "elise-massage-pwa",
+  "version": "6.0.0",
+  "description": "Application de gestion Elise Massage - PWA + Supabase",
+  "private": true,
+  "scripts": {
+    "migrate": "node scripts/migrate-data.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.0"
+  }
+}
