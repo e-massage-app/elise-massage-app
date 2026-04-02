@@ -151,6 +151,10 @@
   margin-top: 2rem;
 }
 
+@media (max-width: 768px) {
+  .app-footer { display: none; }
+}
+
 /* Boutons ville - remplacement des inline styles */
 .ville-filter-btn {
   padding: 0.4rem 1rem;
