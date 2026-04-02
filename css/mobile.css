@@ -839,27 +839,30 @@
     gap: 0.4rem !important;
   }
   .depenses-filters {
-    display: grid !important;
-    grid-template-columns: 1fr 1fr !important;
-    gap: 0.3rem !important;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    gap: 0.25rem !important;
+    align-items: flex-end !important;
   }
-  /* Masquer les labels de filtre sur mobile - le placeholder du select suffit */
   .depenses-filters .filter-group label {
     display: none !important;
   }
   .depenses-filters .filter-group {
-    width: 100%;
+    flex: 1;
+    min-width: 0;
   }
   .depenses-filters select {
     width: 100% !important;
-    font-size: 0.78rem;
-    padding: 0.35rem;
-    min-height: 36px;
+    font-size: 0.7rem;
+    padding: 0.3rem 0.2rem;
+    min-height: 34px;
   }
-  /* Bouton reset prend toute la largeur */
   .depenses-filters > button {
-    grid-column: 1 / -1;
-    font-size: 0.8rem;
+    font-size: 0.65rem;
+    padding: 0.3rem 0.5rem;
+    white-space: nowrap;
+    min-height: 34px;
   }
   /* Compteur resultats */
   #depenses-results-count {
