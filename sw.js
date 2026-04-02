@@ -2,7 +2,7 @@
 // Strategie : cache assets statiques UNIQUEMENT, PAS les donnees Supabase
 // Si offline -> l'app affiche le message "reseau requis"
 
-const CACHE_NAME = 'elise-massage-v17';
+const CACHE_NAME = 'elise-massage-v18';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -102,17 +102,17 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Assets statiques locaux -> cache-first, network fallback
+  // Assets statiques locaux -> network-first (toujours la derniere version)
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request).then((response) => {
-        if (response.ok && event.request.method === 'GET') {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-        }
-        return response;
-      });
+    fetch(event.request).then((response) => {
+      if (response.ok && event.request.method === 'GET') {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+      }
+      return response;
+    }).catch(() => {
+      // Offline : fallback sur le cache
+      return caches.match(event.request);
     })
   );
 });
