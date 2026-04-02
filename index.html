@@ -62,25 +62,25 @@
         <div id="mobile-menu" class="mobile-menu">
             <div class="mobile-menu-header">
                 <span>Menu</span>
-                <button class="mobile-menu-close" onclick="toggleMobileMenu()">&#10005;</button>
+                <button class="mobile-menu-close" onclick="closeMobileMenu()">&#10005;</button>
             </div>
             <div class="mobile-menu-nav">
-                <button class="mobile-nav-item active" onclick="showTab('dashboard'); toggleMobileMenu()">Dashboard</button>
-                <button class="mobile-nav-item" onclick="showTab('calendrier'); toggleMobileMenu()">Calendrier</button>
-                <button class="mobile-nav-item" onclick="showTab('prestations'); toggleMobileMenu()">Prestations</button>
-                <button class="mobile-nav-item" onclick="showTab('bons-cadeaux'); toggleMobileMenu()">Bons Cadeaux</button>
-                <button class="mobile-nav-item" onclick="showTab('clients'); toggleMobileMenu()">Annuaire</button>
-                <button class="mobile-nav-item" onclick="showTab('analytics'); toggleMobileMenu()">Analytics</button>
-                <button class="mobile-nav-item" onclick="showTab('depenses'); toggleMobileMenu()">Depenses</button>
+                <button class="mobile-nav-item active" onclick="showTab('dashboard'); closeMobileMenu()">Dashboard</button>
+                <button class="mobile-nav-item" onclick="showTab('calendrier'); closeMobileMenu()">Calendrier</button>
+                <button class="mobile-nav-item" onclick="showTab('prestations'); closeMobileMenu()">Prestations</button>
+                <button class="mobile-nav-item" onclick="showTab('bons-cadeaux'); closeMobileMenu()">Bons Cadeaux</button>
+                <button class="mobile-nav-item" onclick="showTab('clients'); closeMobileMenu()">Annuaire</button>
+                <button class="mobile-nav-item" onclick="showTab('analytics'); closeMobileMenu()">Analytics</button>
+                <button class="mobile-nav-item" onclick="showTab('depenses'); closeMobileMenu()">Depenses</button>
             </div>
             <div class="mobile-menu-actions">
-                <button class="mobile-action-item" onclick="exportDataUI(); toggleMobileMenu()">Exporter les donnees</button>
-                <button class="mobile-action-item" onclick="importDataUI(); toggleMobileMenu()">Importer des donnees</button>
-                <button class="mobile-action-item" onclick="showParametresModal(); toggleMobileMenu()">Parametres</button>
+                <button class="mobile-action-item" onclick="exportDataUI(); closeMobileMenu()">Exporter les donnees</button>
+                <button class="mobile-action-item" onclick="importDataUI(); closeMobileMenu()">Importer des donnees</button>
+                <button class="mobile-action-item" onclick="showParametresModal(); closeMobileMenu()">Parametres</button>
                 <button class="mobile-action-item logout" onclick="logout()">Deconnexion</button>
             </div>
         </div>
-        <div id="mobile-menu-overlay" class="mobile-menu-overlay" onclick="toggleMobileMenu()"></div>
+        <div id="mobile-menu-overlay" class="mobile-menu-overlay" onclick="closeMobileMenu()"></div>
 
         <!-- Navigation desktop -->
         <nav class="app-nav desktop-only">

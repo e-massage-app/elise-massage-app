@@ -452,11 +452,29 @@ window.logout = async () => {
 window.toggleMobileMenu = function() {
   const menu = document.getElementById('mobile-menu');
   const overlay = document.getElementById('mobile-menu-overlay');
-  if (menu && overlay) {
-    menu.classList.toggle('open');
-    overlay.classList.toggle('open');
-    document.body.style.overflow = menu.classList.contains('open') ? 'hidden' : '';
+  if (!menu || !overlay) return;
+
+  const isOpen = menu.classList.contains('open');
+  if (isOpen) {
+    // Fermer
+    menu.classList.remove('open');
+    overlay.classList.remove('open');
+    document.body.style.overflow = '';
+  } else {
+    // Ouvrir
+    menu.classList.add('open');
+    overlay.classList.add('open');
+    document.body.style.overflow = 'hidden';
   }
+};
+
+// Forcer la fermeture du menu (utilise par les items de nav)
+window.closeMobileMenu = function() {
+  const menu = document.getElementById('mobile-menu');
+  const overlay = document.getElementById('mobile-menu-overlay');
+  if (menu) menu.classList.remove('open');
+  if (overlay) overlay.classList.remove('open');
+  document.body.style.overflow = '';
 };
 
 // Mettre a jour l'item actif dans le menu mobile quand on change d'onglet
