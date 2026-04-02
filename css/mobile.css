@@ -109,14 +109,11 @@
   color: var(--text-light);
   cursor: pointer;
 }
-/* Version dans le menu burger */
+/* Version dans le header du menu burger */
 .mobile-menu-version {
-  text-align: center;
-  font-size: 0.7rem;
-  color: #aaa;
-  padding: 0.75rem 0 0.5rem;
-  border-top: 1px solid #f0f0f0;
-  margin-top: 0.5rem;
+  font-size: 0.65rem;
+  color: #bbb;
+  font-weight: 400;
 }
 
 .mobile-action-item.install-btn {
