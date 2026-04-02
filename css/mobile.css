@@ -568,9 +568,8 @@
     gap: 0.3rem !important;
   }
 
-  /* Cacher canal acquisition et search label sur mobile */
-  #clients > div:first-child > div:first-child > div:nth-child(2),
-  .clients-header > div:first-child > div:nth-child(2) {
+  /* Cacher canal acquisition sur mobile (pas la recherche !) */
+  .clients-header .filter-group {
     display: none !important;
   }
 
