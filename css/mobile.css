@@ -178,8 +178,13 @@
   .mobile-only { display: flex !important; }
   .burger-btn { display: flex !important; }
 
-  /* --- HEADER COMPACT --- */
+  /* --- HEADER COMPACT : logo a gauche, burger a droite --- */
   .header-content {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    justify-content: space-between !important;
+    align-items: center !important;
     padding: 0.4rem 0.75rem;
     gap: 0;
   }
@@ -188,16 +193,21 @@
   .header-quote { display: none; }
 
   /* --- CONTENU PRINCIPAL --- */
-  .tab-content { padding: 0.6rem; }
+  .tab-content { padding: 0.6rem; overflow-x: hidden; }
+  .app-container { overflow-x: hidden; }
 
   /* ============================
      DASHBOARD - KPIs 2 colonnes + RDV en premier
      ============================ */
   .dashboard-grid {
     display: flex !important;
-    flex-direction: column-reverse !important;
+    flex-direction: column !important;
     gap: 0.75rem;
   }
+
+  /* RDV en premier via order */
+  .rdv-section { order: -1 !important; }
+  .kpi-section { order: 1 !important; }
 
   .kpis-grid {
     grid-template-columns: repeat(2, 1fr) !important;
@@ -212,8 +222,6 @@
   .kpi-label { font-size: 0.7rem; margin-bottom: 0.2rem; }
   .kpi-value { font-size: 1rem; }
 
-  /* RDV section en premier (column-reverse) */
-  .rdv-section { order: -1; }
   .rdv-section h2 { font-size: 1rem; margin-bottom: 0.5rem; }
   .rdv-list { max-height: none !important; }
   .rdv-item { padding: 0.6rem; font-size: 0.85rem; }
@@ -463,10 +471,15 @@
     gap: 0.3rem !important;
   }
 
-  /* View controls bar - horizontal compact */
+  /* Cacher canal acquisition sur mobile pour gagner de l'espace */
+  .clients-header > div:first-child > div:nth-child(2) {
+    display: none !important;
+  }
+
+  /* View controls bar - tout en 1 ligne compacte */
   .view-controls-bar {
-    padding: 0.4rem !important;
-    gap: 0.3rem !important;
+    padding: 0.3rem 0.5rem !important;
+    gap: 0.2rem !important;
     flex-direction: row !important;
     flex-wrap: wrap !important;
     justify-content: center !important;
@@ -474,16 +487,44 @@
   }
   .view-controls-bar > div {
     display: flex !important;
+    flex-direction: row !important;
     flex-wrap: wrap !important;
     justify-content: center !important;
-    gap: 0.25rem !important;
+    gap: 0.2rem !important;
     align-items: center !important;
   }
 
-  /* Section toggles (Fideles, Nouveaux, etc.) en badges compacts */
+  /* Vue label masque */
+  .view-controls-bar > div:first-child > span:first-child {
+    display: none !important;
+  }
+
+  /* Boutons vue grille/liste compacts */
+  .view-toggle-btn {
+    min-height: 34px !important;
+    min-width: 34px !important;
+    padding: 0.2rem 0.4rem !important;
+    font-size: 0.8rem !important;
+  }
+
+  /* Section toggles (Fideles, Nouveaux, etc.) en badges inline compacts */
   .section-toggle {
+    font-size: 0.7rem !important;
+    min-height: 28px !important;
+    padding: 0.15rem 0.4rem !important;
+  }
+
+  /* Tri select compact */
+  .view-sort-select {
+    min-width: 100px !important;
     font-size: 0.75rem !important;
     min-height: 32px !important;
+    padding: 0.2rem 0.4rem !important;
+  }
+
+  /* Cacher le "Tri:" label */
+  .view-controls-bar > div:last-child > span {
+    display: none !important;
   }
 
   /* Sections clients : 1 colonne */
