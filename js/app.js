@@ -492,4 +492,23 @@ window.showTab = function(tabName) {
   });
 };
 
+// ===== SECTIONS REPLIABLES MOBILE (Analytics) =====
+document.addEventListener('click', function(e) {
+  // Toggle filtres analytics
+  const filterH4 = e.target.closest('.modern-filters h4');
+  if (filterH4) {
+    filterH4.closest('.modern-filters').classList.toggle('collapsed');
+    return;
+  }
+
+  // Toggle chart containers
+  const chartHeader = e.target.closest('.chart-header');
+  if (chartHeader) {
+    const container = chartHeader.closest('.chart-container, .modern-chart, .stats-container, .modern-stats');
+    if (container) {
+      container.classList.toggle('collapsed');
+    }
+  }
+});
+
 console.log('App.js PWA charge');

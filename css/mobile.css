@@ -193,8 +193,9 @@
   .header-quote { display: none; }
 
   /* --- CONTENU PRINCIPAL --- */
-  .tab-content { padding: 0.6rem; overflow-x: hidden; }
-  .app-container { overflow-x: hidden; }
+  .tab-content { padding: 0.6rem; overflow-x: hidden !important; }
+  .app-container { overflow-x: hidden !important; }
+  body { overflow-x: hidden !important; }
 
   /* ============================
      DASHBOARD - KPIs 2 colonnes + RDV en premier
@@ -235,12 +236,12 @@
   .dashboard-controls button { font-size: 0.8rem; padding: 0.4rem 0.7rem; }
 
   /* ============================
-     CALENDRIER - Compact et lisible
+     CALENDRIER - Cellules lisibles avec heures
      ============================ */
   .calendar-header {
     flex-direction: column;
     text-align: center;
-    gap: 0.4rem;
+    gap: 0.3rem;
     margin-bottom: 0.5rem;
   }
   .calendar-header h2 { font-size: 1rem; margin: 0; }
@@ -249,36 +250,43 @@
     display: flex;
     justify-content: center;
     flex-wrap: wrap;
-    gap: 0.3rem;
+    gap: 0.25rem;
   }
   .calendar-controls button,
   .calendar-controls .btn-primary,
   .calendar-controls .btn-secondary {
-    padding: 0.4rem 0.65rem;
-    font-size: 0.75rem;
-    min-height: 36px;
+    padding: 0.35rem 0.55rem;
+    font-size: 0.72rem;
+    min-height: 34px;
   }
 
   .calendar-header-cell {
-    padding: 0.35rem 0;
-    font-size: 0.65rem;
+    padding: 0.3rem 0;
+    font-size: 0.6rem;
     letter-spacing: -0.5px;
   }
 
+  /* Cellules avec hauteur adaptative */
   .calendar-day {
-    min-height: 65px;
-    padding: 0.15rem;
+    min-height: 52px;
+    padding: 2px;
+    overflow: hidden;
   }
-  .calendar-day-number { font-size: 0.65rem; font-weight: 600; margin-bottom: 1px; }
+  .calendar-day-number {
+    font-size: 0.6rem;
+    font-weight: 700;
+    margin-bottom: 1px;
+    line-height: 1;
+  }
 
-  /* RDV dans le calendrier : compact avec heure visible */
+  /* RDV : juste l'heure en mini tag colore */
   .calendar-rdv {
-    font-size: 0.55rem !important;
+    font-size: 0.48rem !important;
     padding: 1px 2px !important;
-    border-radius: 3px !important;
+    border-radius: 2px !important;
     margin-bottom: 1px !important;
     min-height: auto !important;
-    line-height: 1.1 !important;
+    line-height: 1 !important;
     overflow: hidden !important;
     white-space: nowrap !important;
     text-overflow: ellipsis !important;
@@ -286,16 +294,18 @@
     max-width: 100% !important;
   }
 
-  /* Institut badge compact */
+  /* Institut badge : garder visible et cliquable */
   .institut-badge {
-    font-size: 0.5rem !important;
-    padding: 0 2px !important;
-    display: block !important;
+    font-size: 0.45rem !important;
+    padding: 1px 2px !important;
+    display: inline-block !important;
     overflow: hidden !important;
     white-space: nowrap !important;
     text-overflow: ellipsis !important;
     max-width: 100% !important;
-    line-height: 1.2 !important;
+    line-height: 1 !important;
+    border-radius: 2px !important;
+    cursor: pointer;
   }
 
   /* ============================
@@ -379,58 +389,69 @@
   /* ============================
      BONS CADEAUX - Compact
      ============================ */
-  /* Header compact */
   #bons-cadeaux > div:first-child {
     flex-direction: column !important;
-    gap: 0.5rem !important;
+    gap: 0.4rem !important;
     align-items: stretch !important;
   }
-  #bons-cadeaux > div:first-child h2 { font-size: 1rem; text-align: center; }
+  #bons-cadeaux > div:first-child h2 { font-size: 0.95rem; text-align: center; margin-bottom: 0 !important; }
 
-  /* Stats en ligne */
+  /* Stats (Actifs, Utilises, Expires, A honorer) : TOUT sur 1 ligne */
+  .bons-cadeaux-header > div:first-child,
   #bons-cadeaux > div:first-child > div:first-child {
     display: flex !important;
-    flex-wrap: wrap !important;
+    flex-wrap: nowrap !important;
     justify-content: center !important;
-    gap: 0.4rem !important;
-    font-size: 0.8rem;
-  }
-
-  /* Search + bouton + filtre en ligne */
-  #bons-cadeaux > div:first-child > div:nth-child(2),
-  #bons-cadeaux > div:first-child > div:nth-child(3) {
-    flex-direction: row !important;
-    gap: 0.4rem !important;
+    gap: 0.5rem !important;
+    font-size: 0.7rem !important;
     align-items: center !important;
   }
+  .bons-cadeaux-header > div:first-child > span,
+  #bons-cadeaux > div:first-child > div:first-child > span {
+    white-space: nowrap;
+    font-size: 0.7rem;
+  }
 
+  /* Search + bouton + filtre en 1 ligne */
   #bons-cadeaux input[type="text"] {
     max-width: none !important;
     min-width: 0 !important;
     flex: 1 !important;
+    font-size: 0.8rem;
   }
+  #bons-cadeaux select { font-size: 0.8rem; min-height: 34px; }
 
   /* Grid des bons : 1 colonne */
   #bons-cadeaux-list {
     grid-template-columns: 1fr !important;
-    gap: 0.6rem !important;
+    gap: 0.5rem !important;
   }
 
-  /* Card bon cadeau compact */
+  /* Card bon cadeau : montant + statut sur la meme ligne */
   .bon-cadeau-card {
-    padding: 0.75rem !important;
+    padding: 0.6rem !important;
   }
   .bon-cadeau-header {
-    display: flex;
-    align-items: center;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
     gap: 0.5rem;
-    margin-bottom: 0.3rem;
+    margin-bottom: 0.2rem;
   }
-  .bon-cadeau-montant { font-size: 1.1rem !important; }
-  .bon-cadeau-description { font-size: 0.85rem; margin: 0.3rem 0; }
-  .bon-cadeau-info { font-size: 0.8rem; }
-  .bon-cadeau-info p { margin: 0.15rem 0; }
-  .bon-cadeau-dates { font-size: 0.75rem; margin: 0.3rem 0; }
+  .bon-cadeau-montant {
+    font-size: 1rem !important;
+    margin: 0 !important;
+    text-align: left !important;
+  }
+  .bon-cadeau-statut {
+    font-size: 0.7rem !important;
+    margin: 0 !important;
+  }
+  .bon-cadeau-description { font-size: 0.8rem; margin: 0.2rem 0; }
+  .bon-cadeau-info { font-size: 0.75rem; }
+  .bon-cadeau-info p { margin: 0.1rem 0; }
+  .bon-cadeau-dates { font-size: 0.7rem; margin: 0.2rem 0; }
   .bon-cadeau-actions {
     display: flex !important;
     flex-direction: row !important;
@@ -665,37 +686,84 @@
     min-height: 32px !important;
   }
 
-  /* Charts */
+  /* Charts - repliables */
   .chart-container, .modern-chart {
     grid-column: auto !important;
     grid-row: auto !important;
   }
   .chart-header {
-    flex-direction: column !important;
-    gap: 0.3rem;
-    text-align: center;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: center !important;
     padding: 0.5rem !important;
+    cursor: pointer;
   }
-  .chart-header h3 { font-size: 0.9rem; }
-  .chart-wrapper {
-    padding: 0.25rem;
-    min-height: 200px !important;
+  .chart-header h3 {
+    font-size: 0.85rem;
+    margin: 0;
+  }
+  .chart-header::after {
+    content: "▼";
+    font-size: 0.55rem;
+    color: var(--text-light);
+    transition: transform 0.2s;
+  }
+  .chart-container.collapsed .chart-header::after,
+  .modern-chart.collapsed .chart-header::after {
+    transform: rotate(-90deg);
+  }
+  .chart-container.collapsed .chart-wrapper,
+  .modern-chart.collapsed .chart-wrapper,
+  .chart-container.collapsed .chart-stats,
+  .modern-chart.collapsed .chart-stats {
+    display: none !important;
+  }
+  /* Stats container aussi repliable */
+  .stats-container.collapsed .stats-grid,
+  .modern-stats.collapsed .stats-grid {
+    display: none !important;
   }
 
-  /* Filter pills - 2 colonnes compactes */
-  .modern-filters { padding: 0.5rem !important; }
-  .modern-filters h4 { font-size: 0.85rem; margin-bottom: 0.3rem; }
+  .chart-wrapper {
+    padding: 0.25rem;
+    min-height: 180px !important;
+  }
+
+  /* Filter pills - repliables sur mobile */
+  .modern-filters {
+    padding: 0.4rem !important;
+  }
+  .modern-filters h4 {
+    font-size: 0.8rem;
+    margin-bottom: 0.2rem;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .modern-filters h4::after {
+    content: "▼";
+    font-size: 0.6rem;
+    transition: transform 0.2s;
+  }
+  .modern-filters.collapsed h4::after {
+    transform: rotate(-90deg);
+  }
+  .modern-filters.collapsed .filter-pills {
+    display: none !important;
+  }
+
   .filter-pills {
     display: grid !important;
     grid-template-columns: 1fr 1fr !important;
-    gap: 0.3rem !important;
+    gap: 0.25rem !important;
     flex-direction: unset !important;
   }
   .filter-pill {
     min-width: auto !important;
-    padding: 0.3rem 0.5rem !important;
-    font-size: 0.72rem;
-    min-height: 32px !important;
+    padding: 0.25rem 0.4rem !important;
+    font-size: 0.68rem;
+    min-height: 28px !important;
     border-radius: 16px !important;
   }
   .pill-content { font-size: 0.72rem; }
