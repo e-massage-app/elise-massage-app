@@ -221,7 +221,7 @@
     text-align: center;
   }
   .kpi-label { font-size: 0.7rem; margin-bottom: 0.2rem; }
-  .kpi-value { font-size: 1rem; }
+  .kpi-value { font-size: 0.95rem !important; }
 
   .rdv-section h2 { font-size: 1rem; margin-bottom: 0.5rem; }
   .rdv-list { max-height: none !important; }

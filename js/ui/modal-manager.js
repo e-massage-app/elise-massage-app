@@ -1504,7 +1504,7 @@ function showParametresModal() {
     <div class="parametres-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
 
       <!-- Mon salon -->
-      <div class="parametres-card" onclick="showParametresSalonModal()" style="cursor: pointer; padding: 1.25rem; background: #fff; border-radius: 12px; border: 1px solid #eee; transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.04);"
+      <div class="parametres-card" onclick="showParametresSalonModal()" style="cursor: pointer; padding: 1.25rem; background: #fff; border-radius: 12px; border: 1px solid #eee; transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
         <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
           <div style="width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, var(--rose-poudre), var(--rose-accent)); display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
             🏠
@@ -1522,7 +1522,7 @@ function showParametresModal() {
       </div>
 
       <!-- Vehicule -->
-      <div class="parametres-card" onclick="showParametresVehiculeModal()" style="cursor: pointer; padding: 1.25rem; background: #fff; border-radius: 12px; border: 1px solid #eee; transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.04);"
+      <div class="parametres-card" onclick="showParametresVehiculeModal()" style="cursor: pointer; padding: 1.25rem; background: #fff; border-radius: 12px; border: 1px solid #eee; transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
         <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
           <div style="width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #e8f4fd, #bde0fe); display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
             🚗
@@ -1538,7 +1538,7 @@ function showParametresModal() {
       </div>
 
       <!-- Carte des soins -->
-      <div class="parametres-card" onclick="showCarteSoinsModal()" style="cursor: pointer; padding: 1.25rem; background: #fff; border-radius: 12px; border: 1px solid #eee; transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.04);"
+      <div class="parametres-card" onclick="showCarteSoinsModal()" style="cursor: pointer; padding: 1.25rem; background: #fff; border-radius: 12px; border: 1px solid #eee; transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
         <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
           <div style="width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #fef3e2, #fdd89b); display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
             💆
@@ -1554,7 +1554,7 @@ function showParametresModal() {
       </div>
 
       <!-- Google Ads -->
-      <div class="parametres-card" onclick="showParametresGoogleAdsModal()" style="cursor: pointer; padding: 1.25rem; background: #fff; border-radius: 12px; border: 1px solid #eee; transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.04);"
+      <div class="parametres-card" onclick="showParametresGoogleAdsModal()" style="cursor: pointer; padding: 1.25rem; background: #fff; border-radius: 12px; border: 1px solid #eee; transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
         <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
           <div style="width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #e8f0fe, #c2d7fe); display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
             📊
@@ -1572,7 +1572,7 @@ function showParametresModal() {
       <!-- Sauvegarde supprimee (geree par Supabase) -->
 
       <!-- Abonnements -->
-      <div class="parametres-card" onclick="showParametresAbonnementsModal()" style="cursor: pointer; padding: 1.25rem; background: #fff; border-radius: 12px; border: 1px solid #eee; transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.04);"
+      <div class="parametres-card" onclick="showParametresAbonnementsModal()" style="cursor: pointer; padding: 1.25rem; background: #fff; border-radius: 12px; border: 1px solid #eee; transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
         <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
           <div style="width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #fce4ec, #f8bbd0); display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
             🔄
@@ -1588,7 +1588,7 @@ function showParametresModal() {
       </div>
 
       <!-- API OpenRoute -->
-      <div class="parametres-card" onclick="showParametresApiModal()" style="cursor: pointer; padding: 1.25rem; background: #fff; border-radius: 12px; border: 1px solid #eee; transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.04);"
+      <div class="parametres-card" onclick="showParametresApiModal()" style="cursor: pointer; padding: 1.25rem; background: #fff; border-radius: 12px; border: 1px solid #eee; transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
         <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
           <div style="width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #e3f2fd, #90caf9); display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
             🗺️
