@@ -15,7 +15,8 @@ PWA de gestion pour Elise Massage, deployee sur GitHub Pages avec Supabase comme
 
 ### GitHub Pages
 - Repo : `e-massage-app/elise-massage-app` (prive)
-- URL : `https://e-massage-app.github.io/elise-massage-app/`
+- URL : `https://app.elise-massage.fr` (custom domain via CNAME OVH)
+- URL alternative : `https://e-massage-app.github.io/elise-massage-app/`
 - Branche : `main` / root `/`
 - Chaque push declenche un re-deploy automatique (~1-2min)
 
