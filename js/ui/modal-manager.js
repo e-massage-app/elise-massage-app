@@ -2125,6 +2125,7 @@ async function genererDepensesAbonnements() {
   const moisCourant = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
   let count = 0;
+  const depensesToInsert = [];
 
   actifs.forEach(abo => {
     const jourPrelevement = abo.jourPrelevement || 1;
@@ -2142,7 +2143,7 @@ async function genererDepensesAbonnements() {
     if (!dejaExiste) {
       const jour = String(jourPrelevement).padStart(2, '0');
       const dateDepense = `${moisCourant}-${jour}`;
-      appData.depenses.push({
+      const newDepense = {
         id: DataManager.generateId(),
         date: dateDepense,
         montant: abo.montant,
@@ -2152,14 +2153,20 @@ async function genererDepensesAbonnements() {
         notes: 'Genere automatiquement',
         type: 'abonnement-auto',
         abonnementNom: abo.nom
-      });
+      };
+      appData.depenses.push(newDepense);
+      depensesToInsert.push(newDepense);
       count++;
     }
   });
 
+  // Persister dans Supabase
+  for (const dep of depensesToInsert) {
+    try { await DataManager.insertEntity('depenses', dep, DataManager.mapDepenseToDb); } catch(e) { console.error('Erreur insert abonnement:', e); }
+  }
+
   if (count > 0) {
-    await DataManager.saveData();
-    console.log(`✅ ${count} depense(s) d'abonnement generee(s) pour ${moisCourant}`);
+    console.log(`${count} depense(s) d'abonnement generee(s) pour ${moisCourant}`);
   }
 }
 

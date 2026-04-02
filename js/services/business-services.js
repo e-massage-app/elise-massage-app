@@ -1,10 +1,26 @@
 // ===== js/services/business-services.js =====
-// Gestion des RDV et Prestations (logique métier)
+// Gestion des RDV et Prestations (logique metier)
+// Version PWA : chaque mutation persiste dans Supabase
+
+// ===== HELPER : persister silencieusement =====
+async function _persist(table, action, data, mapFn) {
+  try {
+    if (action === 'insert') {
+      await DataManager.insertEntity(table, data, mapFn);
+    } else if (action === 'update') {
+      await DataManager.updateEntity(table, data.id, data, mapFn);
+    } else if (action === 'delete') {
+      await DataManager.deleteEntity(table, data);
+    }
+  } catch (err) {
+    console.error(`Erreur persistence ${table}/${action}:`, err);
+  }
+}
 
 // ===== GESTION RDV =====
-function createRdv(formData) {
+async function createRdv(formData) {
   const appData = DataManager.getAppData();
-  
+
   const rdv = {
     id: formData.id || DataManager.generateId(),
     clientId: formData.clientId,
@@ -15,114 +31,107 @@ function createRdv(formData) {
     duree: formData.duree,
     statut: formData.statut,
     notes: formData.notes,
-    // NOUVEAUX CHAMPS POUR FRAIS DE DÉPLACEMENT
     adresseMassage: formData.adresseMassage || '',
     distanceKm: formData.distanceKm || 0,
     fraisDeplacement: formData.fraisDeplacement || 0,
-    // CHAMP SEXE POUR STATISTIQUES
     sexe: formData.sexe || ''
   };
-  
-  if (formData.id && DataManager.getEditingId()) {
+
+  const isEdit = formData.id && DataManager.getEditingId();
+  if (isEdit) {
     const index = appData.rdv.findIndex(r => r.id === DataManager.getEditingId());
     if (index !== -1) {
       appData.rdv[index] = rdv;
+      await _persist('rdv', 'update', rdv, DataManager.mapRdvToDb);
     }
   } else {
     appData.rdv.push(rdv);
+    await _persist('rdv', 'insert', rdv, DataManager.mapRdvToDb);
   }
-  
+
   return rdv;
 }
 
-function deleteRdvById(rdvId) {
+async function deleteRdvById(rdvId) {
   const appData = DataManager.getAppData();
   appData.rdv = appData.rdv.filter(r => r.id !== rdvId);
+  await _persist('rdv', 'delete', rdvId);
 }
 
-function transformRdvToPrestation(rdvId) {
+async function transformRdvToPrestation(rdvId) {
   const appData = DataManager.getAppData();
   const rdvIndex = appData.rdv.findIndex(r => r.id === rdvId);
   if (rdvIndex !== -1) {
     const rdv = appData.rdv[rdvIndex];
-    
-    // D'abord supprimer toute prestation existante sur ce créneau pour éviter les doublons
-    appData.prestations = appData.prestations.filter(p => 
-      !(p.date === rdv.date && 
-        p.heure === rdv.heure && 
-        p.clientId === rdv.clientId)
+
+    // Supprimer prestations existantes sur ce creneau
+    const prestsToRemove = appData.prestations.filter(p =>
+      p.date === rdv.date && p.heure === rdv.heure && p.clientId === rdv.clientId
     );
-    
-    // Ensuite marquer le RDV comme transformé
+    appData.prestations = appData.prestations.filter(p =>
+      !(p.date === rdv.date && p.heure === rdv.heure && p.clientId === rdv.clientId)
+    );
+    for (const p of prestsToRemove) {
+      await _persist('prestations', 'delete', p.id);
+    }
+
+    // Marquer le RDV comme transforme
     appData.rdv[rdvIndex].transformeEnPrestation = true;
+    await _persist('rdv', 'update', appData.rdv[rdvIndex], DataManager.mapRdvToDb);
   }
 }
 
-function annulerTransformationRdv(rdvId) {
+async function annulerTransformationRdv(rdvId) {
   const appData = DataManager.getAppData();
   const rdvIndex = appData.rdv.findIndex(r => r.id === rdvId);
   if (rdvIndex !== -1) {
     const rdv = appData.rdv[rdvIndex];
-    
-    // Retirer le marquage de transformation
+
     delete appData.rdv[rdvIndex].transformeEnPrestation;
-    
-    // ✅ CORRECTION : Récupérer les IDs des prestations à supprimer pour supprimer leurs dépenses aussi
+    appData.rdv[rdvIndex].transformeEnPrestation = false;
+    await _persist('rdv', 'update', appData.rdv[rdvIndex], DataManager.mapRdvToDb);
+
+    // Supprimer depenses liees aux prestations
     const prestationsASupprimer = appData.prestations.filter(p => {
       const isSameSlot = p.date === rdv.date && p.heure === rdv.heure && p.clientId === rdv.clientId;
-      const isTransformedFromThisRdv = p.isTransformed && isSameSlot;
-      return isSameSlot || isTransformedFromThisRdv;
+      return isSameSlot || (p.isTransformed && isSameSlot);
     });
-    
-    // ✅ CORRECTION : Supprimer les dépenses transport liées aux prestations supprimées
-    if (appData.depenses && prestationsASupprimer.length > 0) {
-      const depensesAvant = appData.depenses.length;
-      
-      prestationsASupprimer.forEach(prestation => {
-        // Supprimer les dépenses liées à cette prestation
-        appData.depenses = appData.depenses.filter(d => d.prestationId !== prestation.id);
-      });
-      
-      const depensesApres = appData.depenses.length;
-      if (depensesAvant > depensesApres) {
 
+    if (appData.depenses) {
+      for (const prestation of prestationsASupprimer) {
+        const depensesToRemove = appData.depenses.filter(d => d.prestationId === prestation.id);
+        appData.depenses = appData.depenses.filter(d => d.prestationId !== prestation.id);
+        for (const d of depensesToRemove) {
+          await _persist('depenses', 'delete', d.id);
+        }
       }
     }
-    
-    // Supprimer TOUTES les prestations correspondantes (par date/heure/client ET par transformation)
+
+    // Supprimer les prestations
     appData.prestations = appData.prestations.filter(p => {
-      // Supprimer si c'est la même date/heure/client OU si c'est marqué comme transformé du même RDV
       const isSameSlot = p.date === rdv.date && p.heure === rdv.heure && p.clientId === rdv.clientId;
-      const isTransformedFromThisRdv = p.isTransformed && isSameSlot;
-      
-      return !(isSameSlot || isTransformedFromThisRdv);
+      return !(isSameSlot || (p.isTransformed && isSameSlot));
     });
-    
-    // ✅ CORRECTION : Rafraîchir les vues après l'annulation
-    if (window.ViewManager) {
-      if (typeof window.ViewManager.updateCalendar === 'function') {
-        window.ViewManager.updateCalendar();
-      }
-      if (typeof window.ViewManager.updateDashboard === 'function') {
-        window.ViewManager.updateDashboard();
-      }
-      if (typeof window.ViewManager.updateDepensesDisplay === 'function') {
-        window.ViewManager.updateDepensesDisplay();
-      }
-      if (typeof window.ViewManager.updatePrestationsTable === 'function') {
-        window.ViewManager.updatePrestationsTable();
-      }
+    for (const p of prestationsASupprimer) {
+      await _persist('prestations', 'delete', p.id);
     }
-    
+
+    if (window.ViewManager) {
+      if (typeof window.ViewManager.updateCalendar === 'function') window.ViewManager.updateCalendar();
+      if (typeof window.ViewManager.updateDashboard === 'function') window.ViewManager.updateDashboard();
+      if (typeof window.ViewManager.updateDepensesDisplay === 'function') window.ViewManager.updateDepensesDisplay();
+      if (typeof window.ViewManager.updatePrestationsTable === 'function') window.ViewManager.updatePrestationsTable();
+    }
+
     return true;
   }
   return false;
 }
 
 // ===== GESTION PRESTATIONS =====
-function createPrestation(formData) {
+async function createPrestation(formData) {
   const appData = DataManager.getAppData();
-  
+
   const prestation = {
     id: formData.id || DataManager.generateId(),
     date: formData.date,
@@ -135,177 +144,124 @@ function createPrestation(formData) {
     tips: formData.tips || 0,
     notes: formData.notes,
     isTransformed: formData.isTransformed || false,
-    // NOUVEAUX CHAMPS POUR FRAIS DE DÉPLACEMENT
     adresseMassage: formData.adresseMassage || '',
     distanceKm: formData.distanceKm || 0,
     fraisDeplacement: formData.fraisDeplacement || 0,
-    // NOUVEAU CHAMP POUR MOYEN DE PAIEMENT
     moyenPaiement: formData.moyenPaiement || ''
   };
-  
-  if (formData.id && DataManager.getEditingId()) {
+
+  const isEdit = formData.id && DataManager.getEditingId();
+  if (isEdit) {
     const index = appData.prestations.findIndex(p => p.id === DataManager.getEditingId());
     if (index !== -1) {
       appData.prestations[index] = prestation;
+      await _persist('prestations', 'update', prestation, DataManager.mapPrestationToDb);
     }
   } else {
     appData.prestations.push(prestation);
+    await _persist('prestations', 'insert', prestation, DataManager.mapPrestationToDb);
   }
-  
-  // NOUVEAU : Créer automatiquement une dépense Transport si frais de déplacement
+
+  // Creer automatiquement une depense Transport si frais de deplacement
   if (formData.fraisDeplacement > 0) {
-    createAutomaticTransportDepense(prestation);
+    await createAutomaticTransportDepense(prestation);
   }
-  
-  // ✅ CORRECTION : Rafraîchir le calendrier après ajout/modification
-  if (window.ViewManager && typeof window.ViewManager.updateCalendar === 'function') {
-    window.ViewManager.updateCalendar();
+
+  if (window.ViewManager) {
+    if (typeof window.ViewManager.updateCalendar === 'function') window.ViewManager.updateCalendar();
+    if (typeof window.ViewManager.updateDashboard === 'function') window.ViewManager.updateDashboard();
   }
-  
-  // ✅ CORRECTION : Rafraîchir le dashboard aussi pour les KPIs
-  if (window.ViewManager && typeof window.ViewManager.updateDashboard === 'function') {
-    window.ViewManager.updateDashboard();
-  }
-  
+
   return prestation;
 }
 
-// NOUVELLE FONCTION : Créer automatiquement une dépense Transport
-function createAutomaticTransportDepense(prestation) {
+async function createAutomaticTransportDepense(prestation) {
   const appData = DataManager.getAppData();
-  if (!appData.depenses) {
-    appData.depenses = [];
-  }
-  
+  if (!appData.depenses) appData.depenses = [];
+
   const client = appData.clients.find(c => c.id === prestation.clientId);
   const clientNom = client ? `${client.prenom} ${client.nom}` : 'Client';
-  
+
   const depenseTransport = {
     id: DataManager.generateId(),
     date: prestation.date,
     montant: prestation.fraisDeplacement,
     categorie: 'Transport',
-    fournisseur: 'Frais kilométriques',
-    description: `Déplacement ${prestation.type} - ${clientNom} (${prestation.distanceKm}km A/R)`,
-    notes: `Généré automatiquement depuis prestation ${prestation.id}`,
-    prestationId: prestation.id // Lien vers la prestation
+    fournisseur: 'Frais kilometriques',
+    description: `Deplacement ${prestation.type} - ${clientNom} (${prestation.distanceKm}km A/R)`,
+    notes: `Genere automatiquement depuis prestation ${prestation.id}`,
+    prestationId: prestation.id
   };
-  
+
   appData.depenses.push(depenseTransport);
+  await _persist('depenses', 'insert', depenseTransport, DataManager.mapDepenseToDb);
 }
 
-function deletePrestationById(prestationId) {
+async function deletePrestationById(prestationId) {
   const appData = DataManager.getAppData();
-  
-  // ✅ CORRECTION : Supprimer aussi la dépense transport automatique associée si elle existe
+
+  // Supprimer les depenses transport associees
   if (appData.depenses) {
-    const depensesAvant = appData.depenses.length;
+    const depensesToRemove = appData.depenses.filter(d => d.prestationId === prestationId);
     appData.depenses = appData.depenses.filter(d => d.prestationId !== prestationId);
-    const depensesApres = appData.depenses.length;
-    
-    if (depensesAvant > depensesApres) {
+    for (const d of depensesToRemove) {
+      await _persist('depenses', 'delete', d.id);
     }
   }
-  
-  // Supprimer la prestation
-  const prestationsAvant = appData.prestations.length;
+
   appData.prestations = appData.prestations.filter(p => p.id !== prestationId);
-  const prestationsApres = appData.prestations.length;
-  
-  // ✅ CORRECTION : Rafraîchir les vues après suppression
-  if (prestationsAvant > prestationsApres) {
-    
-    // Rafraîchir le calendrier
-    if (window.ViewManager && typeof window.ViewManager.updateCalendar === 'function') {
-      window.ViewManager.updateCalendar();
-    }
-    
-    // Rafraîchir le dashboard
-    if (window.ViewManager && typeof window.ViewManager.updateDashboard === 'function') {
-      window.ViewManager.updateDashboard();
-    }
-    
-    // Rafraîchir la table des dépenses si on est sur cet onglet
-    if (window.ViewManager && typeof window.ViewManager.updateDepensesDisplay === 'function') {
-      window.ViewManager.updateDepensesDisplay();
-    }
-    
-    // Rafraîchir la table des prestations
-    if (window.ViewManager && typeof window.ViewManager.updatePrestationsTable === 'function') {
-      window.ViewManager.updatePrestationsTable();
-    }
+  await _persist('prestations', 'delete', prestationId);
+
+  if (window.ViewManager) {
+    if (typeof window.ViewManager.updateCalendar === 'function') window.ViewManager.updateCalendar();
+    if (typeof window.ViewManager.updateDashboard === 'function') window.ViewManager.updateDashboard();
+    if (typeof window.ViewManager.updateDepensesDisplay === 'function') window.ViewManager.updateDepensesDisplay();
+    if (typeof window.ViewManager.updatePrestationsTable === 'function') window.ViewManager.updatePrestationsTable();
   }
 }
 
-// 🔄 MIGRATION DES FRAIS DE DÉPLACEMENT EXISTANTS
-function migrerToutesPrestationsExistantes() {
-  
+// Migration des frais de deplacement existants
+async function migrerToutesPrestationsExistantes() {
   const appData = DataManager.getAppData();
-  if (!appData.depenses) {
-    appData.depenses = [];
-  }
-  
-  let prestationsMigrees = 0;
+  if (!appData.depenses) appData.depenses = [];
+
   let depensesCreees = 0;
-  let depensesIgnorees = 0;
-  
-  // Parcourir toutes les prestations existantes
-  appData.prestations.forEach(prestation => {
-    // Vérifier si elle a des frais de déplacement
+
+  for (const prestation of appData.prestations) {
     if (prestation.fraisDeplacement && prestation.fraisDeplacement > 0) {
-      
-      // Vérifier si une dépense transport existe déjà pour cette prestation
-      const depenseExistante = appData.depenses.find(d => 
-        d.prestationId === prestation.id && 
-        d.categorie === 'Transport'
+      const depenseExistante = appData.depenses.find(d =>
+        d.prestationId === prestation.id && d.categorie === 'Transport'
       );
-      
-      // Si pas de dépense existante, créer
+
       if (!depenseExistante) {
         const client = appData.clients.find(c => c.id === prestation.clientId);
         const clientNom = client ? `${client.prenom} ${client.nom}` : 'Client';
-        
-        const nouvelleDépense = {
+
+        const nouvelleDepense = {
           id: DataManager.generateId(),
           date: prestation.date,
           categorie: 'Transport',
-          description: `Déplacement ${prestation.type} - ${clientNom} (${prestation.distanceKm || '?'}km A/R)`,
+          description: `Deplacement ${prestation.type} - ${clientNom} (${prestation.distanceKm || '?'}km A/R)`,
           montant: prestation.fraisDeplacement,
-          fournisseur: 'Frais kilométriques',
-          prestationId: prestation.id, // Lien vers la prestation
-          notes: `Généré automatiquement depuis prestation ${prestation.id} (migration)`
+          fournisseur: 'Frais kilometriques',
+          prestationId: prestation.id,
+          notes: `Genere automatiquement (migration)`
         };
-        
-        appData.depenses.push(nouvelleDépense);
+
+        appData.depenses.push(nouvelleDepense);
+        await _persist('depenses', 'insert', nouvelleDepense, DataManager.mapDepenseToDb);
         depensesCreees++;
-        
-      } else {
-        depensesIgnorees++;
       }
-      
-      prestationsMigrees++;
     }
-  });
-  
-  console.log(`🎉 Migration terminée:`);
-  console.log(`   📋 ${prestationsMigrees} prestations avec frais de déplacement trouvées`);
-  console.log(`   ✅ ${depensesCreees} nouvelles dépenses transport créées`);
-  console.log(`   ⚠️ ${depensesIgnorees} dépenses déjà existantes (ignorées)`);
-  
-  // Sauvegarder immédiatement
-  DataManager.saveData();
-  
-  return {
-    prestationsMigrees,
-    depensesCreees,
-    depensesIgnorees
-  };
+  }
+
+  return { depensesCreees };
 }
 
-// ===== GESTION DÉPENSES =====
-function createDepense(formData) {
+// ===== GESTION DEPENSES =====
+async function createDepense(formData) {
   const appData = DataManager.getAppData();
-  
+
   const depense = {
     id: formData.id || DataManager.generateId(),
     date: formData.date,
@@ -315,100 +271,93 @@ function createDepense(formData) {
     description: formData.description,
     notes: formData.notes
   };
-  
-  if (!appData.depenses) {
-    appData.depenses = [];
-  }
-  
-  if (formData.id && DataManager.getEditingId()) {
+
+  if (!appData.depenses) appData.depenses = [];
+
+  const isEdit = formData.id && DataManager.getEditingId();
+  if (isEdit) {
     const index = appData.depenses.findIndex(d => d.id === DataManager.getEditingId());
     if (index !== -1) {
       appData.depenses[index] = depense;
+      await _persist('depenses', 'update', depense, DataManager.mapDepenseToDb);
     }
   } else {
     appData.depenses.push(depense);
+    await _persist('depenses', 'insert', depense, DataManager.mapDepenseToDb);
   }
-  
+
   return depense;
 }
 
-function deleteDepenseById(depenseId) {
+async function deleteDepenseById(depenseId) {
   const appData = DataManager.getAppData();
   if (!appData.depenses) return;
   appData.depenses = appData.depenses.filter(d => d.id !== depenseId);
+  await _persist('depenses', 'delete', depenseId);
 }
 
-// ===== CALCUL FRAIS DE DÉPLACEMENT - FONCTIONS INTERFACE =====
-
-// Fonction pour calculer distance et coût automatiquement
+// ===== CALCUL FRAIS DE DEPLACEMENT =====
 async function calculateDistanceAndCost(inputId, distanceId, fraisId) {
   const adresseInput = document.getElementById(inputId);
   const distanceHidden = document.getElementById(distanceId);
   const fraisHidden = document.getElementById(fraisId);
   const resultDiv = document.getElementById(`${inputId}-result`);
-  
+
   const adresseMassage = adresseInput.value.trim();
-  
+
   if (!adresseMassage) {
-    resultDiv.innerHTML = '<span style="color: #e74c3c;">❌ Veuillez saisir une adresse</span>';
+    resultDiv.innerHTML = '<span style="color: #e74c3c;">Veuillez saisir une adresse</span>';
     return;
   }
-  
-  // Vérifier que l'adresse du salon est configurée
+
   if (!DataManager.isAdresseSalonConfigured()) {
-    resultDiv.innerHTML = '<span style="color: #e74c3c;">❌ Adresse du salon non configurée dans les paramètres</span>';
+    resultDiv.innerHTML = '<span style="color: #e74c3c;">Adresse du salon non configuree dans les parametres</span>';
     return;
   }
-  
-  resultDiv.innerHTML = '<span style="color: #f39c12;">🔄 Calcul en cours...</span>';
-  
+
+  resultDiv.innerHTML = '<span style="color: #f39c12;">Calcul en cours...</span>';
+
   try {
     const adresseSalon = DataManager.getAdresseSalon();
     const distanceResult = await Calculations.calculateDistance(adresseSalon, adresseMassage);
-    
+
     if (distanceResult.error) {
-      resultDiv.innerHTML = `<span style="color: #e74c3c;">❌ ${distanceResult.error}</span>`;
+      resultDiv.innerHTML = `<span style="color: #e74c3c;">${distanceResult.error}</span>`;
       distanceHidden.value = '0';
       fraisHidden.value = '0';
       return;
     }
-    
+
     const distanceKm = distanceResult.distanceKm;
     const fraisDeplacement = DataManager.calculateFraisDeplacement(distanceKm);
-    
-    // Sauvegarder les valeurs calculées
+
     distanceHidden.value = distanceKm;
     fraisHidden.value = fraisDeplacement;
-    
-    // Afficher le résultat
+
     if (distanceKm === 0 || fraisDeplacement === 0) {
-      resultDiv.innerHTML = '<span style="color: #27ae60;">✅ Massage au salon (pas de frais)</span>';
+      resultDiv.innerHTML = '<span style="color: #27ae60;">Massage au salon (pas de frais)</span>';
     } else {
-      const methodText = distanceResult.method === 'routing' ? 'Itinéraire précis' : 'Estimation route';
+      const methodText = distanceResult.method === 'routing' ? 'Itineraire precis' : 'Estimation route';
       const dureeText = distanceResult.dureeMinutes ? ` (~${distanceResult.dureeMinutes}min)` : '';
-      
       resultDiv.innerHTML = `
         <div style="background: #e8f5e8; padding: 0.5rem; border-radius: 6px; border: 1px solid #c3e6cb;">
-          <div style="color: #27ae60; font-weight: 600;">✅ Distance: ${distanceKm} km${dureeText}</div>
-          <div style="color: var(--beige-dore); font-weight: 600;">💰 Frais estimés: ${fraisDeplacement.toFixed(2)} € (A/R)</div>
-          <small style="color: #666;">${methodText} - Calcul basé sur vos paramètres</small>
+          <div style="color: #27ae60; font-weight: 600;">Distance: ${distanceKm} km${dureeText}</div>
+          <div style="color: var(--beige-dore); font-weight: 600;">Frais estimes: ${fraisDeplacement.toFixed(2)} &euro; (A/R)</div>
+          <small style="color: #666;">${methodText}</small>
         </div>
       `;
     }
   } catch (error) {
-    resultDiv.innerHTML = `<span style="color: #e74c3c;">❌ Erreur: ${error.message}</span>`;
+    resultDiv.innerHTML = `<span style="color: #e74c3c;">Erreur: ${error.message}</span>`;
     distanceHidden.value = '0';
     fraisHidden.value = '0';
   }
 }
 
-// Fonction pour gérer la saisie automatique d'adresse (optionnel - calcul au blur)
 function setupAutoCalculateAddress(inputId, distanceId, fraisId) {
   const input = document.getElementById(inputId);
   if (!input) return;
-  
   let timeoutId;
-  
   input.addEventListener('blur', () => {
     clearTimeout(timeoutId);
     timeoutId = setTimeout(() => {
@@ -423,25 +372,21 @@ function setupAutoCalculateAddress(inputId, distanceId, fraisId) {
 function generateICSCalendar() {
   const appData = DataManager.getAppData();
   const rdvFuturs = appData.rdv.filter(rdv => new Date(`${rdv.date}T${rdv.heure}`) >= new Date());
-  
+
   let icsContent = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
     'PRODID:-//Elise Massage//Agenda//FR',
     'CALSCALE:GREGORIAN'
   ];
-  
+
   rdvFuturs.forEach(rdv => {
     const client = appData.clients.find(c => c.id === rdv.clientId);
     const clientNom = client ? `${client.prenom} ${client.nom}` : 'Client';
-    
     const startDate = new Date(`${rdv.date}T${rdv.heure}`);
     const endDate = new Date(startDate.getTime() + (rdv.duree || 60) * 60 * 1000);
-    
-    const formatIcsDate = (date) => {
-      return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-    };
-    
+    const formatIcsDate = (date) => date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+
     icsContent.push(
       'BEGIN:VEVENT',
       `UID:${rdv.id}@elisemassage.local`,
@@ -449,24 +394,21 @@ function generateICSCalendar() {
       `DTSTART:${formatIcsDate(startDate)}`,
       `DTEND:${formatIcsDate(endDate)}`,
       `SUMMARY:${rdv.type} - ${clientNom}`,
-      `DESCRIPTION:Type: ${rdv.type}\\nDurée: ${rdv.duree || 60}min\\nStatut: ${rdv.statut}${rdv.notes ? '\\nNotes: ' + rdv.notes : ''}`,
-      `STATUS:${rdv.statut === 'confirmé' ? 'CONFIRMED' : 'TENTATIVE'}`,
+      `DESCRIPTION:Type: ${rdv.type}\\nDuree: ${rdv.duree || 60}min\\nStatut: ${rdv.statut}${rdv.notes ? '\\nNotes: ' + rdv.notes : ''}`,
+      `STATUS:${rdv.statut === 'confirme' ? 'CONFIRMED' : 'TENTATIVE'}`,
       'END:VEVENT'
     );
   });
-  
+
   icsContent.push('END:VCALENDAR');
   return icsContent.join('\n');
 }
 
-// ===== BONS CADEAUX - LOGIQUE MÉTIER =====
+// ===== BONS CADEAUX =====
 
-function createBonCadeau(bonData) {
+async function createBonCadeau(bonData) {
   const appData = DataManager.getAppData();
-
-  if (!appData.bonsCadeaux) {
-    appData.bonsCadeaux = [];
-  }
+  if (!appData.bonsCadeaux) appData.bonsCadeaux = [];
 
   const newBon = {
     id: bonData.id || DataManager.generateId(),
@@ -491,23 +433,16 @@ function createBonCadeau(bonData) {
   };
 
   appData.bonsCadeaux.push(newBon);
-  console.log('🎁 Bon cadeau créé:', newBon);
-
+  await _persist('bons_cadeaux', 'insert', newBon, DataManager.mapBonCadeauToDb);
   return newBon;
 }
 
-function updateBonCadeau(bonData) {
+async function updateBonCadeau(bonData) {
   const appData = DataManager.getAppData();
   const index = appData.bonsCadeaux.findIndex(b => b.id === bonData.id);
+  if (index === -1) return null;
 
-  if (index === -1) {
-    console.error('Bon cadeau non trouvé:', bonData.id);
-    return null;
-  }
-
-  // Préserver les champs qui ne doivent pas être modifiés
   const existingBon = appData.bonsCadeaux[index];
-
   appData.bonsCadeaux[index] = {
     ...existingBon,
     dateAchat: bonData.dateAchat,
@@ -526,77 +461,57 @@ function updateBonCadeau(bonData) {
     updatedAt: new Date().toISOString()
   };
 
-  console.log('🎁 Bon cadeau mis à jour:', appData.bonsCadeaux[index]);
+  await _persist('bons_cadeaux', 'update', appData.bonsCadeaux[index], DataManager.mapBonCadeauToDb);
   return appData.bonsCadeaux[index];
 }
 
-function deleteBonCadeau(bonId) {
+async function deleteBonCadeau(bonId) {
   const appData = DataManager.getAppData();
   const index = appData.bonsCadeaux.findIndex(b => b.id === bonId);
-
   if (index !== -1) {
     appData.bonsCadeaux.splice(index, 1);
-    console.log('🎁 Bon cadeau supprimé:', bonId);
+    await _persist('bons_cadeaux', 'delete', bonId);
     return true;
   }
-
   return false;
 }
 
-function rembourserBonCadeau(bonId) {
+async function rembourserBonCadeau(bonId) {
   const appData = DataManager.getAppData();
   const bon = appData.bonsCadeaux.find(b => b.id === bonId);
-
-  if (!bon) {
-    console.error('Bon cadeau non trouvé:', bonId);
-    return false;
-  }
+  if (!bon) return false;
 
   bon.statut = 'rembourse';
   bon.dateRemboursement = new Date().toISOString().split('T')[0];
-  console.log('🎁 Bon cadeau remboursé:', bon);
-
+  await _persist('bons_cadeaux', 'update', bon, DataManager.mapBonCadeauToDb);
   return true;
 }
 
-function forcerUtilisationBonExpire(bonId) {
+async function forcerUtilisationBonExpire(bonId) {
   const appData = DataManager.getAppData();
   const bon = appData.bonsCadeaux.find(b => b.id === bonId);
+  if (!bon) return false;
 
-  if (!bon) {
-    console.error('Bon cadeau non trouvé:', bonId);
-    return false;
-  }
-
-  // Remettre le bon en actif pour qu'il puisse être utilisé
   bon.statut = 'actif';
   bon.forceUtilise = true;
-  console.log('🎁 Bon cadeau expiré forcé pour utilisation:', bon);
-
+  await _persist('bons_cadeaux', 'update', bon, DataManager.mapBonCadeauToDb);
   return true;
 }
 
-function utiliserBonCadeau(bonId, prestationId) {
+async function utiliserBonCadeau(bonId, prestationId) {
   const appData = DataManager.getAppData();
   const bon = appData.bonsCadeaux.find(b => b.id === bonId);
-
-  if (!bon) {
-    console.error('Bon cadeau non trouvé:', bonId);
-    return false;
-  }
+  if (!bon) return false;
 
   bon.statut = 'utilise';
   bon.prestationId = prestationId;
   bon.dateUtilisation = new Date().toISOString().split('T')[0];
-
-  console.log('🎁 Bon cadeau utilisé:', bon);
+  await _persist('bons_cadeaux', 'update', bon, DataManager.mapBonCadeauToDb);
   return true;
 }
 
-function createClientMinimal(nomComplet) {
+async function createClientMinimal(nomComplet) {
   const appData = DataManager.getAppData();
-
-  // Essayer de séparer prénom et nom
   const parts = nomComplet.trim().split(' ');
   let prenom = parts[0] || nomComplet;
   let nom = parts.slice(1).join(' ') || '';
@@ -609,61 +524,41 @@ function createClientMinimal(nomComplet) {
     email: '',
     adresse: '',
     ville: '',
-    preferences: {},
-    notes: 'Client créé automatiquement depuis un bon cadeau',
+    notes: 'Client cree automatiquement depuis un bon cadeau',
     tags: [],
     createdAt: new Date().toISOString()
   };
 
   appData.clients.push(newClient);
-  console.log('👤 Client minimal créé depuis bon cadeau:', newClient);
-
+  await _persist('clients', 'insert', newClient, DataManager.mapClientToDb);
   return newClient;
 }
 
 function getBonsCadeauxUtilisablesPourClient(clientId) {
   const appData = DataManager.getAppData();
   const today = new Date().toISOString().split('T')[0];
-
   return appData.bonsCadeaux.filter(bon => {
-    // Doit être actif
     if (bon.statut !== 'actif') return false;
-
-    // Si un bénéficiaire est spécifié, doit correspondre
     if (bon.beneficiaireClientId && bon.beneficiaireClientId !== clientId) return false;
-
-    // Soit non expiré, soit forcé
     if (bon.dateExpiration < today && !bon.forceUtilise) return false;
-
     return true;
   });
 }
 
 // ===== EXPORTS GLOBAUX =====
 window.BusinessServices = {
-  // RDV
   createRdv,
   deleteRdvById,
   transformRdvToPrestation,
   annulerTransformationRdv,
-
-  // Prestations
   createPrestation,
   deletePrestationById,
   migrerToutesPrestationsExistantes,
-
-  // Dépenses
   createDepense,
   deleteDepenseById,
-
-  // Frais déplacement
   calculateDistanceAndCost,
   setupAutoCalculateAddress,
-
-  // Calendar
   generateICSCalendar,
-
-  // Bons Cadeaux
   createBonCadeau,
   updateBonCadeau,
   deleteBonCadeau,
@@ -674,4 +569,4 @@ window.BusinessServices = {
   getBonsCadeauxUtilisablesPourClient
 };
 
-console.log('✅ Business Services chargé');
+console.log('Business Services PWA charge');

@@ -511,7 +511,7 @@ function getDureeValue(type) {
 }
 
 // ===== GESTION DES PARAMETRES =====
-function saveParametres(formData) {
+async function saveParametres(formData) {
   if (!appData.parametres) {
     appData.parametres = {};
   }
@@ -531,10 +531,9 @@ function saveParametres(formData) {
   if (formData.calculPeriode !== undefined) {
     appData.parametres.calculPeriode = formData.calculPeriode || 'mois-calendaire';
   }
-  // cheminSauvegardeAuto n'est plus pertinent en PWA, on l'ignore
 
-  // Sauvegarder vers Supabase
-  saveParametresToDb();
+  // Sauvegarder vers Supabase (await!)
+  await saveParametresToDb();
 
   return true;
 }
@@ -544,12 +543,12 @@ function getParametres() {
 }
 
 // ===== DASHBOARD PERSONNALISABLE =====
-function saveDashboardLayoutToCore(config) {
+async function saveDashboardLayoutToCore(config) {
   if (!appData.parametres) {
     appData.parametres = {};
   }
   appData.parametres.dashboardLayout = config;
-  saveParametresToDb();
+  await saveParametresToDb();
 }
 
 function loadDashboardLayoutFromCore() {

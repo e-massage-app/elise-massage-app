@@ -27,9 +27,9 @@ function getClientStats(clientId) {
   };
 }
 
-function createClient(formData, type = 'client') {
+async function createClient(formData, type = 'client') {
   const appData = DataManager.getAppData();
-  
+
   const client = {
     id: formData.id || DataManager.generateId(),
     nom: formData.nom,
@@ -38,7 +38,7 @@ function createClient(formData, type = 'client') {
     telephone: formData.telephone,
     email: formData.email,
     adresse: formData.adresse,
-    ville: formData.ville || '', // AJOUT DU CHAMP VILLE
+    ville: formData.ville || '',
     notes: formData.notes,
     parrain: formData.parrain || null,
     canalAcquisition: formData.canalAcquisition || 'non-renseigne',
@@ -46,56 +46,69 @@ function createClient(formData, type = 'client') {
     sexe: formData.sexe || '',
     createdAt: formData.createdAt || new Date().toISOString()
   };
-  
+
   if (type === 'client') {
     client.huiles = formData.huiles;
     client.zones = formData.zones;
     client.allergies = formData.allergies;
     client.pression = formData.pression;
-    
+
     if (formData.id && DataManager.getEditingId()) {
       const index = appData.clients.findIndex(c => c.id === DataManager.getEditingId());
       if (index !== -1) {
         appData.clients[index] = client;
+        try { await DataManager.updateEntity('clients', client.id, client, DataManager.mapClientToDb); } catch(e) { console.error('Erreur update client:', e); }
       }
     } else {
       appData.clients.push(client);
+      try { await DataManager.insertEntity('clients', client, DataManager.mapClientToDb); } catch(e) { console.error('Erreur insert client:', e); }
     }
   } else {
     client.statut = formData.statut;
     client.actions = formData.actions;
-    
+
     if (formData.id && DataManager.getEditingId()) {
       const index = appData.prospects.findIndex(p => p.id === DataManager.getEditingId());
       if (index !== -1) {
         appData.prospects[index] = client;
+        try { await DataManager.updateEntity('prospects', client.id, client, DataManager.mapProspectToDb); } catch(e) { console.error('Erreur update prospect:', e); }
       }
     } else {
       appData.prospects.push(client);
+      try { await DataManager.insertEntity('prospects', client, DataManager.mapProspectToDb); } catch(e) { console.error('Erreur insert prospect:', e); }
     }
   }
-  
+
   return client;
 }
 
-function deleteClientById(clientId) {
+async function deleteClientById(clientId) {
   const appData = DataManager.getAppData();
+  // Supprimer les RDV et prestations associes d'abord
+  const rdvsToDelete = appData.rdv.filter(r => r.clientId === clientId);
+  const prestationsToDelete = appData.prestations.filter(p => p.clientId === clientId);
   appData.clients = appData.clients.filter(c => c.id !== clientId);
-  // Supprimer aussi les RDV et prestations associés
   appData.rdv = appData.rdv.filter(r => r.clientId !== clientId);
   appData.prestations = appData.prestations.filter(p => p.clientId !== clientId);
+
+  try {
+    for (const r of rdvsToDelete) await DataManager.deleteEntity('rdv', r.id);
+    for (const p of prestationsToDelete) await DataManager.deleteEntity('prestations', p.id);
+    await DataManager.deleteEntity('clients', clientId);
+  } catch(e) { console.error('Erreur delete client:', e); }
 }
 
-function deleteProspectById(prospectId) {
+async function deleteProspectById(prospectId) {
   const appData = DataManager.getAppData();
   appData.prospects = appData.prospects.filter(p => p.id !== prospectId);
+  try { await DataManager.deleteEntity('prospects', prospectId); } catch(e) { console.error('Erreur delete prospect:', e); }
 }
 
-function convertProspectToClient(prospectId) {
+async function convertProspectToClient(prospectId) {
   const appData = DataManager.getAppData();
   const prospect = appData.prospects.find(p => p.id === prospectId);
   if (!prospect) return null;
-  
+
   const newClient = {
     id: DataManager.generateId(),
     nom: prospect.nom,
@@ -105,24 +118,29 @@ function convertProspectToClient(prospectId) {
     email: prospect.email,
     adresse: prospect.adresse,
     notes: prospect.notes,
-    parrain: prospect.parrain || null, // ✅ NOUVEAU : Conserver le parrain lors de la conversion
+    parrain: prospect.parrain || null,
     huiles: '',
     zones: '',
     allergies: '',
     pression: 'moyenne'
   };
-  
+
   appData.clients.push(newClient);
   appData.prospects = appData.prospects.filter(p => p.id !== prospectId);
-  
+
+  try {
+    await DataManager.insertEntity('clients', newClient, DataManager.mapClientToDb);
+    await DataManager.deleteEntity('prospects', prospectId);
+  } catch(e) { console.error('Erreur conversion prospect->client:', e); }
+
   return newClient;
 }
 
-function convertClientToProspect(clientId) {
+async function convertClientToProspect(clientId) {
   const appData = DataManager.getAppData();
   const client = appData.clients.find(c => c.id === clientId);
   if (!client) return null;
-  
+
   const newProspect = {
     id: DataManager.generateId(),
     nom: client.nom,
@@ -132,25 +150,26 @@ function convertClientToProspect(clientId) {
     email: client.email,
     adresse: client.adresse,
     notes: client.notes,
-    parrain: client.parrain || null, // ✅ NOUVEAU : Conserver le parrain lors de la conversion
-    statut: 'intérêt moyen',
-    actions: {
-      email: false,
-      emailDate: '',
-      telephone: false,
-      telephoneDate: '',
-      relance: false,
-      relanceDate: ''
-    }
+    parrain: client.parrain || null,
+    statut: 'interet moyen',
+    actions: { email: false, emailDate: '', telephone: false, telephoneDate: '', relance: false, relanceDate: '' }
   };
-  
+
+  const rdvsToDelete = appData.rdv.filter(r => r.clientId === clientId);
+  const prestationsToDelete = appData.prestations.filter(p => p.clientId === clientId);
+
   appData.prospects.push(newProspect);
   appData.clients = appData.clients.filter(c => c.id !== clientId);
-  
-  // Supprimer les RDV et prestations associés
   appData.rdv = appData.rdv.filter(r => r.clientId !== clientId);
   appData.prestations = appData.prestations.filter(p => p.clientId !== clientId);
-  
+
+  try {
+    await DataManager.insertEntity('prospects', newProspect, DataManager.mapProspectToDb);
+    for (const r of rdvsToDelete) await DataManager.deleteEntity('rdv', r.id);
+    for (const p of prestationsToDelete) await DataManager.deleteEntity('prestations', p.id);
+    await DataManager.deleteEntity('clients', clientId);
+  } catch(e) { console.error('Erreur conversion client->prospect:', e); }
+
   return newProspect;
 }
 
@@ -824,14 +843,12 @@ function editPrestationFromHistory(prestationId) {
   }, 200);
 }
 
-function deletePrestationFromHistory(prestationId) {
+async function deletePrestationFromHistory(prestationId) {
   const prestation = DataManager.getPrestationById(prestationId);
   if (!prestation) return;
-  
-  if (confirm(`Êtes-vous sûr de vouloir supprimer cette prestation du ${DataManager.formatDate(prestation.date)} ?`)) {
-    // Supprimer la prestation
-    BusinessServices.deletePrestationById(prestationId);
-    DataManager.saveData();
+
+  if (confirm(`Supprimer cette prestation du ${DataManager.formatDate(prestation.date)} ?`)) {
+    await BusinessServices.deletePrestationById(prestationId);
     
     // Fermer la modal et rafraîchir l'affichage
     closeModal();
@@ -1094,51 +1111,47 @@ function editProspect(prospectId) {
   }
 }
 
-function deleteClient(clientId) {
+async function deleteClient(clientId) {
   const appData = DataManager.getAppData();
   const client = appData.clients.find(c => c.id === clientId);
   if (!client) return;
-  
-  if (confirm(`Supprimer définitivement le client "${client.prenom} ${client.nom}" ?\n\nCela supprimera aussi tous ses RDV et prestations.`)) {
-    deleteClientById(clientId);
-    DataManager.saveData();
+
+  if (confirm(`Supprimer definitivement le client "${client.prenom} ${client.nom}" ?\n\nCela supprimera aussi tous ses RDV et prestations.`)) {
+    await deleteClientById(clientId);
     ViewManager.updateClientsDisplay();
     ViewManager.updateDashboard();
   }
 }
 
-function deleteProspect(prospectId) {
+async function deleteProspect(prospectId) {
   const appData = DataManager.getAppData();
   const prospect = appData.prospects.find(p => p.id === prospectId);
   if (!prospect) return;
-  
-  if (confirm(`Supprimer définitivement le prospect "${prospect.prenom} ${prospect.nom}" ?`)) {
-    deleteProspectById(prospectId);
-    DataManager.saveData();
+
+  if (confirm(`Supprimer definitivement le prospect "${prospect.prenom} ${prospect.nom}" ?`)) {
+    await deleteProspectById(prospectId);
     ViewManager.updateClientsDisplay();
   }
 }
 
-function convertToClient(prospectId) {
+async function convertToClient(prospectId) {
   if (confirm('Convertir ce prospect en client ?')) {
-    const newClient = convertProspectToClient(prospectId);
+    const newClient = await convertProspectToClient(prospectId);
     if (newClient) {
-      DataManager.saveData();
       ViewManager.updateClientsDisplay();
       ViewManager.updateDashboard();
     }
   }
 }
 
-function convertToProspect(clientId) {
+async function convertToProspect(clientId) {
   const appData = DataManager.getAppData();
   const client = appData.clients.find(c => c.id === clientId);
   if (!client) return;
-  
+
   if (confirm(`Convertir "${client.prenom} ${client.nom}" en prospect ?\n\nCela supprimera tous ses RDV et prestations.`)) {
-    const newProspect = convertClientToProspect(clientId);
+    const newProspect = await convertClientToProspect(clientId);
     if (newProspect) {
-      DataManager.saveData();
       ViewManager.updateClientsDisplay();
       ViewManager.updateDashboard();
     }
@@ -1283,32 +1296,30 @@ function deleteCustomTag(tagId) {
   return true;
 }
 
-function addTagToClient(clientId, tagId, type = 'client') {
+async function addTagToClient(clientId, tagId, type = 'client') {
   const appData = DataManager.getAppData();
   const collection = type === 'client' ? appData.clients : appData.prospects;
   const person = collection.find(p => p.id === clientId);
-  
   if (!person) return false;
-  
-  if (!person.tags) {
-    person.tags = [];
-  }
-  
+  if (!person.tags) person.tags = [];
   if (!person.tags.includes(tagId)) {
     person.tags.push(tagId);
+    const table = type === 'client' ? 'clients' : 'prospects';
+    const mapFn = type === 'client' ? DataManager.mapClientToDb : DataManager.mapProspectToDb;
+    try { await DataManager.updateEntity(table, person.id, person, mapFn); } catch(e) { console.error('Erreur addTag:', e); }
   }
-  
   return true;
 }
 
-function removeTagFromClient(clientId, tagId, type = 'client') {
+async function removeTagFromClient(clientId, tagId, type = 'client') {
   const appData = DataManager.getAppData();
   const collection = type === 'client' ? appData.clients : appData.prospects;
   const person = collection.find(p => p.id === clientId);
-  
   if (!person || !person.tags) return false;
-  
   person.tags = person.tags.filter(t => t !== tagId);
+  const table = type === 'client' ? 'clients' : 'prospects';
+  const mapFn = type === 'client' ? DataManager.mapClientToDb : DataManager.mapProspectToDb;
+  try { await DataManager.updateEntity(table, person.id, person, mapFn); } catch(e) { console.error('Erreur removeTag:', e); }
   return true;
 }
 
@@ -1607,7 +1618,10 @@ function saveTagsSelection(personId, personType) {
   
   if (person) {
     person.tags = selectedTags;
-    DataManager.saveData();
+    // Persister dans Supabase
+    const table = personType === 'collaborateur' ? 'collaborateurs' : (personType === 'prospect' ? 'prospects' : 'clients');
+    const mapFn = personType === 'collaborateur' ? DataManager.mapCollaborateurToDb : (personType === 'prospect' ? DataManager.mapProspectToDb : DataManager.mapClientToDb);
+    try { DataManager.updateEntity(table, person.id, person, mapFn); } catch(e) { console.error('Erreur save tags:', e); }
     
     // Rafraîchir l'affichage approprié
     if (personType === 'collaborateur') {

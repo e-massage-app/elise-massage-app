@@ -264,7 +264,7 @@ function setupFormListeners() {
         sexe: document.getElementById('rdv-sexe').value || ''
       };
       captureFormData('rdv');
-      BusinessServices.createRdv(formData);
+      await BusinessServices.createRdv(formData);
       ModalManager.closeModal();
       ViewManager.updateCalendar();
       ViewManager.updateDashboard();
@@ -327,7 +327,7 @@ function setupFormListeners() {
         }
       }
 
-      ClientServices.createClient(formData, type);
+      await ClientServices.createClient(formData, type);
       ModalManager.closeModal();
       ViewManager.updateClientsDisplay();
     }
@@ -364,15 +364,15 @@ function setupFormListeners() {
       };
 
       if (rdvSourceId) {
-        BusinessServices.transformRdvToPrestation(rdvSourceId);
+        await BusinessServices.transformRdvToPrestation(rdvSourceId);
         document.getElementById('prestation-form').removeAttribute('data-rdv-source');
       }
 
       captureFormData('prestation');
-      const prestation = BusinessServices.createPrestation(formData);
+      const prestation = await BusinessServices.createPrestation(formData);
 
       if (bonCadeauId && prestation) {
-        BusinessServices.utiliserBonCadeau(bonCadeauId, prestation.id);
+        await BusinessServices.utiliserBonCadeau(bonCadeauId, prestation.id);
       }
 
       ModalManager.closeModal();
@@ -404,7 +404,7 @@ function setupFormListeners() {
         notes: document.getElementById('depense-notes').value
       };
 
-      BusinessServices.createDepense(formData);
+      await BusinessServices.createDepense(formData);
       ModalManager.closeModal();
       ViewManager.updateDepensesDisplay();
       ViewManager.updateDashboard();
