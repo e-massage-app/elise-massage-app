@@ -109,6 +109,16 @@
   color: var(--text-light);
   cursor: pointer;
 }
+/* Version dans le menu burger */
+.mobile-menu-version {
+  text-align: center;
+  font-size: 0.7rem;
+  color: #aaa;
+  padding: 0.75rem 0 0.5rem;
+  border-top: 1px solid #f0f0f0;
+  margin-top: 0.5rem;
+}
+
 .mobile-action-item.install-btn {
   color: white;
   background: linear-gradient(135deg, #d4a574, #c4956a);
@@ -133,6 +143,16 @@
   z-index: 10000;
 }
 .mobile-menu-overlay.open { display: block; }
+
+/* Footer version */
+.app-footer {
+  text-align: center;
+  padding: 1rem;
+  font-size: 0.75rem;
+  color: #aaa;
+  border-top: 1px solid var(--rose-poudre);
+  margin-top: 2rem;
+}
 
 /* Boutons ville - remplacement des inline styles */
 .ville-filter-btn {
