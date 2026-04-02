@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Mobile - Elise Massage</title>
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/views.css">
+    <link rel="stylesheet" href="css/mobile.css">
+    <style>body { opacity: 1 !important; }</style>
+</head>
+<body class="loaded">
+<div class="app-container">
+    <header class="app-header">
+        <div class="header-content">
+            <div class="logo">
+                <div class="logo-text"><h1>Elise</h1><p>Massage</p></div>
+            </div>
+            <div class="header-quote"><p>"Pour un moment, rien qu'a vous."</p></div>
+            <div class="header-actions desktop-only">
+                <button class="btn-secondary">Exporter</button>
+                <button class="btn-secondary">Importer</button>
+                <button class="btn-secondary">&#9881;</button>
+                <button class="btn-secondary" style="color:#e74c3c;">Deconnexion</button>
+            </div>
+            <button class="burger-btn mobile-only" onclick="document.getElementById('mobile-menu').classList.toggle('open');document.getElementById('mobile-menu-overlay').classList.toggle('open');">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </header>
+
+    <div id="mobile-menu" class="mobile-menu">
+        <div class="mobile-menu-header"><span>Menu</span><button class="mobile-menu-close" onclick="document.getElementById('mobile-menu').classList.remove('open');document.getElementById('mobile-menu-overlay').classList.remove('open');">&#10005;</button></div>
+        <div class="mobile-menu-nav">
+            <button class="mobile-nav-item active">Dashboard</button>
+            <button class="mobile-nav-item">Calendrier</button>
+            <button class="mobile-nav-item">Prestations</button>
+            <button class="mobile-nav-item">Bons Cadeaux</button>
+            <button class="mobile-nav-item">Annuaire</button>
+            <button class="mobile-nav-item">Analytics</button>
+            <button class="mobile-nav-item">Depenses</button>
+        </div>
+        <div class="mobile-menu-actions">
+            <button class="mobile-action-item">Exporter</button>
+            <button class="mobile-action-item">Importer</button>
+            <button class="mobile-action-item">Parametres</button>
+            <button class="mobile-action-item logout">Deconnexion</button>
+        </div>
+    </div>
+    <div id="mobile-menu-overlay" class="mobile-menu-overlay" onclick="document.getElementById('mobile-menu').classList.remove('open');this.classList.remove('open');"></div>
+
+    <nav class="app-nav desktop-only">
+        <div class="nav-scroll-container">
+            <button class="nav-tab active">Dashboard</button>
+            <button class="nav-tab">Calendrier</button>
+            <button class="nav-tab">Prestations</button>
+            <button class="nav-tab">Bons Cadeaux</button>
+            <button class="nav-tab">Annuaire</button>
+            <button class="nav-tab">Analytics</button>
+            <button class="nav-tab">Depenses</button>
+        </div>
+    </nav>
+
+    <!-- DASHBOARD -->
+    <div class="tab-content active" style="padding: 1rem;">
+        <div class="dashboard-grid">
+            <div class="kpi-section">
+                <div class="dashboard-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+                    <h2 style="margin:0;">Tableau de bord</h2>
+                    <button class="btn-secondary">Personnaliser</button>
+                </div>
+                <div class="kpis-grid">
+                    <div class="kpi-card"><div class="kpi-content"><div class="kpi-label">Massages du mois</div><div class="kpi-value">12</div></div></div>
+                    <div class="kpi-card"><div class="kpi-content"><div class="kpi-label">CA total du mois</div><div class="kpi-value">960.00 &euro;</div></div></div>
+                    <div class="kpi-card"><div class="kpi-content"><div class="kpi-label">CA Massages</div><div class="kpi-value">840.00 &euro;</div></div></div>
+                    <div class="kpi-card"><div class="kpi-content"><div class="kpi-label">Marge du mois</div><div class="kpi-value">725.28 &euro;</div></div></div>
+                    <div class="kpi-card"><div class="kpi-content"><div class="kpi-label">CA HeadSpa</div><div class="kpi-value">120.00 &euro;</div></div></div>
+                    <div class="kpi-card"><div class="kpi-content"><div class="kpi-label">Client du mois</div><div class="kpi-value" style="font-size:0.9rem;">Laura P.</div></div></div>
+                    <div class="kpi-card"><div class="kpi-content"><div class="kpi-label">Couts du mois</div><div class="kpi-value">234.72 &euro;</div></div></div>
+                    <div class="kpi-card"><div class="kpi-content"><div class="kpi-label">Taux de marge</div><div class="kpi-value">75.6 %</div></div></div>
+                </div>
+            </div>
+            <div class="rdv-section">
+                <h2>Prochains rendez-vous</h2>
+                <div class="rdv-list">
+                    <div class="rdv-item hover-card" style="cursor:pointer;padding:0.8rem;border-radius:10px;border:1px solid #e9ecef;">
+                        <div style="font-weight:600;">03/04/2026 a 10:00</div>
+                        <div>Laura Pieve - Massage Signature (60min)</div>
+                        <span class="rdv-statut" style="background:#d4edda;color:#155724;padding:0.15rem 0.5rem;border-radius:10px;font-size:0.75rem;">confirme</span>
+                    </div>
+                    <div class="rdv-item hover-card" style="cursor:pointer;padding:0.8rem;border-radius:10px;border:1px solid #e9ecef;">
+                        <div style="font-weight:600;">04/04/2026 a 14:30</div>
+                        <div>Kevin De Jehovah - Detente dos (30min)</div>
+                        <span class="rdv-statut" style="background:#fff3cd;color:#856404;padding:0.15rem 0.5rem;border-radius:10px;font-size:0.75rem;">en-attente</span>
+                    </div>
+                    <div class="rdv-item hover-card" style="cursor:pointer;padding:0.8rem;border-radius:10px;border:1px solid #e9ecef;">
+                        <div style="font-weight:600;">05/04/2026 a 09:00</div>
+                        <div>Marie Dupont - HeadSpa (45min)</div>
+                        <span class="rdv-statut" style="background:#d4edda;color:#155724;padding:0.15rem 0.5rem;border-radius:10px;font-size:0.75rem;">confirme</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>
