@@ -469,13 +469,8 @@ function selectCalendarDay(dateStr) {
   const rdvDuJour = DataManager.getRdvForDate(dateStr);
   
   if (rdvDuJour.length > 0) {
-    // Si il y a des RDV, permettre de les éditer
-    if (rdvDuJour.length === 1) {
-      showRdvDetails(rdvDuJour[0].id);
-    } else {
-      // Multiple RDV - afficher une liste
-      showRdvListModal(rdvDuJour);
-    }
+    // Toujours afficher la liste (meme pour 1 seul RDV) pour permettre d'ajouter un nouveau RDV
+    showRdvListModal(rdvDuJour);
   } else {
     // Nouveau RDV pour cette date - utiliser showAddRdvModal de l'objet global
     if (window.showAddRdvModal) {
