@@ -1505,8 +1505,6 @@ function showParametresModal() {
 
       <!-- Mon salon -->
       <div class="parametres-card" onclick="showParametresSalonModal()" style="cursor: pointer; padding: 1.25rem; background: #fff; border-radius: 12px; border: 1px solid #eee; transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.04);"
-        onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 16px rgba(212,165,116,0.2)'; this.style.borderColor='var(--beige-dore)'"
-        onmouseout="this.style.transform='none'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.04)'; this.style.borderColor='#eee'">
         <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
           <div style="width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, var(--rose-poudre), var(--rose-accent)); display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
             🏠
@@ -1525,8 +1523,6 @@ function showParametresModal() {
 
       <!-- Vehicule -->
       <div class="parametres-card" onclick="showParametresVehiculeModal()" style="cursor: pointer; padding: 1.25rem; background: #fff; border-radius: 12px; border: 1px solid #eee; transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.04);"
-        onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 16px rgba(212,165,116,0.2)'; this.style.borderColor='var(--beige-dore)'"
-        onmouseout="this.style.transform='none'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.04)'; this.style.borderColor='#eee'">
         <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
           <div style="width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #e8f4fd, #bde0fe); display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
             🚗
@@ -1543,8 +1539,6 @@ function showParametresModal() {
 
       <!-- Carte des soins -->
       <div class="parametres-card" onclick="showCarteSoinsModal()" style="cursor: pointer; padding: 1.25rem; background: #fff; border-radius: 12px; border: 1px solid #eee; transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.04);"
-        onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 16px rgba(212,165,116,0.2)'; this.style.borderColor='var(--beige-dore)'"
-        onmouseout="this.style.transform='none'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.04)'; this.style.borderColor='#eee'">
         <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
           <div style="width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #fef3e2, #fdd89b); display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
             💆
@@ -1561,8 +1555,6 @@ function showParametresModal() {
 
       <!-- Google Ads -->
       <div class="parametres-card" onclick="showParametresGoogleAdsModal()" style="cursor: pointer; padding: 1.25rem; background: #fff; border-radius: 12px; border: 1px solid #eee; transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.04);"
-        onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 16px rgba(212,165,116,0.2)'; this.style.borderColor='var(--beige-dore)'"
-        onmouseout="this.style.transform='none'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.04)'; this.style.borderColor='#eee'">
         <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
           <div style="width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #e8f0fe, #c2d7fe); display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
             📊
@@ -1579,8 +1571,6 @@ function showParametresModal() {
 
       <!-- Sauvegarde -->
       <div class="parametres-card" onclick="showParametresSauvegardeModal()" style="cursor: pointer; padding: 1.25rem; background: #fff; border-radius: 12px; border: 1px solid #eee; transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.04);"
-        onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 16px rgba(212,165,116,0.2)'; this.style.borderColor='var(--beige-dore)'"
-        onmouseout="this.style.transform='none'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.04)'; this.style.borderColor='#eee'">
         <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
           <div style="width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #e8f5e8, #b8e6b8); display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
             💾
@@ -1599,8 +1589,6 @@ function showParametresModal() {
 
       <!-- Abonnements -->
       <div class="parametres-card" onclick="showParametresAbonnementsModal()" style="cursor: pointer; padding: 1.25rem; background: #fff; border-radius: 12px; border: 1px solid #eee; transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.04);"
-        onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 16px rgba(212,165,116,0.2)'; this.style.borderColor='var(--beige-dore)'"
-        onmouseout="this.style.transform='none'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.04)'; this.style.borderColor='#eee'">
         <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
           <div style="width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #fce4ec, #f8bbd0); display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
             🔄
@@ -1617,8 +1605,6 @@ function showParametresModal() {
 
       <!-- API OpenRoute -->
       <div class="parametres-card" onclick="showParametresApiModal()" style="cursor: pointer; padding: 1.25rem; background: #fff; border-radius: 12px; border: 1px solid #eee; transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.04);"
-        onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 16px rgba(212,165,116,0.2)'; this.style.borderColor='var(--beige-dore)'"
-        onmouseout="this.style.transform='none'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.04)'; this.style.borderColor='#eee'">
         <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
           <div style="width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #e3f2fd, #90caf9); display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
             🗺️
@@ -2641,7 +2627,7 @@ function createClientAutocomplete(inputId, hiddenId) {
             cursor: pointer;
             border-bottom: 1px solid #f0f0f0;
             transition: background-color 0.2s;
-          " onmouseover="this.style.backgroundColor='#f8f9fa'" onmouseout="this.style.backgroundColor='white'">
+          ">
             <div style="font-weight: 600; color: var(--beige-dore);">${client.prenom} ${client.nom}</div>
             ${client.societe ? `<div style="font-size: 0.85rem; color: #666;">🏢 ${client.societe}</div>` : ''}
             ${client.telephone ? `<div style="font-size: 0.85rem; color: #666;">📞 ${client.telephone}</div>` : ''}
@@ -5767,8 +5753,7 @@ function setupBonCadeauAcheteurAutocomplete() {
            data-client-id="${client.id}"
            data-client-nom="${client.prenom} ${client.nom}"
            style="padding: 0.75rem; cursor: pointer; border-bottom: 1px solid #eee; transition: background 0.2s;"
-           onmouseover="this.style.background='#f0f0f0'"
-           onmouseout="this.style.background='white'">
+>
         <strong>${client.prenom} ${client.nom}</strong>
         ${client.telephone ? `<br><small style="color: #666;">${client.telephone}</small>` : ''}
       </div>

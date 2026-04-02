@@ -728,7 +728,7 @@ function generateClientHistorique(clientId) {
               font-size: 0.85rem;
               border: 1px solid #e9ecef;
               transition: all 0.2s ease;
-            " onmouseover="this.style.backgroundColor='#f8f9fa'; this.style.borderColor='var(--beige-dore)'; this.style.transform='translateY(-1px)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)';" onmouseout="this.style.backgroundColor='white'; this.style.borderColor='#e9ecef'; this.style.transform='translateY(0)'; this.style.boxShadow='none';">
+            ">
               <div style="display: flex; align-items: center; gap: 0.5rem;">
                 <span style="font-weight: 600; color: var(--beige-dore);">${DataManager.formatDate(prestation.date)}</span>
                 <span style="color: #495057;">${prestation.type}</span>

@@ -280,8 +280,7 @@ function showPaiementsAVenirDetails() {
         box-shadow: 0 2px 4px rgba(0,0,0,0.05);
       " 
       onclick="FormManager.showRdvDetails('${rdv.id}')"
-      onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 25px rgba(0,0,0,0.1)'; this.style.borderColor='var(--beige-dore)';"
-      onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)'; this.style.borderColor='#e9ecef';">
+      class="hover-card">
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <div style="flex: 1;">
             <div style="font-weight: 600; color: var(--text-dark); font-size: 1rem; margin-bottom: 0.25rem; display: flex; align-items: center; gap: 0.5rem;">
@@ -896,17 +895,17 @@ function updatePrestationsTable() {
 
     return `
       <tr>
-        <td>${DataManager.formatDate(prestation.date)} ${prestation.heure}</td>
-        <td>${clientNom}</td>
-        <td>${DataManager.getDisplayNameForType(prestation.soinId || prestation.type)}</td>
-        <td>${prestation.duree || 60} min</td>
-        <td>${prixDisplay}</td>
-        <td>${fraisDeplacement > 0 ? `${fraisDeplacement.toFixed(2)} €` : '-'}</td>
-        <td style="${margeStyle}">${margeDisplay}</td>
-        <td>${prestation.notes || '-'}</td>
-        <td style="min-width: 100px;">
+        <td data-label="Date">${DataManager.formatDate(prestation.date)} ${prestation.heure}</td>
+        <td data-label="Client">${clientNom}</td>
+        <td data-label="Type">${DataManager.getDisplayNameForType(prestation.soinId || prestation.type)}</td>
+        <td data-label="Duree">${prestation.duree || 60} min</td>
+        <td data-label="Prix">${prixDisplay}</td>
+        <td data-label="Frais route">${fraisDeplacement > 0 ? `${fraisDeplacement.toFixed(2)} €` : '-'}</td>
+        <td data-label="Marge" style="${margeStyle}">${margeDisplay}</td>
+        <td data-label="Notes">${prestation.notes || '-'}</td>
+        <td data-label="Actions" style="min-width: 100px;">
           <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-            <button class="btn-secondary" onclick="FormManager.editPrestation('${prestation.id}')" style="padding: 0.3rem 0.6rem; font-size: 0.8rem; border-radius: 4px;">Éditer</button>
+            <button class="btn-secondary" onclick="FormManager.editPrestation('${prestation.id}')" style="padding: 0.3rem 0.6rem; font-size: 0.8rem; border-radius: 4px;">Editer</button>
             <button class="btn-secondary" onclick="duplicatePrestation('${prestation.id}')" style="padding: 0.3rem 0.6rem; font-size: 0.8rem; border-radius: 4px; background: var(--beige-dore); color: white; border: none; cursor: pointer;">Dupliquer</button>
             <button onclick="FormManager.deletePrestation('${prestation.id}')" style="padding: 0.3rem 0.6rem; font-size: 0.8rem; border-radius: 4px; background: #f8d7da; color: #721c24; border: none; cursor: pointer;">Suppr.</button>
           </div>
@@ -1427,15 +1426,15 @@ function updateDepensesTable() {
     
     return `
       <tr class="${rowClass}">
-        <td>${DataManager.formatDate(depense.date)}</td>
-        <td>${depense.categorie || 'Autre'}</td>
-        <td>${depense.description || '-'}</td>
-        <td>${depense.fournisseur || '-'}</td>
-        <td>${(depense.montant || 0).toFixed(2)} €</td>
-        <td>${notesContent}</td>
-        <td style="min-width: 80px;">
+        <td data-label="Date">${DataManager.formatDate(depense.date)}</td>
+        <td data-label="Categorie">${depense.categorie || 'Autre'}</td>
+        <td data-label="Description">${depense.description || '-'}</td>
+        <td data-label="Fournisseur">${depense.fournisseur || '-'}</td>
+        <td data-label="Montant">${(depense.montant || 0).toFixed(2)} &euro;</td>
+        <td data-label="Notes">${notesContent}</td>
+        <td data-label="Actions" style="min-width: 80px;">
           <div class="depenses-actions">
-            <button class="btn-secondary" onclick="FormManager.editDepense('${depense.id}')">Éditer</button>
+            <button class="btn-secondary" onclick="FormManager.editDepense('${depense.id}')">Editer</button>
             <button class="btn-danger" onclick="FormManager.deleteDepense('${depense.id}')">Suppr.</button>
           </div>
         </td>

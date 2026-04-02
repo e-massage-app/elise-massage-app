@@ -17,6 +17,7 @@
     <link rel="stylesheet" href="css/base.css">
     <link rel="stylesheet" href="css/components.css">
     <link rel="stylesheet" href="css/views.css">
+    <link rel="stylesheet" href="css/mobile.css">
 
     <!-- Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -54,13 +55,15 @@
 
         <!-- Navigation -->
         <nav class="app-nav">
-            <button class="nav-tab active" onclick="showTab('dashboard')">Dashboard</button>
-            <button class="nav-tab" onclick="showTab('calendrier')">Calendrier</button>
-            <button class="nav-tab" onclick="showTab('prestations')">Prestations</button>
-            <button class="nav-tab" onclick="showTab('bons-cadeaux')">Bons Cadeaux</button>
-            <button class="nav-tab" onclick="showTab('clients')">Annuaire</button>
-            <button class="nav-tab" onclick="showTab('analytics')">Analytics</button>
-            <button class="nav-tab" onclick="showTab('depenses')">Dépenses</button>
+            <div class="nav-scroll-container">
+                <button class="nav-tab active" onclick="showTab('dashboard')">Dashboard</button>
+                <button class="nav-tab" onclick="showTab('calendrier')">Calendrier</button>
+                <button class="nav-tab" onclick="showTab('prestations')">Prestations</button>
+                <button class="nav-tab" onclick="showTab('bons-cadeaux')">Bons Cadeaux</button>
+                <button class="nav-tab" onclick="showTab('clients')">Annuaire</button>
+                <button class="nav-tab" onclick="showTab('analytics')">Analytics</button>
+                <button class="nav-tab" onclick="showTab('depenses')">Depenses</button>
+            </div>
         </nav>
 
         <!-- Dashboard Tab -->
@@ -195,36 +198,9 @@
       <h2 style="margin: 0 0 0.75rem 0;">Gestion Clients, Prospects & Collaborateurs</h2>
       <!-- Filtres par ville -->
       <div class="ville-filter-buttons" style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
-        <button 
-          class="ville-filter-btn active" 
-          data-ville="Ajaccio" 
-          onclick="ViewManager.filterByVille('Ajaccio')"
-          style="padding: 0.4rem 1rem; border: 2px solid var(--beige-dore); background: var(--beige-dore); color: white; border-radius: 20px; cursor: pointer; font-weight: 600; transition: all 0.3s ease;"
-          onmouseover="if(!this.classList.contains('active')) { this.style.background='#f5f5f5'; }"
-          onmouseout="if(!this.classList.contains('active')) { this.style.background='white'; }"
-        >
-          📍 Ajaccio
-        </button>
-        <button 
-          class="ville-filter-btn" 
-          data-ville="Porto-Vecchio" 
-          onclick="ViewManager.filterByVille('Porto-Vecchio')"
-          style="padding: 0.4rem 1rem; border: 2px solid #ddd; background: white; color: var(--text-dark); border-radius: 20px; cursor: pointer; font-weight: 500; transition: all 0.3s ease;"
-          onmouseover="if(!this.classList.contains('active')) { this.style.background='#f5f5f5'; }"
-          onmouseout="if(!this.classList.contains('active')) { this.style.background='white'; }"
-        >
-          📍 Porto-Vecchio
-        </button>
-        <button 
-          class="ville-filter-btn" 
-          data-ville="Tous" 
-          onclick="ViewManager.filterByVille('Tous')"
-          style="padding: 0.4rem 1rem; border: 2px solid #ddd; background: white; color: var(--text-dark); border-radius: 20px; cursor: pointer; font-weight: 500; transition: all 0.3s ease;"
-          onmouseover="if(!this.classList.contains('active')) { this.style.background='#f5f5f5'; }"
-          onmouseout="if(!this.classList.contains('active')) { this.style.background='white'; }"
-        >
-          🌍 Tous
-        </button>
+        <button class="ville-filter-btn active" data-ville="Ajaccio" onclick="ViewManager.filterByVille('Ajaccio')">Ajaccio</button>
+        <button class="ville-filter-btn" data-ville="Porto-Vecchio" onclick="ViewManager.filterByVille('Porto-Vecchio')">Porto-Vecchio</button>
+        <button class="ville-filter-btn" data-ville="Tous" onclick="ViewManager.filterByVille('Tous')">Tous</button>
       </div>
     </div>
     
@@ -261,15 +237,9 @@
             ➕ Ajouter <span style="margin-left: 0.5rem;">▼</span>
           </button>
           <div id="add-dropdown" class="dropdown-menu" style="display: none; position: absolute; top: 100%; right: 0; background: white; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); min-width: 180px; z-index: 1000;">
-            <button onclick="showAddClientModal(); hideAddDropdown()" style="width: 100%; padding: 0.75rem 1rem; border: none; background: none; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 0.5rem;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='none'">
-              👤 Nouveau client
-            </button>
-            <button onclick="showAddProspectModal(); hideAddDropdown()" style="width: 100%; padding: 0.75rem 1rem; border: none; background: none; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 0.5rem;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='none'">
-              👁️ Nouveau prospect
-            </button>
-            <button onclick="showAddCollaborateurModal(); hideAddDropdown()" style="width: 100%; padding: 0.75rem 1rem; border: none; background: none; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 0.5rem;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='none'">
-              🤝 Nouveau collaborateur
-            </button>
+            <button class="dropdown-menu-item" onclick="showAddClientModal(); hideAddDropdown()">Nouveau client</button>
+            <button class="dropdown-menu-item" onclick="showAddProspectModal(); hideAddDropdown()">Nouveau prospect</button>
+            <button class="dropdown-menu-item" onclick="showAddCollaborateurModal(); hideAddDropdown()">Nouveau collaborateur</button>
           </div>
         </div>
         <span style="color: var(--text-light); margin: 0 0.5rem;">|</span>
