@@ -1501,7 +1501,7 @@ function showParametresModal() {
     <h3 style="text-align: center; font-family: 'Playfair Display', serif; font-size: 1.4rem; margin-bottom: 0.5rem;">Parametres</h3>
     <p style="text-align: center; color: var(--text-light); font-size: 0.9rem; margin-bottom: 1.5rem;">Configurez votre application</p>
 
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+    <div class="parametres-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
 
       <!-- Mon salon -->
       <div class="parametres-card" onclick="showParametresSalonModal()" style="cursor: pointer; padding: 1.25rem; background: #fff; border-radius: 12px; border: 1px solid #eee; transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.04);"
@@ -1569,23 +1569,7 @@ function showParametresModal() {
         </div>
       </div>
 
-      <!-- Sauvegarde -->
-      <div class="parametres-card" onclick="showParametresSauvegardeModal()" style="cursor: pointer; padding: 1.25rem; background: #fff; border-radius: 12px; border: 1px solid #eee; transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.04);"
-        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
-          <div style="width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #e8f5e8, #b8e6b8); display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
-            💾
-          </div>
-          <div style="flex: 1;">
-            <div style="font-weight: 600; color: var(--text-dark); font-size: 0.95rem;">Sauvegardes</div>
-          </div>
-        </div>
-        <p style="margin: 0; font-size: 0.8rem; color: var(--text-light);">Sauvegarde auto et export</p>
-        <div style="margin-top: 0.5rem;">
-          ${backupOk
-            ? '<span style="font-size: 0.75rem; color: #27ae60; font-weight: 500;">Active</span>'
-            : '<span style="font-size: 0.75rem; color: #e67e22; font-weight: 500;">Non configur\u00e9e</span>'}
-        </div>
-      </div>
+      <!-- Sauvegarde supprimee (geree par Supabase) -->
 
       <!-- Abonnements -->
       <div class="parametres-card" onclick="showParametresAbonnementsModal()" style="cursor: pointer; padding: 1.25rem; background: #fff; border-radius: 12px; border: 1px solid #eee; transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.04);"
