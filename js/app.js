@@ -492,6 +492,37 @@ window.showTab = function(tabName) {
   });
 };
 
+// ===== INSTALLATION PWA =====
+let deferredInstallPrompt = null;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  // Afficher le bouton d'installation
+  const btn = document.getElementById('install-app-btn');
+  if (btn) btn.style.display = '';
+});
+
+window.installApp = async function() {
+  if (!deferredInstallPrompt) {
+    alert('Pour installer l\'application :\n\nAndroid : Menu > Ajouter a l\'ecran d\'accueil\niPhone : Partager > Sur l\'ecran d\'accueil');
+    return;
+  }
+  deferredInstallPrompt.prompt();
+  const result = await deferredInstallPrompt.userChoice;
+  if (result.outcome === 'accepted') {
+    const btn = document.getElementById('install-app-btn');
+    if (btn) btn.style.display = 'none';
+  }
+  deferredInstallPrompt = null;
+};
+
+window.addEventListener('appinstalled', () => {
+  const btn = document.getElementById('install-app-btn');
+  if (btn) btn.style.display = 'none';
+  deferredInstallPrompt = null;
+});
+
 // ===== SECTIONS REPLIABLES MOBILE (Analytics) =====
 document.addEventListener('click', function(e) {
   // Toggle filtres analytics

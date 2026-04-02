@@ -109,6 +109,15 @@
   color: var(--text-light);
   cursor: pointer;
 }
+.mobile-action-item.install-btn {
+  color: white;
+  background: linear-gradient(135deg, #d4a574, #c4956a);
+  font-weight: 600;
+  border-radius: 8px;
+  margin: 0.5rem 1rem;
+  text-align: center;
+  justify-content: center;
+}
 .mobile-action-item.logout {
   color: #e74c3c;
   font-weight: 500;
