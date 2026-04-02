@@ -954,9 +954,25 @@
   .modal h2, .modal h3 { font-size: 1rem; }
   .form-row { grid-template-columns: 1fr !important; }
 
-  /* Parametres modal - 1 colonne au lieu de 2 */
+  /* Parametres modal - grille 1 colonne au lieu de 2 */
+  .modal-content > div[style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+    gap: 0.5rem !important;
+  }
   .parametres-card {
-    margin-bottom: 0.4rem;
+    margin-bottom: 0.3rem;
+    padding: 0.8rem !important;
+  }
+  .parametres-card > div:first-child {
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+  }
+  .parametres-card > div:first-child > div:first-child {
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
+    font-size: 1rem !important;
   }
 
   /* ============================
