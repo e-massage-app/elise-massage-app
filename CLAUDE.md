@@ -48,7 +48,15 @@ PWA de gestion pour Elise Massage, deployee sur GitHub Pages avec Supabase comme
 - `scripts/migrate-data.js` : migration JSON -> Supabase (contient service_role key)
 - `scripts/schema-supabase.sql` : schema BDD complet
 
+## Versioning
+- Format : `X.Y.Z.W` ou X.Y = version PWA, Z.W = heritage version Electron
+- Version actuelle : `1.0.5.2` (PWA 1.0, basee sur Electron 5.2)
+- **OBLIGATOIRE** : a chaque modification demandee par l'utilisateur, proposer un bump de version et attendre validation
+- Mettre a jour la version dans 3 endroits : `package.json`, `index.html` (burger menu + footer)
+- Le numero de version sert a verifier que la derniere version est deployee
+
 ## Regles
 - Ne JAMAIS modifier le projet Electron original (`elise-massage-app/`)
 - Toujours tester les modifications sur la PWA deployee
 - Le fichier `scripts/migrate-data.js` contient la service_role key - ne PAS l'exposer publiquement
+- Apres chaque commit, rappeler a l'utilisateur de push via GitHub Desktop
