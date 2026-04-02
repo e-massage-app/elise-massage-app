@@ -448,4 +448,30 @@ window.logout = async () => {
   }
 };
 
+// ===== MENU BURGER MOBILE =====
+window.toggleMobileMenu = function() {
+  const menu = document.getElementById('mobile-menu');
+  const overlay = document.getElementById('mobile-menu-overlay');
+  if (menu && overlay) {
+    menu.classList.toggle('open');
+    overlay.classList.toggle('open');
+    document.body.style.overflow = menu.classList.contains('open') ? 'hidden' : '';
+  }
+};
+
+// Mettre a jour l'item actif dans le menu mobile quand on change d'onglet
+const originalShowTab = window.showTab;
+window.showTab = function(tabName) {
+  originalShowTab(tabName);
+  // Mettre a jour les items actifs du menu mobile
+  document.querySelectorAll('.mobile-nav-item').forEach(item => {
+    item.classList.remove('active');
+    if (item.textContent.trim().toLowerCase().replace(/\s+/g, '-') === tabName ||
+        (tabName === 'clients' && item.textContent.trim() === 'Annuaire') ||
+        (tabName === 'bons-cadeaux' && item.textContent.trim() === 'Bons Cadeaux')) {
+      item.classList.add('active');
+    }
+  });
+};
+
 console.log('App.js PWA charge');

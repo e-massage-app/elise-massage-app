@@ -3152,24 +3152,10 @@ async function validateBackupPath(backupPath) {
 }
 
 function updateBackupPathStatus() {
-  if (typeof DataManager !== 'undefined' && DataManager.getAppData) {
-    const appData = DataManager.getAppData();
-    const params = appData.parametres || {};
-    const cheminSauvegardeAuto = params.cheminSauvegardeAuto || '';
-    const validationDiv = document.getElementById('backup-path-validation');
-    
-    if (!validationDiv || !cheminSauvegardeAuto) return;
-    
-    try {
-      const fs = require('fs');
-      if (fs.existsSync(cheminSauvegardeAuto) && fs.statSync(cheminSauvegardeAuto).isDirectory()) {
-        validationDiv.innerHTML = '<div style="color: #27ae60; font-weight: 500;">✅ Sauvegarde automatique configurée</div>';
-      } else {
-        validationDiv.innerHTML = '<div style="color: #e74c3c; font-weight: 500;">⚠️ Dossier de sauvegarde invalide ou inexistant</div><small style="color: #666; display: block; margin-top: 0.25rem;">Veuillez reconfigurer le chemin</small>';
-      }
-    } catch (error) {
-      validationDiv.innerHTML = '<div style="color: #e74c3c; font-weight: 500;">❌ Erreur d\'accès au dossier de sauvegarde</div>';
-    }
+  // Version PWA : sauvegardes gerees par Supabase
+  const validationDiv = document.getElementById('backup-path-validation');
+  if (validationDiv) {
+    validationDiv.innerHTML = '<div style="color: #27ae60; font-weight: 500;">Sauvegardes gerees automatiquement par Supabase</div>';
   }
 }
 
@@ -5288,8 +5274,7 @@ window.selectAllCampaigns = selectAllCampaigns;
 window.deselectAllCampaigns = deselectAllCampaigns;
 window.saveCampaignSelection = saveCampaignSelection;
 window.updateGoogleAdsCache = updateGoogleAdsCache;
-window.syncGoogleAdsCostsOnStartup = syncGoogleAdsCostsOnStartup;
-window.fetchGoogleAdsCostsSilent = fetchGoogleAdsCostsSilent;
+// syncGoogleAdsCostsOnStartup et fetchGoogleAdsCostsSilent sont definis dans app.js
 
 // ✅ NOUVEAU : Gestion des périodes de campagnes
 window.showCampaignPeriodsModal = showCampaignPeriodsModal;

@@ -2,7 +2,7 @@
 // Strategie : cache assets statiques UNIQUEMENT, PAS les donnees Supabase
 // Si offline -> l'app affiche le message "reseau requis"
 
-const CACHE_NAME = 'elise-massage-v1';
+const CACHE_NAME = 'elise-massage-v2';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -11,6 +11,7 @@ const STATIC_ASSETS = [
   './css/base.css',
   './css/components.css',
   './css/views.css',
+  './css/mobile.css',
   './js/config.js',
   './js/supabase-client.js',
   './js/auth.js',
@@ -56,6 +57,8 @@ self.addEventListener('activate', (event) => {
 
 // Fetch : cache-first pour les assets, network-only pour Supabase
 self.addEventListener('fetch', (event) => {
+  // Ignorer les requetes chrome-extension et non-http
+  if (!event.request.url.startsWith('http')) return;
   const url = new URL(event.request.url);
 
   // Requetes Supabase -> TOUJOURS reseau (pas de cache donnees)

@@ -35,26 +35,55 @@
         <header class="app-header">
             <div class="header-content">
                 <div class="logo">
-                    <img src="assets/logo.png" alt="Elise Massage & Bien-être" class="app-logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                    <img src="assets/logo.png" alt="Elise Massage & Bien-etre" class="app-logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
                     <div class="logo-text" style="display: none;">
                         <h1>Elise</h1>
-                        <p>Massage & Bien-être</p>
+                        <p>Massage & Bien-etre</p>
                     </div>
                 </div>
                 <div class="header-quote">
-                    <p>"Pour un moment, rien qu'à vous."</p>
+                    <p>"Pour un moment, rien qu'a vous."</p>
                 </div>
-                <div class="header-actions">
+                <!-- Actions desktop -->
+                <div class="header-actions desktop-only">
                     <button class="btn-secondary" onclick="exportDataUI()">Exporter</button>
                     <button class="btn-secondary" onclick="importDataUI()">Importer</button>
-                    <button class="btn-secondary" onclick="showParametresModal()" title="Paramètres" style="padding: 0.5rem 0.75rem; font-size: 1.1rem;">&#9881;</button>
+                    <button class="btn-secondary" onclick="showParametresModal()" title="Parametres" style="padding: 0.5rem 0.75rem; font-size: 1.1rem;">&#9881;</button>
                     <button class="btn-secondary" onclick="logout()" title="Deconnexion" style="padding: 0.5rem 0.75rem; font-size: 0.85rem; color: #e74c3c; border-color: #e74c3c;">Deconnexion</button>
                 </div>
+                <!-- Burger menu mobile -->
+                <button class="burger-btn mobile-only" onclick="toggleMobileMenu()" aria-label="Menu">
+                    <span></span><span></span><span></span>
+                </button>
             </div>
         </header>
 
-        <!-- Navigation -->
-        <nav class="app-nav">
+        <!-- Menu mobile (slide-in) -->
+        <div id="mobile-menu" class="mobile-menu">
+            <div class="mobile-menu-header">
+                <span>Menu</span>
+                <button class="mobile-menu-close" onclick="toggleMobileMenu()">&#10005;</button>
+            </div>
+            <div class="mobile-menu-nav">
+                <button class="mobile-nav-item active" onclick="showTab('dashboard'); toggleMobileMenu()">Dashboard</button>
+                <button class="mobile-nav-item" onclick="showTab('calendrier'); toggleMobileMenu()">Calendrier</button>
+                <button class="mobile-nav-item" onclick="showTab('prestations'); toggleMobileMenu()">Prestations</button>
+                <button class="mobile-nav-item" onclick="showTab('bons-cadeaux'); toggleMobileMenu()">Bons Cadeaux</button>
+                <button class="mobile-nav-item" onclick="showTab('clients'); toggleMobileMenu()">Annuaire</button>
+                <button class="mobile-nav-item" onclick="showTab('analytics'); toggleMobileMenu()">Analytics</button>
+                <button class="mobile-nav-item" onclick="showTab('depenses'); toggleMobileMenu()">Depenses</button>
+            </div>
+            <div class="mobile-menu-actions">
+                <button class="mobile-action-item" onclick="exportDataUI(); toggleMobileMenu()">Exporter les donnees</button>
+                <button class="mobile-action-item" onclick="importDataUI(); toggleMobileMenu()">Importer des donnees</button>
+                <button class="mobile-action-item" onclick="showParametresModal(); toggleMobileMenu()">Parametres</button>
+                <button class="mobile-action-item logout" onclick="logout()">Deconnexion</button>
+            </div>
+        </div>
+        <div id="mobile-menu-overlay" class="mobile-menu-overlay" onclick="toggleMobileMenu()"></div>
+
+        <!-- Navigation desktop -->
+        <nav class="app-nav desktop-only">
             <div class="nav-scroll-container">
                 <button class="nav-tab active" onclick="showTab('dashboard')">Dashboard</button>
                 <button class="nav-tab" onclick="showTab('calendrier')">Calendrier</button>
