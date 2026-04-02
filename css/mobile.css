@@ -266,37 +266,36 @@
   }
 
   .calendar-day {
-    min-height: 48px;
+    min-height: 65px;
     padding: 0.15rem;
   }
-  .calendar-day-number { font-size: 0.7rem; font-weight: 600; }
+  .calendar-day-number { font-size: 0.65rem; font-weight: 600; margin-bottom: 1px; }
 
-  /* RDV dans le calendrier : dots colores */
+  /* RDV dans le calendrier : compact avec heure visible */
   .calendar-rdv {
-    font-size: 0 !important;
-    width: 8px !important;
-    height: 8px !important;
-    border-radius: 50% !important;
-    padding: 0 !important;
-    display: inline-block !important;
-    margin: 1px !important;
+    font-size: 0.55rem !important;
+    padding: 1px 2px !important;
+    border-radius: 3px !important;
+    margin-bottom: 1px !important;
     min-height: auto !important;
-    line-height: 0 !important;
+    line-height: 1.1 !important;
     overflow: hidden !important;
+    white-space: nowrap !important;
+    text-overflow: ellipsis !important;
+    display: block !important;
+    max-width: 100% !important;
   }
 
-  /* Institut badge en dot orange */
+  /* Institut badge compact */
   .institut-badge {
-    font-size: 0 !important;
-    width: 8px !important;
-    height: 8px !important;
-    border-radius: 50% !important;
-    padding: 0 !important;
-    display: inline-block !important;
-    margin: 1px !important;
-    background: #f39c12 !important;
-    min-height: auto !important;
+    font-size: 0.5rem !important;
+    padding: 0 2px !important;
+    display: block !important;
     overflow: hidden !important;
+    white-space: nowrap !important;
+    text-overflow: ellipsis !important;
+    max-width: 100% !important;
+    line-height: 1.2 !important;
   }
 
   /* ============================
@@ -488,60 +487,80 @@
     gap: 0.3rem !important;
   }
 
-  /* Cacher canal acquisition sur mobile pour gagner de l'espace */
+  /* Cacher canal acquisition et search label sur mobile */
+  #clients > div:first-child > div:first-child > div:nth-child(2),
   .clients-header > div:first-child > div:nth-child(2) {
     display: none !important;
   }
 
-  /* View controls bar - tout en 1 ligne compacte */
+  /* View controls bar - 1 ligne compacte avec tout inline */
   .view-controls-bar {
-    padding: 0.3rem 0.5rem !important;
-    gap: 0.2rem !important;
+    padding: 0.3rem 0.4rem !important;
+    gap: 0.3rem !important;
     flex-direction: row !important;
-    flex-wrap: wrap !important;
-    justify-content: center !important;
+    flex-wrap: nowrap !important;
+    justify-content: space-between !important;
     align-items: center !important;
-  }
-  .view-controls-bar > div {
-    display: flex !important;
-    flex-direction: row !important;
-    flex-wrap: wrap !important;
-    justify-content: center !important;
-    gap: 0.2rem !important;
-    align-items: center !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
   }
 
-  /* Vue label masque */
-  .view-controls-bar > div:first-child > span:first-child {
+  /* Groupes de controles en ligne */
+  .view-controls-group {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 0.15rem !important;
+    flex-shrink: 0;
+  }
+
+  /* Masquer labels "Vue:" et "Tri:" */
+  .view-control-label {
     display: none !important;
   }
 
   /* Boutons vue grille/liste compacts */
   .view-toggle-btn {
-    min-height: 34px !important;
-    min-width: 34px !important;
-    padding: 0.2rem 0.4rem !important;
-    font-size: 0.8rem !important;
+    min-height: 32px !important;
+    min-width: 32px !important;
+    max-width: 36px !important;
+    padding: 0.15rem !important;
+    font-size: 0.75rem !important;
   }
 
-  /* Section toggles (Fideles, Nouveaux, etc.) en badges inline compacts */
+  /* Section toggles en ligne scrollable */
+  .view-controls-sections {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    gap: 0.15rem !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    flex-shrink: 1;
+    min-width: 0;
+  }
+
+  /* Chaque toggle ultra compact */
   .section-toggle {
-    font-size: 0.7rem !important;
+    font-size: 0.65rem !important;
     min-height: 28px !important;
-    padding: 0.15rem 0.4rem !important;
+    padding: 0.1rem 0.3rem !important;
+    white-space: nowrap !important;
+    flex-shrink: 0;
+  }
+  .section-toggle input[type="checkbox"] {
+    width: 14px !important;
+    height: 14px !important;
+    margin: 0 !important;
   }
 
   /* Tri select compact */
   .view-sort-select {
-    min-width: 100px !important;
-    font-size: 0.75rem !important;
-    min-height: 32px !important;
-    padding: 0.2rem 0.4rem !important;
-  }
-
-  /* Cacher le "Tri:" label */
-  .view-controls-bar > div:last-child > span {
-    display: none !important;
+    min-width: 90px !important;
+    max-width: 120px !important;
+    font-size: 0.7rem !important;
+    min-height: 30px !important;
+    padding: 0.15rem 0.3rem !important;
   }
 
   /* Sections clients : 1 colonne */
@@ -718,11 +737,29 @@
     grid-template-columns: 1fr 1fr !important;
     gap: 0.3rem !important;
   }
+  /* Masquer les labels de filtre sur mobile - le placeholder du select suffit */
+  .depenses-filters .filter-group label {
+    display: none !important;
+  }
+  .depenses-filters .filter-group {
+    width: 100%;
+  }
   .depenses-filters select {
     width: 100% !important;
-    font-size: 0.8rem;
-    padding: 0.4rem;
+    font-size: 0.78rem;
+    padding: 0.35rem;
     min-height: 36px;
+  }
+  /* Bouton reset prend toute la largeur */
+  .depenses-filters > button {
+    grid-column: 1 / -1;
+    font-size: 0.8rem;
+  }
+  /* Compteur resultats */
+  #depenses-results-count {
+    margin-left: 0 !important;
+    text-align: center;
+    grid-column: 1 / -1;
   }
   #depenses-search {
     width: 100% !important;

@@ -2,7 +2,7 @@
 // Strategie : cache assets statiques UNIQUEMENT, PAS les donnees Supabase
 // Si offline -> l'app affiche le message "reseau requis"
 
-const CACHE_NAME = 'elise-massage-v5';
+const CACHE_NAME = 'elise-massage-v6';
 const STATIC_ASSETS = [
   './',
   './index.html',
