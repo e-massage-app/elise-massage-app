@@ -544,11 +544,11 @@ function getKpiValue(kpis, kpiId, type) {
         
         return `
           <div style="display: flex; flex-direction: column; align-items: center;">
-            <div style="font-size: 1.5rem; font-weight: 700; line-height: 1;">
-              ${value.toFixed(2)} €
+            <div class="kpi-value-main" style="font-weight: 700; line-height: 1;">
+              ${value.toFixed(2)} &euro;
             </div>
-            <div style="font-size: 0.7rem; color: #6c757d; margin-top: 4px;">
-              🕐 Màj: ${timeText}
+            <div style="font-size: 0.65rem; color: #6c757d; margin-top: 2px;">
+              Maj: ${timeText}
             </div>
           </div>
         `;
