@@ -287,33 +287,44 @@
     line-height: 1;
   }
 
-  /* RDV : juste l'heure en mini tag colore */
+  /* RDV : barres colorees compactes avec heure lisible */
   .calendar-rdv {
-    font-size: 0.48rem !important;
-    padding: 1px 2px !important;
+    font-size: 0 !important;
+    height: 4px !important;
+    min-height: 4px !important;
+    max-height: 4px !important;
+    padding: 0 !important;
     border-radius: 2px !important;
-    margin-bottom: 1px !important;
-    min-height: auto !important;
-    line-height: 1 !important;
-    overflow: hidden !important;
-    white-space: nowrap !important;
-    text-overflow: ellipsis !important;
+    margin-bottom: 2px !important;
     display: block !important;
     max-width: 100% !important;
+    overflow: hidden !important;
+    opacity: 0.85;
   }
+  /* Couleurs par defaut si pas de style inline */
+  .calendar-rdv.confirmé,
+  .calendar-rdv.confirme { background-color: #27ae60 !important; }
+  .calendar-rdv.en-attente { background-color: #f39c12 !important; }
+  .calendar-rdv.annulé,
+  .calendar-rdv.annule { background-color: #e74c3c !important; }
+  .calendar-rdv.prestation { background-color: #d4a574 !important; opacity: 0.5; }
+  .calendar-rdv.headspa { background-color: #9b59b6 !important; }
 
-  /* Institut badge : garder visible et cliquable */
+  /* Institut badge : petit tag lisible */
   .institut-badge {
-    font-size: 0.45rem !important;
-    padding: 1px 2px !important;
+    font-size: 0.5rem !important;
+    padding: 1px 3px !important;
     display: inline-block !important;
     overflow: hidden !important;
     white-space: nowrap !important;
     text-overflow: ellipsis !important;
     max-width: 100% !important;
-    line-height: 1 !important;
-    border-radius: 2px !important;
+    line-height: 1.1 !important;
+    border-radius: 3px !important;
     cursor: pointer;
+    background: #fff3cd !important;
+    color: #856404 !important;
+    border: 1px solid #ffc107 !important;
   }
 
   /* ============================
@@ -739,6 +750,8 @@
   }
   .chart-container.collapsed .chart-wrapper,
   .modern-chart.collapsed .chart-wrapper,
+  .chart-container.collapsed .table-wrapper,
+  .modern-chart.collapsed .table-wrapper,
   .chart-container.collapsed .chart-stats,
   .modern-chart.collapsed .chart-stats {
     display: none !important;

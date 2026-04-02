@@ -509,6 +509,40 @@ document.addEventListener('click', function(e) {
       container.classList.toggle('collapsed');
     }
   }
+
+  // Toggle stats header
+  const statsHeader = e.target.closest('.stats-header');
+  if (statsHeader) {
+    const container = statsHeader.closest('.stats-container, .modern-stats');
+    if (container) {
+      container.classList.toggle('collapsed');
+    }
+  }
 });
+
+// Fermer toutes les sections analytics par defaut sur mobile
+function collapseAnalyticsOnMobile() {
+  if (window.innerWidth <= 768) {
+    document.querySelectorAll('.chart-container, .modern-chart, .stats-container, .modern-stats').forEach(el => {
+      // Ne pas fermer le graphique principal (evolution annuelle)
+      if (!el.closest('.analytics-container')) {
+        el.classList.add('collapsed');
+      }
+    });
+    document.querySelectorAll('.modern-filters').forEach(el => {
+      el.classList.add('collapsed');
+    });
+  }
+}
+
+// Appeler apres le chargement des analytics
+const originalUpdateAnalytics = window.UtilsServices?.updateAnalytics;
+if (originalUpdateAnalytics) {
+  const _origUpdate = UtilsServices.updateAnalytics;
+  UtilsServices.updateAnalytics = function() {
+    _origUpdate.apply(this, arguments);
+    setTimeout(collapseAnalyticsOnMobile, 100);
+  };
+}
 
 console.log('App.js PWA charge');
