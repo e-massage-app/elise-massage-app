@@ -414,10 +414,7 @@ window.RdvDuplication = {
       
       // 3. Sauvegarder avec vérifications
       if (typeof BusinessServices !== 'undefined' && BusinessServices.createRdv) {
-        BusinessServices.createRdv(formData);
-        if (typeof DataManager !== 'undefined' && DataManager.saveData) {
-          await DataManager.saveData();
-        }
+        await BusinessServices.createRdv(formData);
       } else {
         console.warn('⚠️ BusinessServices non disponible');
       }
@@ -572,10 +569,7 @@ window.PrestationDuplication = {
       
       // 3. Sauvegarder avec vérifications
       if (typeof BusinessServices !== 'undefined' && BusinessServices.createPrestation) {
-        BusinessServices.createPrestation(formData);
-        if (typeof DataManager !== 'undefined' && DataManager.saveData) {
-          await DataManager.saveData();
-        }
+        await BusinessServices.createPrestation(formData);
       } else {
         console.warn('⚠️ BusinessServices non disponible');
       }
@@ -3298,10 +3292,7 @@ async function handleParametresFormSubmit(e) {
   try {
     if (typeof DataManager !== 'undefined') {
       if (DataManager.saveParametres) {
-        DataManager.saveParametres(formData);
-      }
-      if (DataManager.saveData) {
-        await DataManager.saveData();
+        await DataManager.saveParametres(formData);
       }
     }
 
@@ -4564,15 +4555,14 @@ function showAddPeriodForm(campaignId) {
         const startDate = document.getElementById('period-start-date').value;
         const endDate = document.getElementById('period-end-date').value || null;
         const frozenCost = parseFloat(document.getElementById('period-frozen-cost').value) || null;
-        
-        DataManager.addCampaignPeriod(campaignId, {
+
+        await DataManager.addCampaignPeriod(campaignId, {
           startDate,
           endDate,
           frozenCost
         });
-        
-        await DataManager.saveData();
-        showTemporaryMessage('✅ Période créée !', 'success');
+
+        showTemporaryMessage('Periode creee !', 'success');
         showCampaignPeriodsModal(campaignId);
       });
     }
@@ -4610,11 +4600,9 @@ function endPeriodNow(periodId, campaignId, campaignName) {
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
         const finalCost = parseFloat(document.getElementById('final-cost').value);
-        
-        DataManager.endCampaignPeriod(periodId, finalCost);
-        await DataManager.saveData();
-        
-        showTemporaryMessage('✅ Période clôturée !', 'success');
+
+        await DataManager.endCampaignPeriod(periodId, finalCost);
+        showTemporaryMessage('Periode cloturee !', 'success');
         showCampaignPeriodsModal(campaignId, campaignName);
       });
     }
@@ -4636,10 +4624,9 @@ function deletePeriodConfirm(periodId, campaignId, campaignName) {
   showModal('delete-period-modal', modalHTML);
 }
 
-function confirmDeletePeriod(periodId, campaignId, campaignName) {
-  DataManager.deleteCampaignPeriod(periodId);
-  DataManager.saveData();
-  showTemporaryMessage('✅ Période supprimée', 'success');
+async function confirmDeletePeriod(periodId, campaignId, campaignName) {
+  await DataManager.deleteCampaignPeriod(periodId);
+  showTemporaryMessage('Periode supprimee', 'success');
   showCampaignPeriodsModal(campaignId, campaignName);
 }
 
@@ -5078,8 +5065,7 @@ async function saveEditSoin(soinId) {
     variantes: variantes
   };
 
-  DataManager.updateSoin(soinId, updates);
-  await DataManager.saveData();
+  await DataManager.updateSoin(soinId, updates);
   showCarteSoinsModal();
 }
 
@@ -5089,11 +5075,11 @@ async function saveNewSoin() {
 
   const variantes = collectVariantes();
   if (variantes.length === 0) {
-    UtilsServices.showCustomAlert('Ajoutez au moins une variante (durée + prix)', 'error');
+    UtilsServices.showCustomAlert('Ajoutez au moins une variante (duree + prix)', 'error');
     return;
   }
 
-  DataManager.addSoin({
+  await DataManager.addSoin({
     nom: nom,
     categorieId: document.getElementById('soin-categorie').value,
     coutHuiles: parseFloat(document.getElementById('soin-cout-huiles').value) || 0,
@@ -5101,19 +5087,16 @@ async function saveNewSoin() {
     variantes: variantes
   });
 
-  await DataManager.saveData();
   showCarteSoinsModal();
 }
 
 async function quickArchiveSoin(soinId) {
-  DataManager.archiveSoin(soinId);
-  await DataManager.saveData();
+  await DataManager.archiveSoin(soinId);
   showCarteSoinsModal();
 }
 
 async function quickActiverSoin(soinId) {
-  DataManager.activerSoin(soinId);
-  await DataManager.saveData();
+  await DataManager.activerSoin(soinId);
   showCarteSoinsModal();
 }
 
@@ -5168,12 +5151,11 @@ function showAddCategorieModal() {
 }
 
 async function saveEditCategorie(categorieId) {
-  DataManager.updateCategorie(categorieId, {
+  await DataManager.updateCategorie(categorieId, {
     nom: document.getElementById('cat-nom').value,
     ordre: parseInt(document.getElementById('cat-ordre').value) || 1,
     statut: document.getElementById('cat-statut').value
   });
-  await DataManager.saveData();
   showCarteSoinsModal();
 }
 
@@ -5181,8 +5163,7 @@ async function saveNewCategorie() {
   const nom = document.getElementById('cat-nom').value;
   if (!nom) return;
 
-  DataManager.addCategorie({ nom: nom });
-  await DataManager.saveData();
+  await DataManager.addCategorie({ nom: nom });
   showCarteSoinsModal();
 }
 
@@ -5796,7 +5777,7 @@ window.updateBonExpirationPreview = function() {
   }
 };
 
-function handleBonCadeauFormSubmit(e) {
+async function handleBonCadeauFormSubmit(e) {
   e.preventDefault();
 
   const bonId = document.getElementById('bon-cadeau-id').value;
@@ -5820,21 +5801,20 @@ function handleBonCadeauFormSubmit(e) {
     statut: 'actif'
   };
 
-  // Si bénéficiaire renseigné et pas de client ID, créer un client minimal
+  // Si beneficiaire renseigne et pas de client ID, creer un client minimal
   if (formData.beneficiaireNom && !formData.beneficiaireClientId) {
-    const newClient = BusinessServices.createClientMinimal(formData.beneficiaireNom);
+    const newClient = await BusinessServices.createClientMinimal(formData.beneficiaireNom);
     formData.beneficiaireClientId = newClient.id;
   }
 
   if (isEdit) {
-    BusinessServices.updateBonCadeau(formData);
-    showTemporaryMessage('Bon cadeau modifié avec succès');
+    await BusinessServices.updateBonCadeau(formData);
+    showTemporaryMessage('Bon cadeau modifie avec succes');
   } else {
-    BusinessServices.createBonCadeau(formData);
-    showTemporaryMessage('Bon cadeau créé avec succès');
+    await BusinessServices.createBonCadeau(formData);
+    showTemporaryMessage('Bon cadeau cree avec succes');
   }
 
-  DataManager.saveData();
   closeModal();
   ViewManager.updateBonsCadeauxDisplay();
 }

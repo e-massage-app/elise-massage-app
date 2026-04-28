@@ -1607,14 +1607,13 @@ function createNewTagFromModal() {
 }
 
 // 3. MODIFIER saveTagsSelection pour supporter les collaborateurs
-function saveTagsSelection(personId, personType) {
+async function saveTagsSelection(personId, personType) {
   const selectedTags = Array.from(document.querySelectorAll('.tag-option[data-selected="true"]'))
     .map(option => option.dataset.tagId);
-    
+
   const appData = DataManager.getAppData();
   let collection, person;
-  
-  // ✅ NOUVEAU : Support collaborateurs
+
   if (personType === 'collaborateur') {
     if (!appData.collaborateurs) appData.collaborateurs = [];
     collection = appData.collaborateurs;
@@ -1623,15 +1622,22 @@ function saveTagsSelection(personId, personType) {
     collection = personType === 'client' ? appData.clients : appData.prospects;
     person = collection.find(p => p.id === personId);
   }
-  
+
   if (person) {
+    const previousTags = person.tags ? person.tags.slice() : [];
     person.tags = selectedTags;
-    // Persister dans Supabase
+
     const table = personType === 'collaborateur' ? 'collaborateurs' : (personType === 'prospect' ? 'prospects' : 'clients');
     const mapFn = personType === 'collaborateur' ? DataManager.mapCollaborateurToDb : (personType === 'prospect' ? DataManager.mapProspectToDb : DataManager.mapClientToDb);
-    try { DataManager.updateEntity(table, person.id, person, mapFn); } catch(e) { console.error('Erreur save tags:', e); }
-    
-    // Rafraîchir l'affichage approprié
+    try {
+      await DataManager.updateEntity(table, person.id, person, mapFn);
+    } catch (err) {
+      console.error('Erreur save tags:', err);
+      person.tags = previousTags;
+      alert('Erreur lors de la sauvegarde des tags. Verifiez votre connexion.');
+      return;
+    }
+
     if (personType === 'collaborateur') {
       if (window.ViewManager && typeof ViewManager.updateCollaborateursDisplay === 'function') {
         ViewManager.updateCollaborateursDisplay();
@@ -1639,9 +1645,9 @@ function saveTagsSelection(personId, personType) {
     } else {
       updateClientsDisplay();
     }
-    
+
     closeModal();
-    showTemporaryMessage('🏷️ Tags mis à jour !');
+    showTemporaryMessage('Tags mis a jour !');
   }
 }
 

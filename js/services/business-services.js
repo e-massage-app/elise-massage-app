@@ -2,7 +2,11 @@
 // Gestion des RDV et Prestations (logique metier)
 // Version PWA : chaque mutation persiste dans Supabase
 
-// ===== HELPER : persister silencieusement =====
+// ===== HELPER : persister + signaler les echecs a l'utilisateur =====
+// Retourne true en cas de succes, false sinon (sans throw pour limiter
+// l'impact sur les callers qui ne sont pas instrumentes).
+// En cas d'echec, affiche une alerte BLOQUANTE pour eviter le faux positif
+// "j'ai sauvegarde mais en fait c'etait que dans le cache".
 async function _persist(table, action, data, mapFn) {
   try {
     if (action === 'insert') {
@@ -12,8 +16,19 @@ async function _persist(table, action, data, mapFn) {
     } else if (action === 'delete') {
       await DataManager.deleteEntity(table, data);
     }
+    return true;
   } catch (err) {
     console.error(`Erreur persistence ${table}/${action}:`, err);
+    const labels = {
+      rdv: 'RDV', prestations: 'prestation', depenses: 'depense',
+      bons_cadeaux: 'bon cadeau', clients: 'client', prospects: 'prospect',
+      collaborateurs: 'collaborateur'
+    };
+    const verbe = action === 'insert' ? 'enregistre' : (action === 'update' ? 'mis a jour' : 'supprime');
+    if (typeof alert !== 'undefined') {
+      alert(`Echec sauvegarde ${labels[table] || table} (${verbe}).\n\nLe changement est visible localement mais n'a PAS ete sauvegarde en base.\n\nVerifiez votre connexion, rechargez l'app, et recommencez.`);
+    }
+    return false;
   }
 }
 

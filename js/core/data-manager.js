@@ -789,7 +789,7 @@ function getCampaignPeriods(campaignId) {
   return appData.parametres.googleAdsCampaignPeriods[campaignId] || [];
 }
 
-function addCampaignPeriod(campaignId, periodData) {
+async function addCampaignPeriod(campaignId, periodData) {
   if (!appData.parametres.googleAdsCampaignPeriods) {
     appData.parametres.googleAdsCampaignPeriods = {};
   }
@@ -806,11 +806,11 @@ function addCampaignPeriod(campaignId, periodData) {
     createdAt: new Date().toISOString()
   };
   appData.parametres.googleAdsCampaignPeriods[campaignId].push(newPeriod);
-  saveParametresToDb();
+  await saveParametresToDb();
   return newPeriod;
 }
 
-function endCampaignPeriod(periodId, finalCost, finalMetrics = {}) {
+async function endCampaignPeriod(periodId, finalCost, finalMetrics = {}) {
   if (!appData.parametres.googleAdsCampaignPeriods) return false;
   for (const campaignId in appData.parametres.googleAdsCampaignPeriods) {
     const periods = appData.parametres.googleAdsCampaignPeriods[campaignId];
@@ -820,14 +820,14 @@ function endCampaignPeriod(periodId, finalCost, finalMetrics = {}) {
       period.frozenCost = finalCost;
       period.frozenMetrics = finalMetrics;
       period.endedAt = new Date().toISOString();
-      saveParametresToDb();
+      await saveParametresToDb();
       return true;
     }
   }
   return false;
 }
 
-function updateCampaignPeriod(periodId, updates) {
+async function updateCampaignPeriod(periodId, updates) {
   if (!appData.parametres.googleAdsCampaignPeriods) return false;
   for (const campaignId in appData.parametres.googleAdsCampaignPeriods) {
     const periods = appData.parametres.googleAdsCampaignPeriods[campaignId];
@@ -835,21 +835,21 @@ function updateCampaignPeriod(periodId, updates) {
     if (period) {
       Object.assign(period, updates);
       period.updatedAt = new Date().toISOString();
-      saveParametresToDb();
+      await saveParametresToDb();
       return true;
     }
   }
   return false;
 }
 
-function deleteCampaignPeriod(periodId) {
+async function deleteCampaignPeriod(periodId) {
   if (!appData.parametres.googleAdsCampaignPeriods) return false;
   for (const campaignId in appData.parametres.googleAdsCampaignPeriods) {
     const periods = appData.parametres.googleAdsCampaignPeriods[campaignId];
     const index = periods.findIndex(p => p.id === periodId);
     if (index !== -1) {
       periods.splice(index, 1);
-      saveParametresToDb();
+      await saveParametresToDb();
       return true;
     }
   }
@@ -941,10 +941,10 @@ function calculerDateExpiration(dateDebut) {
 }
 
 function getValiditeBonsCadeauxMois() { return appData.parametres?.validiteBonsCadeauxMois || 6; }
-function setValiditeBonsCadeauxMois(mois) {
+async function setValiditeBonsCadeauxMois(mois) {
   if (!appData.parametres) appData.parametres = {};
   appData.parametres.validiteBonsCadeauxMois = mois;
-  saveParametresToDb();
+  await saveParametresToDb();
 }
 
 // ===== CARTE DES SOINS PARAMETRABLE =====
@@ -1084,7 +1084,7 @@ function getSoinsGroupedByCategorie(options = {}) {
 }
 
 // CRUD Carte des soins
-function addSoin(soinData) {
+async function addSoin(soinData) {
   const carte = getCarteSoins();
   if (!carte) return null;
   const newSoin = {
@@ -1100,36 +1100,36 @@ function addSoin(soinData) {
     variantes: soinData.variantes || [{ duree: 60, prix: 0, description: "" }]
   };
   carte.soins.push(newSoin);
-  saveParametresToDb();
+  await saveParametresToDb();
   return newSoin;
 }
 
-function updateSoin(soinId, updates) {
+async function updateSoin(soinId, updates) {
   const carte = getCarteSoins();
   if (!carte) return false;
   const soin = carte.soins.find(s => s.id === soinId);
   if (!soin) return false;
   const allowedFields = ['nom', 'categorieId', 'statut', 'coutHuiles', 'isPartnership', 'partenaireCollaborateurId', 'calendarColor', 'comboConfig', 'variantes'];
   allowedFields.forEach(field => { if (updates[field] !== undefined) soin[field] = updates[field]; });
-  saveParametresToDb();
+  await saveParametresToDb();
   return true;
 }
 
-function archiveSoin(soinId) { return updateSoin(soinId, { statut: 'archive' }); }
-function standBySoin(soinId) { return updateSoin(soinId, { statut: 'standby' }); }
-function activerSoin(soinId) { return updateSoin(soinId, { statut: 'actif' }); }
+async function archiveSoin(soinId) { return updateSoin(soinId, { statut: 'archive' }); }
+async function standBySoin(soinId) { return updateSoin(soinId, { statut: 'standby' }); }
+async function activerSoin(soinId) { return updateSoin(soinId, { statut: 'actif' }); }
 
-function deleteSoin(soinId) {
+async function deleteSoin(soinId) {
   const carte = getCarteSoins();
   if (!carte) return false;
   const index = carte.soins.findIndex(s => s.id === soinId);
   if (index === -1) return false;
   carte.soins.splice(index, 1);
-  saveParametresToDb();
+  await saveParametresToDb();
   return true;
 }
 
-function addCategorie(categorieData) {
+async function addCategorie(categorieData) {
   const carte = getCarteSoins();
   if (!carte) return null;
   const maxOrdre = carte.categories.reduce((max, c) => Math.max(max, c.ordre || 0), 0);
@@ -1140,11 +1140,11 @@ function addCategorie(categorieData) {
     statut: categorieData.statut || 'actif'
   };
   carte.categories.push(newCategorie);
-  saveParametresToDb();
+  await saveParametresToDb();
   return newCategorie;
 }
 
-function updateCategorie(categorieId, updates) {
+async function updateCategorie(categorieId, updates) {
   const carte = getCarteSoins();
   if (!carte) return false;
   const categorie = carte.categories.find(c => c.id === categorieId);
@@ -1152,16 +1152,16 @@ function updateCategorie(categorieId, updates) {
   if (updates.nom !== undefined) categorie.nom = updates.nom;
   if (updates.ordre !== undefined) categorie.ordre = updates.ordre;
   if (updates.statut !== undefined) categorie.statut = updates.statut;
-  saveParametresToDb();
+  await saveParametresToDb();
   return true;
 }
 
-function archiveCategorie(categorieId) {
+async function archiveCategorie(categorieId) {
   const carte = getCarteSoins();
   if (!carte) return false;
-  updateCategorie(categorieId, { statut: 'archive' });
+  await updateCategorie(categorieId, { statut: 'archive' });
   carte.soins.filter(s => s.categorieId === categorieId).forEach(s => { s.statut = 'archive'; });
-  saveParametresToDb();
+  await saveParametresToDb();
   return true;
 }
 
