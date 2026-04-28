@@ -1478,57 +1478,88 @@ function applyVilleFilter(clients) {
   return clients.filter(client => client.ville === currentVilleFilter);
 }
 
-// ✅ NOUVEAU : GESTION DES JOURS INSTITUT
+// GESTION DES JOURS INSTITUT
 async function toggleJourInstitut(dateStr) {
   const appData = DataManager.getAppData();
-  
-  // Initialiser le tableau si besoin
+
   if (!appData.parametres.joursInstitut) {
     appData.parametres.joursInstitut = [];
   }
-  
+
   const index = appData.parametres.joursInstitut.indexOf(dateStr);
-  
+
   if (index === -1) {
-    // Cocher : ajouter le jour et créer la dépense
-    appData.parametres.joursInstitut.push(dateStr);
-    
-    // Créer la dépense de loyer 30€
+    // Cocher : ajouter le jour + creer la depense de loyer 30 EUR
     const depenseLoyer = {
       id: DataManager.generateId(),
       date: dateStr,
       montant: 30,
       categorie: 'Loyer',
-      description: 'Journée en institut',
+      description: 'Journee en institut',
       fournisseur: 'Institut',
       notes: '',
-      type: 'loyer-institut' // Flag pour identifier cette dépense
+      type: 'loyer-institut'
     };
-    
-    if (!appData.depenses) {
-      appData.depenses = [];
+
+    // Persister DB d'abord (depense puis parametre)
+    try {
+      await DataManager.insertEntity('depenses', depenseLoyer, DataManager.mapDepenseToDb);
+    } catch (err) {
+      console.error('Erreur insert depense loyer institut:', err);
+      alert('Erreur lors de la creation de la depense. Verifiez votre connexion.');
+      return;
     }
+
+    appData.parametres.joursInstitut.push(dateStr);
+    const okParam = await DataManager.saveParametresToDb();
+    if (!okParam) {
+      // Rollback : supprimer la depense + retirer du tableau
+      appData.parametres.joursInstitut.pop();
+      try { await DataManager.deleteEntity('depenses', depenseLoyer.id); } catch(e) {}
+      alert('Erreur de sauvegarde du parametre joursInstitut.');
+      return;
+    }
+
+    if (!appData.depenses) appData.depenses = [];
     appData.depenses.push(depenseLoyer);
-    
+
   } else {
-    // Décocher : retirer le jour et supprimer la dépense
-    appData.parametres.joursInstitut.splice(index, 1);
-    
-    // Supprimer la dépense correspondante
+    // Decocher : retirer le jour + supprimer la depense correspondante
+    let depenseToDelete = null;
+    let depenseIndex = -1;
     if (appData.depenses) {
-      const depenseIndex = appData.depenses.findIndex(
+      depenseIndex = appData.depenses.findIndex(
         d => d.date === dateStr && d.type === 'loyer-institut'
       );
       if (depenseIndex !== -1) {
-        appData.depenses.splice(depenseIndex, 1);
+        depenseToDelete = appData.depenses[depenseIndex];
       }
     }
+
+    if (depenseToDelete) {
+      try {
+        await DataManager.deleteEntity('depenses', depenseToDelete.id);
+      } catch (err) {
+        console.error('Erreur delete depense loyer institut:', err);
+        alert('Erreur lors de la suppression de la depense. Verifiez votre connexion.');
+        return;
+      }
+    }
+
+    appData.parametres.joursInstitut.splice(index, 1);
+    const okParam = await DataManager.saveParametresToDb();
+    if (!okParam) {
+      // Rollback : remettre le jour
+      appData.parametres.joursInstitut.splice(index, 0, dateStr);
+      alert('Erreur de sauvegarde du parametre joursInstitut.');
+      return;
+    }
+
+    if (depenseToDelete && depenseIndex !== -1) {
+      appData.depenses.splice(depenseIndex, 1);
+    }
   }
-  
-  // Sauvegarder
-  await DataManager.saveData();
-  
-  // Rafraîchir l'affichage
+
   updateCalendar();
   updateDepensesDisplay();
   updateDashboard();
@@ -2006,11 +2037,12 @@ function loadAnnuaireViewPrefs() {
   }
 }
 
-function saveAnnuaireViewPrefs() {
+async function saveAnnuaireViewPrefs() {
   const appData = DataManager.getAppData();
   if (!appData.parametres) appData.parametres = {};
   appData.parametres.annuaireViewPrefs = annuaireViewPrefs;
-  DataManager.saveData();
+  // Best-effort, pas d'alerte UI : preferences cosmetiques uniquement
+  await DataManager.saveParametresToDb();
 }
 
 function initAnnuaireViewControls() {

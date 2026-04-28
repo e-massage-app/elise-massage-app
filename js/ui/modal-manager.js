@@ -2073,35 +2073,56 @@ async function saveAbonnement(editIndex) {
 
   const aboData = { nom, montant, jourPrelevement, categorie, fournisseur, description, actif: true };
 
+  // Snapshot pour rollback en cas d'echec DB
+  const previous = appData.parametres.abonnements.slice();
+
   if (editIndex >= 0 && editIndex < appData.parametres.abonnements.length) {
-    // Conserver l'etat actif
     aboData.actif = appData.parametres.abonnements[editIndex].actif;
     appData.parametres.abonnements[editIndex] = aboData;
   } else {
     appData.parametres.abonnements.push(aboData);
   }
 
-  await DataManager.saveData();
+  const ok = await DataManager.saveParametresToDb();
+  if (!ok) {
+    appData.parametres.abonnements = previous;
+    alert('Erreur lors de la sauvegarde de l\'abonnement. Verifiez votre connexion.');
+    return;
+  }
   showParametresAbonnementsModal();
 }
 
 async function toggleAbonnement(index) {
   const appData = DataManager.getAppData();
-  if (appData.parametres.abonnements && appData.parametres.abonnements[index]) {
-    appData.parametres.abonnements[index].actif = !appData.parametres.abonnements[index].actif;
-    await DataManager.saveData();
-    showParametresAbonnementsModal();
+  if (!appData.parametres.abonnements || !appData.parametres.abonnements[index]) return;
+
+  const previousValue = appData.parametres.abonnements[index].actif;
+  appData.parametres.abonnements[index].actif = !previousValue;
+
+  const ok = await DataManager.saveParametresToDb();
+  if (!ok) {
+    appData.parametres.abonnements[index].actif = previousValue;
+    alert('Erreur de sauvegarde. Verifiez votre connexion.');
+    return;
   }
+  showParametresAbonnementsModal();
 }
 
 async function deleteAbonnement(index) {
   if (!confirm('Supprimer cet abonnement ?')) return;
   const appData = DataManager.getAppData();
-  if (appData.parametres.abonnements) {
-    appData.parametres.abonnements.splice(index, 1);
-    await DataManager.saveData();
-    showParametresAbonnementsModal();
+  if (!appData.parametres.abonnements) return;
+
+  const previous = appData.parametres.abonnements.slice();
+  appData.parametres.abonnements.splice(index, 1);
+
+  const ok = await DataManager.saveParametresToDb();
+  if (!ok) {
+    appData.parametres.abonnements = previous;
+    alert('Erreur de suppression. Verifiez votre connexion.');
+    return;
   }
+  showParametresAbonnementsModal();
 }
 
 function editAbonnement(index) {
@@ -2790,10 +2811,9 @@ function showTemporaryMessage(message) {
 
 // ===== GESTION FORMULAIRES COLLABORATEURS =====
 
-function handleCollaborateurFormSubmit(e) {
+async function handleCollaborateurFormSubmit(e) {
   e.preventDefault();
-  console.log('🔄 handleCollaborateurFormSubmit démarré');
-  
+
   const formData = {
     prenom: document.getElementById('collaborateur-prenom').value.trim(),
     nom: document.getElementById('collaborateur-nom').value.trim(),
@@ -2806,19 +2826,17 @@ function handleCollaborateurFormSubmit(e) {
     notes: document.getElementById('collaborateur-notes').value.trim(),
     tags: document.getElementById('collaborateur-tags')?.value.trim() || ''
   };
-  
+
   // Validation
   if (!formData.prenom || !formData.nom) {
-    alert('Le prénom et le nom sont obligatoires');
+    alert('Le prenom et le nom sont obligatoires');
     return;
   }
-  
-  // Traitement des tags
-  const tags = formData.tags ? formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0) : [];
-  
-  // Créer l'objet collaborateur
+
+  const tags = formData.tags ? formData.tags.split(',').map(t => t.trim()).filter(t => t.length > 0) : [];
+
   const collaborateur = {
-    id: DataManager ? DataManager.generateId() : 'temp_' + Date.now(),
+    id: DataManager.generateId(),
     prenom: formData.prenom,
     nom: formData.nom,
     poste: formData.poste || '',
@@ -2828,44 +2846,38 @@ function handleCollaborateurFormSubmit(e) {
     email: formData.email || '',
     adresse: formData.adresse || '',
     notes: formData.notes || '',
-    tags: tags,
-    dateCreation: new Date().toISOString()
+    tags: tags
   };
-  
-  // Ajouter à la base de données
-  if (typeof DataManager !== 'undefined' && DataManager.getAppData) {
-    const appData = DataManager.getAppData();
-    if (!appData.collaborateurs) {
-      appData.collaborateurs = [];
-    }
-    appData.collaborateurs.push(collaborateur);
-    
-    // Sauvegarder
-    DataManager.saveData().then(() => {
-      // Rafraîchir l'affichage
-      if (typeof ViewManager !== 'undefined' && ViewManager.updateClientsDisplay) {
-        ViewManager.updateClientsDisplay();
-      }
-      
-      // Fermer la modal
-      closeModal();
-      
-      // Message de succès
-      showTemporaryMessage(`🤝 ${collaborateur.prenom} ${collaborateur.nom} ajouté comme collaborateur !`);
-    });
-  }
-}
 
-function handleCollaborateurEditSubmit(e) {
-  e.preventDefault();
-  console.log('🔄 handleCollaborateurEditSubmit démarré');
-  
-  const collaborateurId = DataManager ? DataManager.getEditingId() : null;
-  if (!collaborateurId) {
-    alert('Erreur: ID du collaborateur non trouvé');
+  // Persister AVANT le cache
+  try {
+    await DataManager.insertEntity('collaborateurs', collaborateur, DataManager.mapCollaborateurToDb);
+  } catch (err) {
+    console.error('Erreur insert collaborateur:', err);
+    alert('Erreur lors de la sauvegarde du collaborateur. Verifiez votre connexion et reessayez.');
     return;
   }
-  
+
+  const appData = DataManager.getAppData();
+  if (!appData.collaborateurs) appData.collaborateurs = [];
+  appData.collaborateurs.push(collaborateur);
+
+  if (typeof ViewManager !== 'undefined' && ViewManager.updateClientsDisplay) {
+    ViewManager.updateClientsDisplay();
+  }
+  closeModal();
+  showTemporaryMessage(`${collaborateur.prenom} ${collaborateur.nom} ajoute comme collaborateur !`);
+}
+
+async function handleCollaborateurEditSubmit(e) {
+  e.preventDefault();
+
+  const collaborateurId = DataManager.getEditingId();
+  if (!collaborateurId) {
+    alert('Erreur: ID du collaborateur non trouve');
+    return;
+  }
+
   const formData = {
     prenom: document.getElementById('collaborateur-prenom').value.trim(),
     nom: document.getElementById('collaborateur-nom').value.trim(),
@@ -2878,61 +2890,53 @@ function handleCollaborateurEditSubmit(e) {
     notes: document.getElementById('collaborateur-notes').value.trim(),
     tags: document.getElementById('collaborateur-tags')?.value.trim() || ''
   };
-  
-  // Validation
+
   if (!formData.prenom || !formData.nom) {
-    alert('Le prénom et le nom sont obligatoires');
+    alert('Le prenom et le nom sont obligatoires');
     return;
   }
-  
-  // Traitement des tags
-  const tags = formData.tags ? formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0) : [];
-  
-  // Mettre à jour le collaborateur
-  if (typeof DataManager !== 'undefined' && DataManager.getAppData) {
-    const appData = DataManager.getAppData();
-    const collaborateurIndex = appData.collaborateurs ? appData.collaborateurs.findIndex(c => c.id === collaborateurId) : -1;
-    
-    if (collaborateurIndex === -1) {
-      alert('Collaborateur introuvable');
-      return;
-    }
-    
-    // Conserver la date de création et mettre à jour
-    appData.collaborateurs[collaborateurIndex] = {
-      ...appData.collaborateurs[collaborateurIndex],
-      prenom: formData.prenom,
-      nom: formData.nom,
-      poste: formData.poste || '',
-      entreprise: formData.entreprise || '',
-      specialites: formData.specialites || '',
-      telephone: formData.telephone || '',
-      email: formData.email || '',
-      adresse: formData.adresse || '',
-      notes: formData.notes || '',
-      tags: tags,
-      dateModification: new Date().toISOString()
-    };
-    
-    // Sauvegarder
-    DataManager.saveData().then(() => {
-      // Rafraîchir l'affichage
-      if (typeof ViewManager !== 'undefined' && ViewManager.updateClientsDisplay) {
-        ViewManager.updateClientsDisplay();
-      }
-      
-      // Fermer la modal
-      closeModal();
-      
-      // Réinitialiser l'ID d'édition
-      if (DataManager.setEditingId) {
-        DataManager.setEditingId(null);
-      }
-      
-      // Message de succès
-      showTemporaryMessage(`🤝 ${formData.prenom} ${formData.nom} mis à jour !`);
-    });
+
+  const tags = formData.tags ? formData.tags.split(',').map(t => t.trim()).filter(t => t.length > 0) : [];
+
+  const appData = DataManager.getAppData();
+  const collaborateurIndex = appData.collaborateurs ? appData.collaborateurs.findIndex(c => c.id === collaborateurId) : -1;
+
+  if (collaborateurIndex === -1) {
+    alert('Collaborateur introuvable');
+    return;
   }
+
+  const collaborateurMaj = {
+    ...appData.collaborateurs[collaborateurIndex],
+    prenom: formData.prenom,
+    nom: formData.nom,
+    poste: formData.poste || '',
+    entreprise: formData.entreprise || '',
+    specialites: formData.specialites || '',
+    telephone: formData.telephone || '',
+    email: formData.email || '',
+    adresse: formData.adresse || '',
+    notes: formData.notes || '',
+    tags: tags
+  };
+
+  // Persister AVANT le cache
+  try {
+    await DataManager.updateEntity('collaborateurs', collaborateurId, collaborateurMaj, DataManager.mapCollaborateurToDb);
+  } catch (err) {
+    console.error('Erreur update collaborateur:', err);
+    alert('Erreur lors de la mise a jour. Verifiez votre connexion et reessayez.');
+    return;
+  }
+
+  appData.collaborateurs[collaborateurIndex] = collaborateurMaj;
+
+  if (typeof ViewManager !== 'undefined' && ViewManager.updateClientsDisplay) {
+    ViewManager.updateClientsDisplay();
+  }
+  closeModal();
+  DataManager.setEditingId(null);
+  showTemporaryMessage(`${formData.prenom} ${formData.nom} mis a jour !`);
 }
 
 // ===== FONCTIONS DE GESTION DES TAGS COLLABORATEURS =====
@@ -3168,22 +3172,30 @@ async function migrerMoyensPaiement() {
       const appData = DataManager.getAppData();
       let prestationsMigrees = 0;
       let prestationsIgnorees = 0;
-      
-      // Parcourir toutes les prestations
+      let echecsPersistance = 0;
+
       if (appData.prestations) {
-        appData.prestations.forEach(prestation => {
-          // Vérifier si la prestation n'a pas de moyen de paiement
+        for (const prestation of appData.prestations) {
           if (!prestation.moyenPaiement || prestation.moyenPaiement.trim() === '') {
             prestation.moyenPaiement = 'Liquide';
-            prestationsMigrees++;
+            try {
+              await DataManager.updateEntity('prestations', prestation.id, prestation, DataManager.mapPrestationToDb);
+              prestationsMigrees++;
+            } catch (err) {
+              console.error('Erreur update prestation migration:', err);
+              echecsPersistance++;
+              // Rollback en memoire pour cette prestation
+              prestation.moyenPaiement = '';
+            }
           } else {
             prestationsIgnorees++;
           }
-        });
+        }
       }
-      
-      // Sauvegarder les modifications
-      await DataManager.saveData();
+
+      if (echecsPersistance > 0) {
+        await showCustomAlert(`Attention : ${echecsPersistance} prestation(s) n'ont pas pu etre mises a jour. Verifiez votre connexion et reessayez.`, 'error');
+      }
       
       // ✅ Afficher le résultat avec la belle alerte personnalisée
       const message = `📋 ${prestationsMigrees} prestation${prestationsMigrees > 1 ? 's' : ''} mise${prestationsMigrees > 1 ? 's' : ''} à jour avec "Liquide"
@@ -5972,7 +5984,7 @@ function showAttribuerRdvBonCadeauModal(bonId) {
   }, 100);
 }
 
-function handleAttribuerRdvBonSubmit(e) {
+async function handleAttribuerRdvBonSubmit(e) {
   e.preventDefault();
 
   const bonId = document.getElementById('attribuer-rdv-bon-id').value;
@@ -5983,7 +5995,6 @@ function handleAttribuerRdvBonSubmit(e) {
   const soinId = typeSelect.value || null;
   const type = typeSelect.options[typeSelect.selectedIndex]?.text || typeSelect.value;
   const duree = parseInt(document.getElementById('attribuer-rdv-duree').value) || 60;
-  const lieu = document.getElementById('attribuer-rdv-lieu').value;
   const notes = document.getElementById('attribuer-rdv-notes').value;
 
   if (!clientId) {
@@ -6007,36 +6018,44 @@ function handleAttribuerRdvBonSubmit(e) {
     soinId: soinId,
     type: type || bon.description || 'Massage',
     duree: duree,
-    lieu: lieu,
     statut: 'planifie',
     bonCadeauId: bonId,
-    notes: notes,
-    createdAt: new Date().toISOString()
+    notes: notes
   };
 
-  // Ajouter le RDV
   const appData = DataManager.getAppData();
-  if (!appData.rdv) appData.rdv = [];
-  appData.rdv.push(rdvData);
 
-  // Mettre à jour le bon avec le bénéficiaire si pas déjà défini
+  // Persister AVANT de muter le cache (DB-first pour eviter les faux positifs)
+  try {
+    await DataManager.insertEntity('rdv', rdvData, DataManager.mapRdvToDb);
+  } catch (err) {
+    console.error('Erreur insert RDV bon cadeau:', err);
+    alert('Erreur lors de la sauvegarde du RDV. Verifiez votre connexion et reessayez.');
+    return;
+  }
+
+  // Maj du benefiaire sur le bon si necessaire
   if (!bon.beneficiaireClientId) {
     bon.beneficiaireClientId = clientId;
-    // Mettre à jour le nom du bénéficiaire
     const client = appData.clients.find(c => c.id === clientId);
     if (client) {
       bon.beneficiaireNom = `${client.prenom} ${client.nom}`;
     }
+    try {
+      await DataManager.updateEntity('bons_cadeaux', bon.id, bon, DataManager.mapBonCadeauToDb);
+    } catch (err) {
+      console.error('Erreur update beneficiaire bon cadeau:', err);
+      // Le RDV est OK, on continue. Le benefiaire pourra etre re-saisi.
+    }
   }
 
-  DataManager.saveData();
+  // Cache mis a jour seulement apres succes DB
+  if (!appData.rdv) appData.rdv = [];
+  appData.rdv.push(rdvData);
+
   closeModal();
-
-  // Rafraîchir l'affichage
   ViewManager.updateBonsCadeauxDisplay();
-
-  // Afficher un message de confirmation
-  showTemporaryMessage(`RDV créé pour le ${DataManager.formatDate(date)} à ${heure}`);
+  showTemporaryMessage(`RDV cree pour le ${DataManager.formatDate(date)} a ${heure}`);
 }
 
 // Exports des fonctions bons cadeaux

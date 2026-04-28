@@ -1177,7 +1177,7 @@ function getAvailableTags() {
   ];
   
   // Tags personnalisés créés par l'utilisateur
-  const customTags = appData.customTags || [];
+  const customTags = (appData.parametres && appData.parametres.customTags) || [];
   
   return [...defaultTags, ...customTags];
 }
@@ -1255,11 +1255,12 @@ function migrerCanalAcquisition() {
 
 function createCustomTag(label, color = '#95a5a6', icon = '🏷️') {
   const appData = DataManager.getAppData();
-  
-  if (!appData.customTags) {
-    appData.customTags = [];
+
+  if (!appData.parametres) appData.parametres = {};
+  if (!appData.parametres.customTags) {
+    appData.parametres.customTags = [];
   }
-  
+
   const newTag = {
     id: 'custom_' + Date.now(),
     label: label.trim(),
@@ -1267,33 +1268,40 @@ function createCustomTag(label, color = '#95a5a6', icon = '🏷️') {
     icon: icon,
     isCustom: true
   };
-  
-  appData.customTags.push(newTag);
+
+  appData.parametres.customTags.push(newTag);
   return newTag;
 }
 
+// Retourne la liste des clients/prospects affectes par la suppression
+// pour permettre une persistance ciblee dans deleteTagConfirm.
 function deleteCustomTag(tagId) {
   const appData = DataManager.getAppData();
-  
-  if (!appData.customTags) return false;
-  
-  // Supprimer le tag personnalisé
-  appData.customTags = appData.customTags.filter(tag => tag.id !== tagId);
-  
-  // Retirer ce tag de tous les clients et prospects
+
+  if (!appData.parametres || !appData.parametres.customTags) {
+    return { ok: false, affectedClients: [], affectedProspects: [] };
+  }
+
+  appData.parametres.customTags = appData.parametres.customTags.filter(tag => tag.id !== tagId);
+
+  const affectedClients = [];
+  const affectedProspects = [];
+
   appData.clients.forEach(client => {
-    if (client.tags) {
+    if (client.tags && client.tags.includes(tagId)) {
       client.tags = client.tags.filter(t => t !== tagId);
+      affectedClients.push(client);
     }
   });
-  
+
   appData.prospects.forEach(prospect => {
-    if (prospect.tags) {
+    if (prospect.tags && prospect.tags.includes(tagId)) {
       prospect.tags = prospect.tags.filter(t => t !== tagId);
+      affectedProspects.push(prospect);
     }
   });
-  
-  return true;
+
+  return { ok: true, affectedClients, affectedProspects };
 }
 
 async function addTagToClient(clientId, tagId, type = 'client') {
@@ -1637,31 +1645,46 @@ function saveTagsSelection(personId, personType) {
   }
 }
 
-function removeTagFromPersonUI(personId, tagId, personType) {
+async function removeTagFromPersonUI(personId, tagId, personType) {
   const appData = DataManager.getAppData();
-  let collection, person;
-  
+  let collection, person, table, mapFn;
+
   if (personType === 'collaborateur') {
     if (!appData.collaborateurs) return;
     collection = appData.collaborateurs;
     person = collection.find(p => p.id === personId);
-  } else {
-    collection = personType === 'client' ? appData.clients : appData.prospects;
+    table = 'collaborateurs';
+    mapFn = DataManager.mapCollaborateurToDb;
+  } else if (personType === 'client') {
+    collection = appData.clients;
     person = collection.find(p => p.id === personId);
+    table = 'clients';
+    mapFn = DataManager.mapClientToDb;
+  } else {
+    collection = appData.prospects;
+    person = collection.find(p => p.id === personId);
+    table = 'prospects';
+    mapFn = DataManager.mapProspectToDb;
   }
-  
+
   if (!person || !person.tags) return;
-  
-  // Pour les collaborateurs, supprimer à la fois par ID et par label
+
+  const previousTags = person.tags.slice();
   if (personType === 'collaborateur') {
     person.tags = person.tags.filter(t => t !== tagId && t.toLowerCase() !== tagId.toLowerCase());
   } else {
     person.tags = person.tags.filter(t => t !== tagId);
   }
-  
-  DataManager.saveData();
-  
-  // Rafraîchir l'affichage approprié
+
+  try {
+    await DataManager.updateEntity(table, person.id, person, mapFn);
+  } catch (err) {
+    console.error('Erreur removeTagFromPersonUI:', err);
+    person.tags = previousTags;
+    alert('Erreur lors de la suppression du tag. Verifiez votre connexion.');
+    return;
+  }
+
   if (personType === 'collaborateur') {
     if (window.ViewManager && typeof ViewManager.updateCollaborateursDisplay === 'function') {
       ViewManager.updateCollaborateursDisplay();
@@ -1669,25 +1692,43 @@ function removeTagFromPersonUI(personId, tagId, personType) {
   } else {
     updateClientsDisplay();
   }
-  
-  showTemporaryMessage('Tag supprimé');
+  showTemporaryMessage('Tag supprime');
 }
 
-function removeTagFromClientUI(personId, tagId, personType) {
-  if (removeTagFromClient(personId, tagId, personType)) {
-    DataManager.saveData();
+async function removeTagFromClientUI(personId, tagId, personType) {
+  // removeTagFromClient persiste deja via updateEntity, donc on enleve le saveData no-op
+  if (await removeTagFromClient(personId, tagId, personType)) {
     updateClientsDisplay();
-    showTemporaryMessage('Tag supprimé');
+    showTemporaryMessage('Tag supprime');
   }
 }
 
-function deleteTagConfirm(tagId) {
-  if (confirm('Supprimer ce tag personnalisé ? Il sera retiré de tous les clients/prospects qui l\'utilisent.')) {
-    deleteCustomTag(tagId);
-    DataManager.saveData();
-    closeModal();
-    updateClientsDisplay();
-    showTemporaryMessage('🗑️ Tag supprimé');
+async function deleteTagConfirm(tagId) {
+  if (!confirm('Supprimer ce tag personnalise ? Il sera retire de tous les clients/prospects qui l\'utilisent.')) return;
+
+  const result = deleteCustomTag(tagId);
+  if (!result.ok) return;
+
+  // Persister parametres (la liste des customTags) + chaque client/prospect impacte
+  let echecs = 0;
+  const okParam = await DataManager.saveParametresToDb();
+  if (!okParam) echecs++;
+
+  for (const client of result.affectedClients) {
+    try { await DataManager.updateEntity('clients', client.id, client, DataManager.mapClientToDb); }
+    catch (e) { console.error('Erreur update client deleteTag:', e); echecs++; }
+  }
+  for (const prospect of result.affectedProspects) {
+    try { await DataManager.updateEntity('prospects', prospect.id, prospect, DataManager.mapProspectToDb); }
+    catch (e) { console.error('Erreur update prospect deleteTag:', e); echecs++; }
+  }
+
+  closeModal();
+  updateClientsDisplay();
+  if (echecs > 0) {
+    alert(`Tag supprime mais ${echecs} sauvegarde(s) ont echoue. Verifiez votre connexion et rechargez l'app.`);
+  } else {
+    showTemporaryMessage('Tag supprime');
   }
 }
 
@@ -1779,24 +1820,31 @@ function showTagsManagementModal() {
   ModalManager.showModal('tags-management-modal', modalHTML);
 }
 
-function createTagFromManagement() {
+async function createTagFromManagement() {
   const label = document.getElementById('management-new-tag-label').value.trim();
   const color = document.getElementById('management-new-tag-color').value;
   const icon = document.getElementById('management-new-tag-icon').value;
-  
+
   if (!label) {
     alert('Veuillez saisir un nom pour le tag');
     return;
   }
-  
-  createCustomTag(label, color, icon);
-  DataManager.saveData();
-  
-  // Rafraîchir la modal
+
+  const newTag = createCustomTag(label, color, icon);
+  const ok = await DataManager.saveParametresToDb();
+  if (!ok) {
+    // Rollback : retirer le tag du cache
+    const appData = DataManager.getAppData();
+    if (appData.parametres && appData.parametres.customTags) {
+      appData.parametres.customTags = appData.parametres.customTags.filter(t => t.id !== newTag.id);
+    }
+    alert('Erreur de sauvegarde du tag. Verifiez votre connexion.');
+    return;
+  }
+
   closeModal();
   setTimeout(() => showTagsManagementModal(), 100);
-  
-  showTemporaryMessage('✅ Tag créé !');
+  showTemporaryMessage('Tag cree !');
 }
 
 // Filtrage par tags

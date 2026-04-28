@@ -657,14 +657,20 @@ async function deleteProspect(prospectId) {
   }
 }
 
-// ===== ✅ NOUVEAU : SUPPRESSION COLLABORATEUR =====
+// ===== SUPPRESSION COLLABORATEUR =====
 async function deleteCollaborateur(collaborateurId) {
-  if (await showCustomConfirm('Êtes-vous sûr de vouloir supprimer ce collaborateur ?')) {
+  if (await showCustomConfirm('Etes-vous sur de vouloir supprimer ce collaborateur ?')) {
+    try {
+      await DataManager.deleteEntity('collaborateurs', collaborateurId);
+    } catch (err) {
+      console.error('Erreur delete collaborateur:', err);
+      alert('Erreur lors de la suppression. Verifiez votre connexion et reessayez.');
+      return;
+    }
     const appData = DataManager.getAppData();
     appData.collaborateurs = appData.collaborateurs.filter(c => c.id !== collaborateurId);
-    await DataManager.saveData();
     ViewManager.updateClientsDisplay();
-    showTemporaryMessage('Collaborateur supprimé');
+    showTemporaryMessage('Collaborateur supprime');
   }
 }
 
