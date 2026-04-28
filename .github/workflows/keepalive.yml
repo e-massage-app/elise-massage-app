@@ -9,14 +9,31 @@ jobs:
   keepalive:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Supabase pour eviter la pause
+      - name: Verifier la presence des secrets
         run: |
-          response=$(curl -s -o /dev/null -w "%{http_code}" \
-            "${{ secrets.SUPABASE_URL }}/rest/v1/parametres?select=id&limit=1" \
-            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}")
-          echo "Supabase responded with HTTP $response"
-          if [ "$response" -ge 400 ]; then
-            echo "::warning::Supabase returned HTTP $response"
+          if [ -z "${{ secrets.SUPABASE_URL }}" ]; then
+            echo "::error::SUPABASE_URL secret manquant. Ajouter dans Settings > Secrets and variables > Actions."
             exit 1
           fi
+          if [ -z "${{ secrets.SUPABASE_ANON_KEY }}" ]; then
+            echo "::error::SUPABASE_ANON_KEY secret manquant. Ajouter dans Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+      - name: Ping Supabase pour eviter la pause
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          # Endpoint /rest/v1/ : touche PostgREST + DB sans dependre de RLS.
+          # Retourne 200 avec OpenAPI spec si la base repond.
+          URL="${SUPABASE_URL%/}/rest/v1/"
+          response=$(curl -s -o /dev/null -w "%{http_code}" \
+            "$URL" \
+            -H "apikey: ${SUPABASE_ANON_KEY}")
+          echo "Supabase responded with HTTP $response"
+          if [ "$response" != "200" ]; then
+            echo "::error::Supabase keepalive failed - HTTP $response (expected 200) on $URL"
+            exit 1
+          fi
+          echo "Keepalive OK"
