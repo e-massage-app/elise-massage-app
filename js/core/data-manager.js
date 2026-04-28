@@ -36,6 +36,7 @@ function mapClientFromDb(row) {
     id: row.id,
     nom: row.nom,
     prenom: row.prenom,
+    societe: row.societe,
     email: row.email,
     telephone: row.telephone,
     adresse: row.adresse,
@@ -58,6 +59,7 @@ function mapClientToDb(obj) {
   const row = {
     nom: obj.nom || null,
     prenom: obj.prenom || null,
+    societe: obj.societe || null,
     email: obj.email || null,
     telephone: obj.telephone || null,
     adresse: obj.adresse || null,
@@ -82,6 +84,7 @@ function mapProspectFromDb(row) {
     id: row.id,
     nom: row.nom,
     prenom: row.prenom,
+    societe: row.societe,
     email: row.email,
     telephone: row.telephone,
     adresse: row.adresse,
@@ -89,6 +92,7 @@ function mapProspectFromDb(row) {
     notes: row.notes,
     sexe: row.sexe,
     statut: row.statut,
+    parrain: row.parrain,
     canalAcquisition: row.canal_acquisition,
     dateAcquisition: row.date_acquisition,
     actions: row.actions || {},
@@ -101,6 +105,7 @@ function mapProspectToDb(obj) {
   const row = {
     nom: obj.nom || null,
     prenom: obj.prenom || null,
+    societe: obj.societe || null,
     email: obj.email || null,
     telephone: obj.telephone || null,
     adresse: obj.adresse || null,
@@ -108,6 +113,7 @@ function mapProspectToDb(obj) {
     notes: obj.notes || null,
     sexe: obj.sexe || null,
     statut: obj.statut || 'nouveau',
+    parrain: obj.parrain || null,
     canal_acquisition: obj.canalAcquisition || 'non-renseigne',
     date_acquisition: obj.dateAcquisition || null,
     actions: obj.actions || {},
@@ -122,6 +128,7 @@ function mapCollaborateurFromDb(row) {
     id: row.id,
     prenom: row.prenom,
     nom: row.nom,
+    poste: row.poste,
     entreprise: row.entreprise,
     specialites: row.specialites,
     telephone: row.telephone,
@@ -138,6 +145,7 @@ function mapCollaborateurToDb(obj) {
   const row = {
     prenom: obj.prenom || null,
     nom: obj.nom || null,
+    poste: obj.poste || null,
     entreprise: obj.entreprise || null,
     specialites: obj.specialites || null,
     telephone: obj.telephone || null,
@@ -166,7 +174,8 @@ function mapRdvFromDb(row) {
     distanceKm: row.distance_km,
     fraisDeplacement: row.frais_deplacement,
     sexe: row.sexe,
-    transformeEnPrestation: row.transforme_en_prestation
+    transformeEnPrestation: row.transforme_en_prestation,
+    bonCadeauId: row.bon_cadeau_id
   };
 }
 
@@ -184,7 +193,8 @@ function mapRdvToDb(obj) {
     distance_km: obj.distanceKm || null,
     frais_deplacement: obj.fraisDeplacement || null,
     sexe: obj.sexe || null,
-    transforme_en_prestation: obj.transformeEnPrestation || false
+    transforme_en_prestation: obj.transformeEnPrestation || false,
+    bon_cadeau_id: obj.bonCadeauId || null
   };
   if (obj.id) row.id = obj.id;
   return row;
@@ -206,7 +216,8 @@ function mapPrestationFromDb(row) {
     adresseMassage: row.adresse_massage,
     distanceKm: row.distance_km,
     fraisDeplacement: row.frais_deplacement,
-    moyenPaiement: row.moyen_paiement
+    moyenPaiement: row.moyen_paiement,
+    bonCadeauId: row.bon_cadeau_id
   };
 }
 
@@ -225,7 +236,8 @@ function mapPrestationToDb(obj) {
     adresse_massage: obj.adresseMassage || null,
     distance_km: obj.distanceKm || null,
     frais_deplacement: obj.fraisDeplacement || null,
-    moyen_paiement: obj.moyenPaiement || null
+    moyen_paiement: obj.moyenPaiement || null,
+    bon_cadeau_id: obj.bonCadeauId || null
   };
   if (obj.id) row.id = obj.id;
   return row;
@@ -240,7 +252,9 @@ function mapDepenseFromDb(row) {
     description: row.description,
     fournisseur: row.fournisseur || '',
     notes: row.notes || '',
-    prestationId: row.prestation_id
+    prestationId: row.prestation_id,
+    type: row.type,
+    abonnementNom: row.abonnement_nom
   };
 }
 
@@ -252,7 +266,9 @@ function mapDepenseToDb(obj) {
     description: obj.description || null,
     fournisseur: obj.fournisseur || null,
     notes: obj.notes || null,
-    prestation_id: obj.prestationId || null
+    prestation_id: obj.prestationId || null,
+    type: obj.type || null,
+    abonnement_nom: obj.abonnementNom || null
   };
   if (obj.id) row.id = obj.id;
   return row;

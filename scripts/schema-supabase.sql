@@ -11,6 +11,7 @@ CREATE TABLE clients (
   user_id UUID NOT NULL REFERENCES auth.users(id),
   nom TEXT,
   prenom TEXT,
+  societe TEXT,
   email TEXT,
   telephone TEXT,
   adresse TEXT,
@@ -37,6 +38,7 @@ CREATE TABLE prospects (
   user_id UUID NOT NULL REFERENCES auth.users(id),
   nom TEXT,
   prenom TEXT,
+  societe TEXT,
   email TEXT,
   telephone TEXT,
   adresse TEXT,
@@ -44,6 +46,7 @@ CREATE TABLE prospects (
   notes TEXT,
   sexe TEXT,
   statut TEXT DEFAULT 'nouveau',
+  parrain TEXT,
   canal_acquisition TEXT DEFAULT 'non-renseigne',
   date_acquisition TEXT,
   actions JSONB DEFAULT '{}',
@@ -60,6 +63,7 @@ CREATE TABLE collaborateurs (
   user_id UUID NOT NULL REFERENCES auth.users(id),
   prenom TEXT,
   nom TEXT,
+  poste TEXT,
   entreprise TEXT,
   specialites TEXT,
   telephone TEXT,
@@ -91,6 +95,7 @@ CREATE TABLE rdv (
   frais_deplacement NUMERIC,
   sexe TEXT,
   transforme_en_prestation BOOLEAN DEFAULT false,
+  bon_cadeau_id TEXT,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
@@ -115,6 +120,7 @@ CREATE TABLE prestations (
   distance_km NUMERIC,
   frais_deplacement NUMERIC,
   moyen_paiement TEXT,
+  bon_cadeau_id TEXT,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
@@ -132,6 +138,8 @@ CREATE TABLE depenses (
   fournisseur TEXT,
   notes TEXT,
   prestation_id UUID,
+  type TEXT,
+  abonnement_nom TEXT,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
