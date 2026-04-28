@@ -525,6 +525,39 @@ async function utiliserBonCadeau(bonId, prestationId) {
   return true;
 }
 
+// Marquer manuellement un bon comme utilise, avec date antidatable et lien
+// optionnel vers une prestation existante. Sert de filet de securite quand
+// le flow automatique a echoue (cas typique : prestation creee avant 1.0.6.0
+// ou correction retroactive).
+async function marquerBonCadeauUtiliseManuel(bonId, dateUtilisation, prestationId) {
+  const appData = DataManager.getAppData();
+  const bon = appData.bonsCadeaux.find(b => b.id === bonId);
+  if (!bon) {
+    alert('Bon cadeau introuvable');
+    return false;
+  }
+
+  // Snapshot pour rollback
+  const previous = {
+    statut: bon.statut,
+    prestationId: bon.prestationId,
+    dateUtilisation: bon.dateUtilisation
+  };
+
+  bon.statut = 'utilise';
+  bon.dateUtilisation = dateUtilisation;
+  bon.prestationId = prestationId || null;
+
+  const ok = await _persist('bons_cadeaux', 'update', bon, DataManager.mapBonCadeauToDb);
+  if (!ok) {
+    bon.statut = previous.statut;
+    bon.prestationId = previous.prestationId;
+    bon.dateUtilisation = previous.dateUtilisation;
+    return false;
+  }
+  return true;
+}
+
 async function createClientMinimal(nomComplet) {
   const appData = DataManager.getAppData();
   const parts = nomComplet.trim().split(' ');
@@ -580,6 +613,7 @@ window.BusinessServices = {
   rembourserBonCadeau,
   forcerUtilisationBonExpire,
   utiliserBonCadeau,
+  marquerBonCadeauUtiliseManuel,
   createClientMinimal,
   getBonsCadeauxUtilisablesPourClient
 };

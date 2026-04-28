@@ -5644,10 +5644,79 @@ function showBonCadeauDetailsModal(bonId) {
 
     <div class="modal-actions">
       <button type="button" class="btn-secondary" onclick="closeModal()">Fermer</button>
+      ${bon.statut === 'actif' ? `<button type="button" class="btn-primary" style="background: #28a745;" onclick="showMarquerBonUtiliseModal('${bon.id}')">✅ Marquer comme utilise</button>` : ''}
     </div>
   `;
 
   showModal('bon-cadeau-details-modal', modalHTML);
+}
+
+// Mini-modale pour marquer manuellement un bon comme utilise (avec antidatage)
+function showMarquerBonUtiliseModal(bonId) {
+  const bon = DataManager.getBonCadeauById(bonId);
+  if (!bon) return;
+
+  const appData = DataManager.getAppData();
+  const today = new Date().toISOString().split('T')[0];
+
+  // Lister les prestations du beneficiaire (s'il est connu) pour faciliter le lien
+  let prestationOptions = '<option value="">-- Aucune prestation liee --</option>';
+  if (bon.beneficiaireClientId) {
+    const prestationsBeneficiaire = (appData.prestations || [])
+      .filter(p => p.clientId === bon.beneficiaireClientId)
+      .sort((a, b) => new Date(b.date) - new Date(a.date))
+      .slice(0, 20);
+    prestationOptions += prestationsBeneficiaire.map(p => {
+      const typeNom = DataManager.getDisplayNameForType(p.soinId || p.type);
+      return `<option value="${p.id}">${DataManager.formatDate(p.date)} - ${typeNom} (${p.duree || 60}min)</option>`;
+    }).join('');
+  }
+
+  const modalHTML = `
+    <h3>Marquer le bon comme utilise</h3>
+    <p style="margin-bottom: 1rem; color: #666;">
+      Bon de <strong>${bon.montant.toFixed(2)} EUR</strong> ${bon.beneficiaireNom ? `pour <strong>${bon.beneficiaireNom}</strong>` : ''}
+    </p>
+    <form onsubmit="event.preventDefault(); confirmMarquerBonUtilise('${bonId}');">
+      <div class="form-group">
+        <label>Date d'utilisation *</label>
+        <input type="date" id="marquer-bon-date" value="${today}" required>
+        <small style="color: #666; font-size: 0.75rem;">💡 Antidatable si la prestation a deja eu lieu</small>
+      </div>
+      <div class="form-group">
+        <label>Prestation liee (optionnel)</label>
+        <select id="marquer-bon-prestation" style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px;">
+          ${prestationOptions}
+        </select>
+        <small style="color: #666; font-size: 0.75rem;">💡 Permet de tracer quel RDV a consomme ce bon</small>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" onclick="showBonCadeauDetailsModal('${bonId}')">Retour</button>
+        <button type="submit" class="btn-primary" style="background: #28a745;">Confirmer</button>
+      </div>
+    </form>
+  `;
+
+  showModal('marquer-bon-utilise-modal', modalHTML);
+}
+
+async function confirmMarquerBonUtilise(bonId) {
+  const dateUtilisation = document.getElementById('marquer-bon-date').value;
+  const prestationId = document.getElementById('marquer-bon-prestation').value || null;
+
+  if (!dateUtilisation) {
+    alert('La date est obligatoire');
+    return;
+  }
+
+  const ok = await BusinessServices.marquerBonCadeauUtiliseManuel(bonId, dateUtilisation, prestationId);
+  if (ok) {
+    closeModal();
+    if (typeof ViewManager !== 'undefined' && ViewManager.updateBonsCadeauxDisplay) {
+      ViewManager.updateBonsCadeauxDisplay();
+    }
+    showTemporaryMessage('Bon marque comme utilise');
+  }
 }
 
 function setupBonCadeauAcheteurAutocomplete() {
@@ -5909,7 +5978,8 @@ function showAttribuerRdvBonCadeauModal(bonId) {
       <div class="form-row">
         <div class="form-group">
           <label>Date du RDV *</label>
-          <input type="date" id="attribuer-rdv-date" value="${today}" required min="${today}">
+          <input type="date" id="attribuer-rdv-date" value="${today}" required>
+          <small style="color: #666; font-size: 0.75rem;">💡 Date passee acceptee si la prestation a deja eu lieu</small>
         </div>
         <div class="form-group">
           <label>Heure *</label>
@@ -6042,6 +6112,8 @@ async function handleAttribuerRdvBonSubmit(e) {
 window.showAddBonCadeauModal = showAddBonCadeauModal;
 window.showEditBonCadeauModal = showEditBonCadeauModal;
 window.showBonCadeauDetailsModal = showBonCadeauDetailsModal;
+window.showMarquerBonUtiliseModal = showMarquerBonUtiliseModal;
+window.confirmMarquerBonUtilise = confirmMarquerBonUtilise;
 window.showAttribuerRdvBonCadeauModal = showAttribuerRdvBonCadeauModal;
 
 // ===== FONCTIONS POUR INTÉGRATION BONS CADEAUX DANS PRESTATIONS =====
