@@ -6,6 +6,10 @@ window.lastRdvData = null;
 window.lastPrestationData = null;
 
 // ===== GESTION OFFLINE =====
+// navigator.onLine est notoirement faux-positif sur mobile (4G dégradée,
+// captive portal, iOS PWA en arrière-plan). On le complète par un ping
+// HEAD réel vers Supabase toutes les 60s. Trois échecs consécutifs =>
+// overlay offline. Une réussite => overlay masqué immédiatement.
 function showOfflineOverlay() {
   if (document.getElementById('offline-overlay')) return;
   const overlay = document.createElement('div');
@@ -40,8 +44,45 @@ function hideOfflineOverlay() {
   if (overlay) overlay.remove();
 }
 
+// Ping Supabase reel (HEAD sur /rest/v1/parametres?select=id&limit=1)
+let _consecutiveFailures = 0;
+async function pingSupabase() {
+  try {
+    const cfg = (typeof SUPABASE_CONFIG !== 'undefined') ? SUPABASE_CONFIG : null;
+    if (!cfg || !cfg.url || !cfg.anonKey) return;
+    const res = await fetch(`${cfg.url}/rest/v1/parametres?select=id&limit=1`, {
+      method: 'HEAD',
+      headers: { 'apikey': cfg.anonKey, 'Authorization': `Bearer ${cfg.anonKey}` },
+      // 8s de timeout via AbortController
+      signal: AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined
+    });
+    if (res.ok || res.status === 404 /* table existe, juste pas de row */) {
+      _consecutiveFailures = 0;
+      hideOfflineOverlay();
+    } else if (res.status >= 500) {
+      _consecutiveFailures++;
+    }
+  } catch (err) {
+    _consecutiveFailures++;
+    console.warn('Ping Supabase echoue:', err && err.message);
+  }
+  if (_consecutiveFailures >= 3) {
+    showOfflineOverlay();
+  }
+}
+
+// Evenement natif : feedback instantane mais peu fiable
 window.addEventListener('offline', showOfflineOverlay);
-window.addEventListener('online', hideOfflineOverlay);
+window.addEventListener('online', () => {
+  _consecutiveFailures = 0;
+  hideOfflineOverlay();
+  // Re-ping immediatement pour confirmer
+  setTimeout(pingSupabase, 500);
+});
+
+// Premier ping apres 5s (laisser l'app finir de charger), puis toutes les 60s
+setTimeout(pingSupabase, 5000);
+setInterval(pingSupabase, 60000);
 
 // ===== SERVICE WORKER =====
 if ('serviceWorker' in navigator) {
