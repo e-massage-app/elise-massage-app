@@ -615,10 +615,11 @@ function showPrestationDetails(prestationId) {
 // ===== ACTIONS DE SUPPRESSION =====
 async function deleteRdv(rdvId) {
   if (await showCustomConfirm('Êtes-vous sûr de vouloir supprimer ce rendez-vous ?')) {
-    BusinessServices.deleteRdvById(rdvId);
-    await DataManager.saveData();
+    // v1.0.7.3 : await indispensable + deleteRdvById cascade la prestation liee si transformee
+    await BusinessServices.deleteRdvById(rdvId);
     ViewManager.updateCalendar();
     ViewManager.updateDashboard();
+    ViewManager.updatePrestationsTable();
     ModalManager.closeModal();
     showTemporaryMessage('Rendez-vous supprimé');
   }

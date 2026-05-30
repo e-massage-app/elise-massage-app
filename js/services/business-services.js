@@ -69,8 +69,44 @@ async function createRdv(formData) {
 
 async function deleteRdvById(rdvId) {
   const appData = DataManager.getAppData();
+
+  // v1.0.7.3 : si le RDV avait ete transforme en prestation, on supprime aussi
+  // la prestation liee (meme date/heure/clientId). Sinon la prestation reste en
+  // DB et le calendrier la re-affiche au prochain F5 -> 2 clics pour "tout" supprimer.
+  const rdv = appData.rdv.find(r => r.id === rdvId);
+  if (rdv && rdv.transformeEnPrestation) {
+    const linkedPrestations = (appData.prestations || []).filter(p =>
+      p.date === rdv.date && p.heure === rdv.heure && p.clientId === rdv.clientId
+    );
+    for (const presta of linkedPrestations) {
+      // Cascade : depenses transport puis prestation, DB-first
+      if (appData.depenses) {
+        const depensesLiees = appData.depenses.filter(d => d.prestationId === presta.id);
+        for (const d of depensesLiees) {
+          const ok = await _persist('depenses', 'delete', d.id);
+          if (!ok) return false;
+        }
+        // cleanup cache depenses (seulement si persist OK)
+        if (depensesLiees.length > 0) {
+          appData.depenses = appData.depenses.filter(d => !depensesLiees.find(dl => dl.id === d.id));
+        }
+      }
+      const okP = await _persist('prestations', 'delete', presta.id);
+      if (!okP) return false;
+    }
+    // cleanup cache prestations
+    if (linkedPrestations.length > 0) {
+      appData.prestations = appData.prestations.filter(p =>
+        !linkedPrestations.find(lp => lp.id === p.id)
+      );
+    }
+  }
+
+  // v1.0.7.3 : DB-first pour le RDV lui-meme
+  const ok = await _persist('rdv', 'delete', rdvId);
+  if (!ok) return false;
   appData.rdv = appData.rdv.filter(r => r.id !== rdvId);
-  await _persist('rdv', 'delete', rdvId);
+  return true;
 }
 
 async function transformRdvToPrestation(rdvId) {

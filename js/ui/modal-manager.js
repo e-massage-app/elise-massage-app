@@ -5181,6 +5181,17 @@ function showEditCategorieModal(categorieId) {
           <small style="color: var(--text-light); font-size: 0.8rem;">Pré-rempli sur les nouveaux soins de la catégorie.</small>
         </div>
       </div>
+      <!-- v1.0.7.3 : zone "danger" avec archive + suppression definitive -->
+      <div style="margin-top: 1.5rem; padding: 0.75rem; background: #fff5f5; border: 1px solid #ffd3d3; border-radius: 8px;">
+        <div style="font-size: 0.85rem; color: #b94a4a; margin-bottom: 0.5rem; font-weight: 600;">⚠️ Actions sur la catégorie</div>
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+          <button type="button" class="btn-secondary" onclick="archiveCategorieFromModal('${categorieId}')" style="background: #fff3cd; border-color: #f0c97e; color: #856404;">📦 Archiver (catégorie + soins)</button>
+          <button type="button" class="btn-danger" onclick="deleteCategorieFromModal('${categorieId}')">🗑️ Supprimer définitivement</button>
+        </div>
+        <div style="font-size: 0.75rem; color: var(--text-light); margin-top: 0.4rem;">
+          Archive = masque dans Analyses mais garde l'historique. Suppression = retire la catégorie et ses soins (les prestations existantes gardent leur prix et nom du soin, mais perdent le lien).
+        </div>
+      </div>
       <div class="modal-actions">
         <button type="button" class="btn-secondary" onclick="showCarteSoinsModal()">Retour</button>
         <button type="submit" class="btn-primary">Enregistrer</button>
@@ -5189,6 +5200,55 @@ function showEditCategorieModal(categorieId) {
   `;
 
   showModal('edit-categorie-modal', modalHTML);
+}
+
+// v1.0.7.3 : archive complete (categorie + tous ses soins) depuis le modal d'edition
+async function archiveCategorieFromModal(categorieId) {
+  const cat = DataManager.getCategorieById(categorieId);
+  if (!cat) return;
+  const confirme = await showCustomConfirm(`Archiver la catégorie "${cat.nom}" et tous ses soins ?\n\nElle disparaîtra des Analyses et du calendrier mais l'historique est préservé.`);
+  if (!confirme) return;
+  await DataManager.archiveCategorie(categorieId);
+  if (window.ViewManager) {
+    if (typeof ViewManager.updateCalendar === 'function') ViewManager.updateCalendar();
+    if (typeof ViewManager.updateDashboard === 'function') ViewManager.updateDashboard();
+  }
+  if (window.UtilsServices && typeof UtilsServices.updateAnalytics === 'function') {
+    UtilsServices.updateAnalytics();
+  }
+  showCarteSoinsModal();
+}
+
+// v1.0.7.3 : suppression definitive (categorie + soins) avec double confirm
+async function deleteCategorieFromModal(categorieId) {
+  const cat = DataManager.getCategorieById(categorieId);
+  if (!cat) return;
+  const appData = DataManager.getAppData();
+  const carte = DataManager.getCarteSoins();
+  const soinsDeCat = carte ? carte.soins.filter(s => s.categorieId === categorieId) : [];
+  const soinIds = soinsDeCat.map(s => s.id);
+  const nbPrestationsLiees = (appData.prestations || []).filter(p => soinIds.includes(p.soinId)).length;
+  const nbRdvLies = (appData.rdv || []).filter(r => soinIds.includes(r.soinId)).length;
+
+  const warning = (nbPrestationsLiees + nbRdvLies) > 0
+    ? `\n\n⚠️ ${nbPrestationsLiees} prestation(s) et ${nbRdvLies} RDV existant(s) sont liés à cette catégorie. Ils gardent leur nom et prix mais leur lien à la carte sera rompu (impossible de revenir en arrière).`
+    : '';
+  const confirme = await showCustomConfirm(`Supprimer DÉFINITIVEMENT la catégorie "${cat.nom}" et ses ${soinsDeCat.length} soin(s) ?${warning}\n\nIrréversible.`);
+  if (!confirme) return;
+  // Double confirm si donnees liees
+  if ((nbPrestationsLiees + nbRdvLies) > 0) {
+    const confirme2 = await showCustomConfirm(`Dernière vérification : confirmer la suppression de "${cat.nom}" et ses soins ?`);
+    if (!confirme2) return;
+  }
+  await DataManager.deleteCategorieById(categorieId);
+  if (window.ViewManager) {
+    if (typeof ViewManager.updateCalendar === 'function') ViewManager.updateCalendar();
+    if (typeof ViewManager.updateDashboard === 'function') ViewManager.updateDashboard();
+  }
+  if (window.UtilsServices && typeof UtilsServices.updateAnalytics === 'function') {
+    UtilsServices.updateAnalytics();
+  }
+  showCarteSoinsModal();
 }
 
 function showAddCategorieModal() {
@@ -5348,6 +5408,8 @@ window.showEditSoinModal = showEditSoinModal;
 window.showAddSoinModal = showAddSoinModal;
 window.showEditCategorieModal = showEditCategorieModal;
 window.showAddCategorieModal = showAddCategorieModal;
+window.archiveCategorieFromModal = archiveCategorieFromModal;
+window.deleteCategorieFromModal = deleteCategorieFromModal;
 window.addVarianteRow = addVarianteRow;
 window.addVarianteRowNew = addVarianteRowNew;
 window.togglePartnershipVariantes = togglePartnershipVariantes;

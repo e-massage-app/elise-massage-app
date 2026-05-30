@@ -1262,6 +1262,19 @@ async function archiveCategorie(categorieId) {
   return true;
 }
 
+// v1.0.7.3 : suppression definitive d'une categorie + tous ses soins.
+// ATTENTION : les prestations existantes liees aux soins gardent leur snapshot
+// (.type et .prix) mais leur .soinId deviendra orphelin. C'est volontaire :
+// on preserve l'historique financier mais on libere la categorie.
+async function deleteCategorieById(categorieId) {
+  const carte = getCarteSoins();
+  if (!carte) return false;
+  carte.categories = carte.categories.filter(c => c.id !== categorieId);
+  carte.soins = carte.soins.filter(s => s.categorieId !== categorieId);
+  await saveParametresToDb();
+  return true;
+}
+
 // JOURS INSTITUT
 function isJourInstitut(dateStr) {
   if (!appData.parametres || !appData.parametres.joursInstitut) return false;
@@ -1303,7 +1316,7 @@ window.DataManager = {
   isPartnershipSoin, isComboSoin, getCalendarColorForSoin, getDisplayNameForType, getPartenaireCollaborateurId,
   getSoinsGroupedByCategorie,
   addSoin, updateSoin, archiveSoin, standBySoin, activerSoin, deleteSoin,
-  addCategorie, updateCategorie, archiveCategorie,
+  addCategorie, updateCategorie, archiveCategorie, deleteCategorieById,
   // v1.0.7.0 : groupes de categories
   migrerCategoriesGroupes, getGroupesCategories, getGroupeForCategorieId, getGroupeForSoinId,
   // Nouvelles fonctions Supabase
