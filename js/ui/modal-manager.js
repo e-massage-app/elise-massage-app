@@ -4711,6 +4711,7 @@ function showCarteSoinsModal() {
               <div style="display: flex; gap: 0.25rem;">
                 <button type="button" onclick="showEditSoinModal('${s.id}')" style="background: none; border: none; cursor: pointer; font-size: 0.85rem;" title="Modifier">\u270f\ufe0f</button>
                 <button type="button" onclick="quickActiverSoin('${s.id}')" style="background: none; border: none; cursor: pointer; font-size: 0.85rem;" title="Reactiver">\u267b\ufe0f</button>
+                <button type="button" onclick="deleteSoinFromModal('${s.id}')" style="background: none; border: none; cursor: pointer; font-size: 0.85rem; color: #e74c3c;" title="Supprimer definitivement">\u{1f5d1}\ufe0f</button>
               </div>
             </div>
           `;
@@ -4729,6 +4730,7 @@ function showCarteSoinsModal() {
             </div>
             <div style="display: flex; gap: 0.25rem;">
               <button type="button" onclick="quickActiverSoin('${s.id}')" style="background: none; border: none; cursor: pointer; font-size: 0.85rem;" title="Reactiver">\u267b\ufe0f</button>
+              <button type="button" onclick="deleteSoinFromModal('${s.id}')" style="background: none; border: none; cursor: pointer; font-size: 0.85rem; color: #e74c3c;" title="Supprimer definitivement">\u{1f5d1}\ufe0f</button>
             </div>
           </div>
         `).join('');
@@ -4844,6 +4846,18 @@ function showEditSoinModal(soinId) {
         </div>
         <button type="button" onclick="addVarianteRow('${soinId}')" style="background: var(--beige-dore); color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; font-size: 0.85rem; margin-top: 0.5rem;">+ Ajouter une durée</button>
       </div>
+      <!-- v1.0.7.4 : zone "actions" sur le soin -->
+      <div style="margin-top: 1.5rem; padding: 0.75rem; background: #fff5f5; border: 1px solid #ffd3d3; border-radius: 8px;">
+        <div style="font-size: 0.85rem; color: #b94a4a; margin-bottom: 0.5rem; font-weight: 600;">⚠️ Actions sur le soin</div>
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+          ${soin.statut !== 'archive' ? `<button type="button" class="btn-secondary" onclick="archiveSoinFromModal('${soinId}')" style="background: #fff3cd; border-color: #f0c97e; color: #856404;">📦 Archiver</button>` : ''}
+          ${soin.statut === 'archive' ? `<button type="button" class="btn-secondary" onclick="activerSoinFromModal('${soinId}')" style="background: #d4edda; border-color: #c3e6cb; color: #155724;">✅ Réactiver</button>` : ''}
+          <button type="button" class="btn-danger" onclick="deleteSoinFromModal('${soinId}')">🗑️ Supprimer définitivement</button>
+        </div>
+        <div style="font-size: 0.75rem; color: var(--text-light); margin-top: 0.4rem;">
+          Archive = masque le soin de la carte mais garde l'historique. Suppression = retire le soin (les prestations existantes gardent leur nom et prix mais perdent le lien).
+        </div>
+      </div>
       <div class="modal-actions">
         <button type="button" class="btn-secondary" onclick="showCarteSoinsModal()">Retour</button>
         <button type="submit" class="btn-primary">Enregistrer</button>
@@ -4852,6 +4866,61 @@ function showEditSoinModal(soinId) {
   `;
 
   showModal('edit-soin-modal', modalHTML);
+}
+
+// v1.0.7.4 : actions sur soin depuis le modal d'edition
+async function archiveSoinFromModal(soinId) {
+  const soin = DataManager.getSoinById(soinId);
+  if (!soin) return;
+  const confirme = await showCustomConfirm(`Archiver le soin "${soin.nom}" ?\n\nIl disparaîtra de la carte mais l'historique est préservé.`);
+  if (!confirme) return;
+  await DataManager.archiveSoin(soinId);
+  if (window.ViewManager) {
+    if (typeof ViewManager.updateCalendar === 'function') ViewManager.updateCalendar();
+    if (typeof ViewManager.updateDashboard === 'function') ViewManager.updateDashboard();
+  }
+  if (window.UtilsServices && typeof UtilsServices.updateAnalytics === 'function') {
+    UtilsServices.updateAnalytics();
+  }
+  showCarteSoinsModal();
+}
+
+async function activerSoinFromModal(soinId) {
+  await DataManager.activerSoin(soinId);
+  if (window.ViewManager) {
+    if (typeof ViewManager.updateCalendar === 'function') ViewManager.updateCalendar();
+    if (typeof ViewManager.updateDashboard === 'function') ViewManager.updateDashboard();
+  }
+  if (window.UtilsServices && typeof UtilsServices.updateAnalytics === 'function') {
+    UtilsServices.updateAnalytics();
+  }
+  showCarteSoinsModal();
+}
+
+async function deleteSoinFromModal(soinId) {
+  const soin = DataManager.getSoinById(soinId);
+  if (!soin) return;
+  const appData = DataManager.getAppData();
+  const nbPrestationsLiees = (appData.prestations || []).filter(p => p.soinId === soinId).length;
+  const nbRdvLies = (appData.rdv || []).filter(r => r.soinId === soinId).length;
+  const warning = (nbPrestationsLiees + nbRdvLies) > 0
+    ? `\n\n⚠️ ${nbPrestationsLiees} prestation(s) et ${nbRdvLies} RDV existant(s) sont liés à ce soin. Ils gardent leur nom et prix mais leur lien sera rompu.`
+    : '';
+  const confirme = await showCustomConfirm(`Supprimer DÉFINITIVEMENT le soin "${soin.nom}" ?${warning}\n\nIrréversible.`);
+  if (!confirme) return;
+  if ((nbPrestationsLiees + nbRdvLies) > 0) {
+    const confirme2 = await showCustomConfirm(`Dernière vérification : confirmer la suppression de "${soin.nom}" ?`);
+    if (!confirme2) return;
+  }
+  await DataManager.deleteSoin(soinId);
+  if (window.ViewManager) {
+    if (typeof ViewManager.updateCalendar === 'function') ViewManager.updateCalendar();
+    if (typeof ViewManager.updateDashboard === 'function') ViewManager.updateDashboard();
+  }
+  if (window.UtilsServices && typeof UtilsServices.updateAnalytics === 'function') {
+    UtilsServices.updateAnalytics();
+  }
+  showCarteSoinsModal();
 }
 
 function showAddSoinModal(categorieId) {
@@ -5410,6 +5479,9 @@ window.showEditCategorieModal = showEditCategorieModal;
 window.showAddCategorieModal = showAddCategorieModal;
 window.archiveCategorieFromModal = archiveCategorieFromModal;
 window.deleteCategorieFromModal = deleteCategorieFromModal;
+window.archiveSoinFromModal = archiveSoinFromModal;
+window.activerSoinFromModal = activerSoinFromModal;
+window.deleteSoinFromModal = deleteSoinFromModal;
 window.addVarianteRow = addVarianteRow;
 window.addVarianteRowNew = addVarianteRowNew;
 window.togglePartnershipVariantes = togglePartnershipVariantes;
