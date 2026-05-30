@@ -246,13 +246,15 @@ if (needsRefresh && isGoogleAdsConnected && selectedCampaigns.length > 0 && !win
   const revenusPrestations = prestationsClassiquesMois
     .reduce((sum, p) => sum + (p.prix || 0), 0);
 
-  // Revenus séparés Massage vs HeadSpa (partenariat) du mois
-  const revenusMassageMois = prestationsClassiquesMois
-    .filter(p => !DataManager.isPartnershipSoin(p.soinId || p.type))
-    .reduce((sum, p) => sum + (p.prix || 0), 0);
-  const revenusHeadSpaMois = prestationsClassiquesMois
-    .filter(p => DataManager.isPartnershipSoin(p.soinId || p.type))
-    .reduce((sum, p) => sum + (p.prix || 0), 0);
+  // v1.0.7.0 : Revenus par groupe (Massages, HeadSpa, Epilation, ...) du mois.
+  // L'alias historique Massages/HeadSpa pointe vers le groupe correspondant.
+  const revenusParGroupeMois = {};
+  prestationsClassiquesMois.forEach(p => {
+    const g = getGroupeNameForPrestation(p);
+    revenusParGroupeMois[g] = (revenusParGroupeMois[g] || 0) + (p.prix || 0);
+  });
+  const revenusMassageMois = revenusParGroupeMois['Massages'] || 0;
+  const revenusHeadSpaMois = revenusParGroupeMois['HeadSpa'] || 0;
 
   // Revenus des bons cadeaux VENDUS ce mois (encaissés à l'achat)
   const bonsCadeauxVendusMois = (appData.bonsCadeaux || []).filter(bon => {
@@ -323,17 +325,23 @@ if (needsRefresh && isGoogleAdsConnected && selectedCampaigns.length > 0 && !win
     }
   });
   
-  // Nb séparés du mois (massage vs HeadSpa)
-  const nbMassagesMois = prestationsMoisCalendaire
-    .filter(p => !DataManager.isPartnershipSoin(p.soinId || p.type)).length;
-  const nbHeadSpaMois = prestationsMoisCalendaire
-    .filter(p => DataManager.isPartnershipSoin(p.soinId || p.type)).length;
+  // v1.0.7.0 : Compte par groupe (Massages, HeadSpa, Epilation, ...) du mois.
+  const nbParGroupeMois = {};
+  prestationsMoisCalendaire.forEach(p => {
+    const g = getGroupeNameForPrestation(p);
+    nbParGroupeMois[g] = (nbParGroupeMois[g] || 0) + 1;
+  });
+  const nbMassagesMois = nbParGroupeMois['Massages'] || 0;
+  const nbHeadSpaMois = nbParGroupeMois['HeadSpa'] || 0;
 
-  // Nb séparés de l'année
-  const nbMassagesAnnee = prestationsAnnee
-    .filter(p => !DataManager.isPartnershipSoin(p.soinId || p.type)).length;
-  const nbHeadSpaAnnee = prestationsAnnee
-    .filter(p => DataManager.isPartnershipSoin(p.soinId || p.type)).length;
+  // v1.0.7.0 : Nb par groupe de l'annee
+  const nbParGroupeAnnee = {};
+  prestationsAnnee.forEach(p => {
+    const g = getGroupeNameForPrestation(p);
+    nbParGroupeAnnee[g] = (nbParGroupeAnnee[g] || 0) + 1;
+  });
+  const nbMassagesAnnee = nbParGroupeAnnee['Massages'] || 0;
+  const nbHeadSpaAnnee = nbParGroupeAnnee['HeadSpa'] || 0;
 
   // CA Total Année (prestations classiques + bons cadeaux vendus sur l'année en cours)
   const prestationsClassiquesAnnee = prestationsAnnee
@@ -354,19 +362,30 @@ if (needsRefresh && isGoogleAdsConnected && selectedCampaigns.length > 0 && !win
   const revenusPrestationsTotal = prestationsClassiquesTotal
     .reduce((sum, p) => sum + (p.prix || 0), 0);
 
-  // Revenus séparés totaux (all time)
-  const revenusMassageTotal = prestationsClassiquesTotal
-    .filter(p => !DataManager.isPartnershipSoin(p.soinId || p.type))
-    .reduce((sum, p) => sum + (p.prix || 0), 0);
-  const revenusHeadSpaTotal = prestationsClassiquesTotal
-    .filter(p => DataManager.isPartnershipSoin(p.soinId || p.type))
-    .reduce((sum, p) => sum + (p.prix || 0), 0);
+  // v1.0.7.0 : Revenus par groupe (Massages, HeadSpa, Epilation, ...) all-time.
+  const revenusParGroupeTotal = {};
+  prestationsClassiquesTotal.forEach(p => {
+    const g = getGroupeNameForPrestation(p);
+    revenusParGroupeTotal[g] = (revenusParGroupeTotal[g] || 0) + (p.prix || 0);
+  });
+  const revenusMassageTotal = revenusParGroupeTotal['Massages'] || 0;
+  const revenusHeadSpaTotal = revenusParGroupeTotal['HeadSpa'] || 0;
 
-  // Nb séparés totaux (all time)
-  const nbMassagesTotal = appData.prestations
-    .filter(p => !DataManager.isPartnershipSoin(p.soinId || p.type)).length;
-  const nbHeadSpaTotal = appData.prestations
-    .filter(p => DataManager.isPartnershipSoin(p.soinId || p.type)).length;
+  // v1.0.7.0 : Compte par groupe all-time.
+  const nbParGroupeTotal = {};
+  appData.prestations.forEach(p => {
+    const g = getGroupeNameForPrestation(p);
+    nbParGroupeTotal[g] = (nbParGroupeTotal[g] || 0) + 1;
+  });
+  const nbMassagesTotal = nbParGroupeTotal['Massages'] || 0;
+  const nbHeadSpaTotal = nbParGroupeTotal['HeadSpa'] || 0;
+
+  // v1.0.7.0 : Revenus par groupe sur l'annee en cours
+  const revenusParGroupeAnnee = {};
+  prestationsClassiquesAnnee.forEach(p => {
+    const g = getGroupeNameForPrestation(p);
+    revenusParGroupeAnnee[g] = (revenusParGroupeAnnee[g] || 0) + (p.prix || 0);
+  });
 
   // Revenus bons cadeaux vendus (tous, sauf remboursés)
   const revenusBonsCadeauxTotal = (appData.bonsCadeaux || [])
@@ -408,6 +427,13 @@ if (needsRefresh && isGoogleAdsConnected && selectedCampaigns.length > 0 && !win
     revenusHeadSpaTotal,
     nbMassagesTotal,
     nbHeadSpaTotal,
+    // v1.0.7.0 : dictionnaires par groupe (pour KPIs dynamiques par groupe)
+    revenusParGroupeMois,
+    nbParGroupeMois,
+    revenusParGroupeAnnee,
+    nbParGroupeAnnee,
+    revenusParGroupeTotal,
+    nbParGroupeTotal,
     tipsTotal,
     coutsTotal,
     // ROI Google Ads
@@ -528,152 +554,140 @@ function getRevenueChartData(filters = null, period = 12, selectedYear = 'curren
   const tips = [];
   const costs = [];
 
+  // v1.0.7.0 : groupes dynamiques. Chaque groupe -> tableau de revenus par periode.
+  // Clef = nom du groupe. Initialise a la demande des qu'on rencontre une prestation.
+  const groupesRevenues = {};
+  const ensureGroupe = (name) => {
+    if (!groupesRevenues[name]) groupesRevenues[name] = [];
+  };
+  // Filtre actif sur un groupe ? Si filters.groupes existe, on lit dedans. Sinon legacy.
+  const isGroupeActif = (name) => {
+    if (!filters) return true;
+    if (filters.groupes && Object.prototype.hasOwnProperty.call(filters.groupes, name)) return !!filters.groupes[name];
+    // legacy
+    if (name === 'Massages') return !!filters.massages;
+    if (name === 'HeadSpa') return !!filters.headspa;
+    // groupe inconnu (ex: Epilation cree apres deploy) : actif par defaut
+    return true;
+  };
+
+  const depenseFilterMatch = (d) => {
+    if (!filters) return true;
+    const cat = d.categorie || 'Autre';
+    return (cat === 'Huiles' && filters.depensesHuiles) ||
+           (cat === 'Matériel' && filters.depensesMateriel) ||
+           (cat === 'Formation' && filters.depensesFormation) ||
+           (cat === 'Transport' && filters.depensesTransport) ||
+           (cat === 'Marketing' && filters.depensesMarketing) ||
+           (cat === 'Loyer' && filters.depensesLoyer) ||
+           (cat === 'Autre' && filters.depensesAutre);
+  };
+
+  // Bucketing prestations par groupe pour une periode donnee.
+  // Retourne { Massages: number, HeadSpa: number, Autre: number, ... } pour cette periode.
+  const bucketByGroupe = (prestationsClassiques) => {
+    const bucket = {};
+    prestationsClassiques.forEach(p => {
+      const groupe = getGroupeNameForPrestation(p);
+      bucket[groupe] = (bucket[groupe] || 0) + (p.prix || 0);
+    });
+    return bucket;
+  };
+
+  const periods = []; // { dateMatch, label } pour iterer une fois
+
   if (isMoisCourant) {
     const today = new Date();
     const currentYear = today.getFullYear();
     const currentMonth = today.getMonth();
     const todayDate = today.getDate();
-
     for (let day = 1; day <= todayDate; day++) {
       const dateString = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-
-      months.push(day.toString());
-
-      let revenuJour = 0;
-      let headSpaJour = 0;
-      let bonsCadeauxJour = 0;
-      let tipsJour = 0;
-
-      const prestationsJour = appData.prestations.filter(p => p.date === dateString);
-      const prestationsClassiques = prestationsJour.filter(p => p.moyenPaiement !== 'Bon cadeau' && !p.bonCadeauId);
-
-      // Massages (hors HeadSpa)
-      if (!filters || filters.massages) {
-        const prestationsMassages = prestationsClassiques.filter(p => !DataManager.isPartnershipSoin(p.soinId || p.type));
-        revenuJour = prestationsMassages.reduce((sum, p) => sum + (p.prix || 0), 0);
-      }
-
-      // HeadSpa
-      if (!filters || filters.headspa) {
-        const prestationsHeadSpa = prestationsClassiques.filter(p => DataManager.isPartnershipSoin(p.soinId || p.type));
-        headSpaJour = prestationsHeadSpa.reduce((sum, p) => sum + (p.prix || 0), 0);
-      }
-
-      // Bons Cadeaux vendus
-      if (!filters || filters.bonsCadeaux) {
-        const bonsJour = (appData.bonsCadeaux || []).filter(bon => bon.dateAchat === dateString);
-        bonsCadeauxJour = bonsJour.reduce((sum, bon) => sum + (bon.montant || 0), 0);
-      }
-
-      // Tips
-      if (!filters || filters.tips) {
-        tipsJour = prestationsJour.reduce((sum, p) => sum + (p.tips || 0), 0);
-      }
-
-      let coutJour = 0;
-      if (appData.depenses) {
-        const depensesJour = appData.depenses.filter(d => d.date === dateString);
-        coutJour = depensesJour.reduce((sum, d) => {
-          if (!filters) return sum + (d.montant || 0);
-
-          const cat = d.categorie || 'Autre';
-          if ((cat === 'Huiles' && filters.depensesHuiles) ||
-              (cat === 'Matériel' && filters.depensesMateriel) ||
-              (cat === 'Formation' && filters.depensesFormation) ||
-              (cat === 'Transport' && filters.depensesTransport) ||
-              (cat === 'Marketing' && filters.depensesMarketing) ||
-              (cat === 'Loyer' && filters.depensesLoyer) ||
-              (cat === 'Autre' && filters.depensesAutre)) {
-            return sum + (d.montant || 0);
-          }
-          return sum;
-        }, 0);
-      }
-
-      revenues.push(revenuJour);
-      headSpaRevenues.push(headSpaJour);
-      bonsCadeauxRevenues.push(bonsCadeauxJour);
-      tips.push(tipsJour);
-      costs.push(coutJour);
+      periods.push({ kind: 'day', match: dateString, label: day.toString() });
     }
   } else {
     const actualPeriod = period;
-
     for (let i = actualPeriod - 1; i >= 0; i--) {
       const date = selectedYear === 'current' ? new Date() : new Date(parseInt(selectedYear), 11, 31);
       date.setMonth(date.getMonth() - i);
-
       if (selectedMonth !== '' && date.getMonth() + 1 !== parseInt(selectedMonth)) {
         continue;
       }
-
       const monthStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-
-      months.push(date.toLocaleDateString('fr-FR', {
+      const label = date.toLocaleDateString('fr-FR', {
         month: 'short',
         year: period > 6 ? 'numeric' : undefined
-      }));
-
-      let revenuMois = 0;
-      let headSpaMois = 0;
-      let bonsCadeauxMois = 0;
-      let tipsMois = 0;
-
-      const prestationsMois = appData.prestations.filter(p => p.date.startsWith(monthStr));
-      const prestationsClassiques = prestationsMois.filter(p => p.moyenPaiement !== 'Bon cadeau' && !p.bonCadeauId);
-
-      // Massages (hors HeadSpa)
-      if (!filters || filters.massages) {
-        const prestationsMassages = prestationsClassiques.filter(p => !DataManager.isPartnershipSoin(p.soinId || p.type));
-        revenuMois = prestationsMassages.reduce((sum, p) => sum + (p.prix || 0), 0);
-      }
-
-      // HeadSpa
-      if (!filters || filters.headspa) {
-        const prestationsHeadSpa = prestationsClassiques.filter(p => DataManager.isPartnershipSoin(p.soinId || p.type));
-        headSpaMois = prestationsHeadSpa.reduce((sum, p) => sum + (p.prix || 0), 0);
-      }
-
-      // Bons Cadeaux vendus
-      if (!filters || filters.bonsCadeaux) {
-        const bonsVendusMois = (appData.bonsCadeaux || []).filter(bon => bon.dateAchat.startsWith(monthStr));
-        bonsCadeauxMois = bonsVendusMois.reduce((sum, bon) => sum + (bon.montant || 0), 0);
-      }
-
-      // Tips
-      if (!filters || filters.tips) {
-        tipsMois = prestationsMois.reduce((sum, p) => sum + (p.tips || 0), 0);
-      }
-
-      let coutMois = 0;
-      if (appData.depenses) {
-        const depensesMois = appData.depenses.filter(d => d.date.startsWith(monthStr));
-        coutMois = depensesMois.reduce((sum, d) => {
-          if (!filters) return sum + (d.montant || 0);
-
-          const cat = d.categorie || 'Autre';
-          if ((cat === 'Huiles' && filters.depensesHuiles) ||
-              (cat === 'Matériel' && filters.depensesMateriel) ||
-              (cat === 'Formation' && filters.depensesFormation) ||
-              (cat === 'Transport' && filters.depensesTransport) ||
-              (cat === 'Marketing' && filters.depensesMarketing) ||
-              (cat === 'Loyer' && filters.depensesLoyer) ||
-              (cat === 'Autre' && filters.depensesAutre)) {
-            return sum + (d.montant || 0);
-          }
-          return sum;
-        }, 0);
-      }
-
-      revenues.push(revenuMois);
-      headSpaRevenues.push(headSpaMois);
-      bonsCadeauxRevenues.push(bonsCadeauxMois);
-      tips.push(tipsMois);
-      costs.push(coutMois);
+      });
+      periods.push({ kind: 'month', match: monthStr, label });
     }
   }
 
-  return { months, revenues, headSpaRevenues, bonsCadeauxRevenues, tips, costs };
+  // Pre-collect groupes connus pour avoir des series remplies de 0 partout
+  if (DataManager.getGroupesCategories) {
+    DataManager.getGroupesCategories().forEach(g => ensureGroupe(g.nom));
+  }
+  // Toujours s'assurer que Massages et HeadSpa existent (alias legacy)
+  ensureGroupe('Massages');
+  ensureGroupe('HeadSpa');
+
+  periods.forEach(({ kind, match, label }) => {
+    months.push(label);
+
+    const prestationsPeriode = appData.prestations.filter(p =>
+      kind === 'day' ? p.date === match : (p.date && p.date.startsWith(match))
+    );
+    const prestationsClassiques = prestationsPeriode.filter(p => p.moyenPaiement !== 'Bon cadeau' && !p.bonCadeauId);
+
+    const bucket = bucketByGroupe(prestationsClassiques);
+
+    // S'assurer que tous les groupes connus ont une valeur (0 si rien)
+    Object.keys(groupesRevenues).forEach(name => {
+      if (!(name in bucket)) bucket[name] = 0;
+    });
+    // Et inversement : les groupes nouvellement decouverts dans le bucket
+    Object.keys(bucket).forEach(name => {
+      if (!groupesRevenues[name]) groupesRevenues[name] = new Array(months.length - 1).fill(0);
+    });
+    // Pousser la valeur par groupe (filtree)
+    Object.keys(groupesRevenues).forEach(name => {
+      const val = isGroupeActif(name) ? (bucket[name] || 0) : 0;
+      groupesRevenues[name].push(val);
+    });
+
+    // Bons cadeaux
+    let bcVal = 0;
+    if (!filters || filters.bonsCadeaux) {
+      const bons = (appData.bonsCadeaux || []).filter(bon =>
+        kind === 'day' ? bon.dateAchat === match : (bon.dateAchat && bon.dateAchat.startsWith(match))
+      );
+      bcVal = bons.reduce((sum, bon) => sum + (bon.montant || 0), 0);
+    }
+    bonsCadeauxRevenues.push(bcVal);
+
+    // Tips
+    let tipsVal = 0;
+    if (!filters || filters.tips) {
+      tipsVal = prestationsPeriode.reduce((sum, p) => sum + (p.tips || 0), 0);
+    }
+    tips.push(tipsVal);
+
+    // Couts
+    let coutVal = 0;
+    if (appData.depenses) {
+      coutVal = appData.depenses
+        .filter(d => kind === 'day' ? d.date === match : (d.date && d.date.startsWith(match)))
+        .reduce((sum, d) => sum + (depenseFilterMatch(d) ? (d.montant || 0) : 0), 0);
+    }
+    costs.push(coutVal);
+  });
+
+  // Series legacy : Massages -> revenues, HeadSpa -> headSpaRevenues
+  for (let i = 0; i < months.length; i++) {
+    revenues.push((groupesRevenues['Massages'] && groupesRevenues['Massages'][i]) || 0);
+    headSpaRevenues.push((groupesRevenues['HeadSpa'] && groupesRevenues['HeadSpa'][i]) || 0);
+  }
+
+  return { months, revenues, headSpaRevenues, bonsCadeauxRevenues, tips, costs, groupesRevenues };
 }
 
 
@@ -771,9 +785,45 @@ function getDureesChart(selectedYear = 'current', selectedMonth = '') {
   };
 }
 
+// v1.0.7.0 : determine le groupe d'analyse d'une prestation via sa categorie de soin.
+// Fallback : si pas de groupe trouve, on utilise l'ancienne logique isPartnershipSoin.
+function getGroupeNameForPrestation(p) {
+  if (!p) return 'Massages';
+  const soinKey = p.soinId || p.type;
+  if (DataManager.getGroupeForSoinId) {
+    const g = DataManager.getGroupeForSoinId(soinKey);
+    if (g) return g;
+  }
+  // Fallback retrocompat : on conserve la dichotomie historique
+  return DataManager.isPartnershipSoin(soinKey) ? 'HeadSpa' : 'Massages';
+}
+
 function calculateFilterAmountsForPeriod(period = 12, selectedYear = 'current') {
   const appData = DataManager.getAppData();
-  const amounts = { massages: 0, headspa: 0, bonsCadeaux: 0, tips: 0, huiles: 0, materiel: 0, formation: 0, transport: 0, marketing: 0, loyer: 0, autre: 0 };
+  // v1.0.7.0 : groupes en dict dynamique. massages/headspa restent en alias pour la retrocompat.
+  const amounts = { massages: 0, headspa: 0, groupes: {}, bonsCadeaux: 0, tips: 0, huiles: 0, materiel: 0, formation: 0, transport: 0, marketing: 0, loyer: 0, autre: 0 };
+
+  const bucketPrestations = (prestations) => {
+    prestations.forEach(p => {
+      const groupe = getGroupeNameForPrestation(p);
+      const prix = p.prix || 0;
+      amounts.groupes[groupe] = (amounts.groupes[groupe] || 0) + prix;
+    });
+  };
+
+  const bucketDepense = (d) => {
+    const cat = d.categorie || 'Autre';
+    const montant = d.montant || 0;
+    switch(cat) {
+      case 'Huiles': amounts.huiles += montant; break;
+      case 'Matériel': amounts.materiel += montant; break;
+      case 'Formation': amounts.formation += montant; break;
+      case 'Transport': amounts.transport += montant; break;
+      case 'Marketing': amounts.marketing += montant; break;
+      case 'Loyer': amounts.loyer += montant; break;
+      default: amounts.autre += montant; break;
+    }
+  };
 
   const isMoisCourant = period === 'current-month';
 
@@ -789,13 +839,7 @@ function calculateFilterAmountsForPeriod(period = 12, selectedYear = 'current') 
       const prestationsJour = appData.prestations.filter(p => p.date === dateString);
       const prestationsClassiques = prestationsJour.filter(p => p.moyenPaiement !== 'Bon cadeau' && !p.bonCadeauId);
 
-      // Massages (hors HeadSpa)
-      const prestationsMassages = prestationsClassiques.filter(p => !DataManager.isPartnershipSoin(p.soinId || p.type));
-      amounts.massages += prestationsMassages.reduce((sum, p) => sum + (p.prix || 0), 0);
-
-      // HeadSpa
-      const prestationsHeadSpa = prestationsClassiques.filter(p => DataManager.isPartnershipSoin(p.soinId || p.type));
-      amounts.headspa += prestationsHeadSpa.reduce((sum, p) => sum + (p.prix || 0), 0);
+      bucketPrestations(prestationsClassiques);
 
       // Bons Cadeaux vendus
       const bonsJour = (appData.bonsCadeaux || []).filter(bon => bon.dateAchat === dateString);
@@ -805,20 +849,7 @@ function calculateFilterAmountsForPeriod(period = 12, selectedYear = 'current') 
       amounts.tips += prestationsJour.reduce((sum, p) => sum + (p.tips || 0), 0);
 
       if (appData.depenses) {
-        const depensesJour = appData.depenses.filter(d => d.date === dateString);
-        depensesJour.forEach(d => {
-          const cat = d.categorie || 'Autre';
-          const montant = d.montant || 0;
-          switch(cat) {
-            case 'Huiles': amounts.huiles += montant; break;
-            case 'Matériel': amounts.materiel += montant; break;
-            case 'Formation': amounts.formation += montant; break;
-            case 'Transport': amounts.transport += montant; break;
-            case 'Marketing': amounts.marketing += montant; break;
-            case 'Loyer': amounts.loyer += montant; break;
-            default: amounts.autre += montant; break;
-          }
-        });
+        appData.depenses.filter(d => d.date === dateString).forEach(bucketDepense);
       }
     }
   } else {
@@ -829,42 +860,27 @@ function calculateFilterAmountsForPeriod(period = 12, selectedYear = 'current') 
       date.setMonth(date.getMonth() - i);
       const monthStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 
-      const prestationsMois = appData.prestations.filter(p => p.date.startsWith(monthStr));
+      const prestationsMois = appData.prestations.filter(p => p.date && p.date.startsWith(monthStr));
       const prestationsClassiques = prestationsMois.filter(p => p.moyenPaiement !== 'Bon cadeau' && !p.bonCadeauId);
 
-      // Massages (hors HeadSpa)
-      const prestationsMassages = prestationsClassiques.filter(p => !DataManager.isPartnershipSoin(p.soinId || p.type));
-      amounts.massages += prestationsMassages.reduce((sum, p) => sum + (p.prix || 0), 0);
-
-      // HeadSpa
-      const prestationsHeadSpa = prestationsClassiques.filter(p => DataManager.isPartnershipSoin(p.soinId || p.type));
-      amounts.headspa += prestationsHeadSpa.reduce((sum, p) => sum + (p.prix || 0), 0);
+      bucketPrestations(prestationsClassiques);
 
       // Bons Cadeaux vendus
-      const bonsMois = (appData.bonsCadeaux || []).filter(bon => bon.dateAchat.startsWith(monthStr));
+      const bonsMois = (appData.bonsCadeaux || []).filter(bon => bon.dateAchat && bon.dateAchat.startsWith(monthStr));
       amounts.bonsCadeaux += bonsMois.reduce((sum, bon) => sum + (bon.montant || 0), 0);
 
       // Tips
       amounts.tips += prestationsMois.reduce((sum, p) => sum + (p.tips || 0), 0);
 
       if (appData.depenses) {
-        const depensesMois = appData.depenses.filter(d => d.date.startsWith(monthStr));
-        depensesMois.forEach(d => {
-          const cat = d.categorie || 'Autre';
-          const montant = d.montant || 0;
-          switch(cat) {
-            case 'Huiles': amounts.huiles += montant; break;
-            case 'Matériel': amounts.materiel += montant; break;
-            case 'Formation': amounts.formation += montant; break;
-            case 'Transport': amounts.transport += montant; break;
-            case 'Marketing': amounts.marketing += montant; break;
-            case 'Loyer': amounts.loyer += montant; break;
-            default: amounts.autre += montant; break;
-          }
-        });
+        appData.depenses.filter(d => d.date && d.date.startsWith(monthStr)).forEach(bucketDepense);
       }
     }
   }
+
+  // Alias legacy : massages = groupe "Massages", headspa = groupe "HeadSpa"
+  amounts.massages = amounts.groupes['Massages'] || 0;
+  amounts.headspa = amounts.groupes['HeadSpa'] || 0;
 
   return { amounts, totalPrestations: 0, avgDuration: 0 };
 }
@@ -1279,6 +1295,7 @@ window.Calculations = {
   getPrestationsTypeChart,
   getDureesChart,
   calculateFilterAmountsForPeriod,
+  getGroupeNameForPrestation,
   calculateKeyStats,
   
   // Distance

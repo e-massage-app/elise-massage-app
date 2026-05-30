@@ -120,6 +120,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (dataLoaded) {
       console.log('Donnees chargees avec succes');
 
+      // v1.0.7.0 : backfill des groupes sur les categories existantes
+      // (idempotent : ne fait rien si toutes les categories ont deja un groupe)
+      try {
+        await DataManager.migrerCategoriesGroupes();
+      } catch (err) {
+        console.warn('Migration groupes categories : echec non bloquant', err);
+      }
+
       // Synchronisation Google Ads au demarrage (silencieuse)
       await syncGoogleAdsCostsOnStartup();
 
@@ -376,54 +384,85 @@ function setupFormListeners() {
     // Prestation Form
     if (e.target.id === 'prestation-form') {
       e.preventDefault();
-      const rdvSourceId = document.getElementById('prestation-form').getAttribute('data-rdv-source');
-      const moyenPaiement = document.getElementById('prestation-moyen-paiement').value;
-      const bonCadeauId = moyenPaiement === 'Bon cadeau' ?
-        (document.getElementById('prestation-bon-cadeau-id')?.value ||
-         document.getElementById('prestation-bon-cadeau')?.value || null) : null;
 
-      const prestaTypeSelect = document.getElementById('prestation-type');
-      const formData = {
-        id: document.getElementById('prestation-id').value,
-        date: document.getElementById('prestation-date').value,
-        heure: document.getElementById('prestation-heure').value,
-        clientId: document.getElementById('prestation-client').value,
-        type: prestaTypeSelect.options[prestaTypeSelect.selectedIndex]?.text || prestaTypeSelect.value,
-        soinId: prestaTypeSelect.value,
-        duree: document.getElementById('prestation-duree-value') ?
-               parseInt(document.getElementById('prestation-duree-value').value) :
-               DataManager.getDureeValue('prestation'),
-        prix: parseFloat(document.getElementById('prestation-prix').value) || 0,
-        tips: parseFloat(document.getElementById('prestation-tips').value) || 0,
-        notes: document.getElementById('prestation-notes').value,
-        isTransformed: !!rdvSourceId,
-        adresseMassage: document.getElementById('prestation-adresse-massage').value,
-        distanceKm: parseFloat(document.getElementById('prestation-distance').value) || 0,
-        fraisDeplacement: parseFloat(document.getElementById('prestation-frais').value) || 0,
-        moyenPaiement: moyenPaiement,
-        bonCadeauId: bonCadeauId
-      };
-
-      if (rdvSourceId) {
-        await BusinessServices.transformRdvToPrestation(rdvSourceId);
-        document.getElementById('prestation-form').removeAttribute('data-rdv-source');
+      // ===== ANTI DOUBLE-CLIC =====
+      // Bug 1.0.7.0 : sur les categories sans cache (Epilation, etc.), la chaine
+      // transformRdv -> createPrestation -> utiliserBonCadeau pouvait durer 2-4s
+      // sans feedback visuel. Elise reclique sur Valider -> N prestations creees.
+      const submitBtn = e.target.querySelector('button[type="submit"]');
+      if (submitBtn && submitBtn.disabled) {
+        return; // deja en cours, on ignore le re-submit
+      }
+      const originalBtnHTML = submitBtn ? submitBtn.innerHTML : null;
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '⏳ Enregistrement…';
+        submitBtn.style.opacity = '0.7';
+        submitBtn.style.cursor = 'wait';
       }
 
-      captureFormData('prestation');
-      const prestation = await BusinessServices.createPrestation(formData);
+      try {
+        const rdvSourceId = document.getElementById('prestation-form').getAttribute('data-rdv-source');
+        const moyenPaiement = document.getElementById('prestation-moyen-paiement').value;
+        const bonCadeauId = moyenPaiement === 'Bon cadeau' ?
+          (document.getElementById('prestation-bon-cadeau-id')?.value ||
+           document.getElementById('prestation-bon-cadeau')?.value || null) : null;
 
-      if (bonCadeauId && prestation) {
-        await BusinessServices.utiliserBonCadeau(bonCadeauId, prestation.id);
-      }
+        const prestaTypeSelect = document.getElementById('prestation-type');
+        const formData = {
+          id: document.getElementById('prestation-id').value,
+          date: document.getElementById('prestation-date').value,
+          heure: document.getElementById('prestation-heure').value,
+          clientId: document.getElementById('prestation-client').value,
+          type: prestaTypeSelect.options[prestaTypeSelect.selectedIndex]?.text || prestaTypeSelect.value,
+          soinId: prestaTypeSelect.value,
+          duree: document.getElementById('prestation-duree-value') ?
+                 parseInt(document.getElementById('prestation-duree-value').value) :
+                 DataManager.getDureeValue('prestation'),
+          prix: parseFloat(document.getElementById('prestation-prix').value) || 0,
+          tips: parseFloat(document.getElementById('prestation-tips').value) || 0,
+          notes: document.getElementById('prestation-notes').value,
+          isTransformed: !!rdvSourceId,
+          adresseMassage: document.getElementById('prestation-adresse-massage').value,
+          distanceKm: parseFloat(document.getElementById('prestation-distance').value) || 0,
+          fraisDeplacement: parseFloat(document.getElementById('prestation-frais').value) || 0,
+          moyenPaiement: moyenPaiement,
+          bonCadeauId: bonCadeauId
+        };
 
-      ModalManager.closeModal();
-      ViewManager.updatePrestationsTable();
-      ViewManager.updateDashboard();
-      ViewManager.updateCalendar();
-      UtilsServices.updateAnalytics();
+        if (rdvSourceId) {
+          await BusinessServices.transformRdvToPrestation(rdvSourceId);
+          document.getElementById('prestation-form').removeAttribute('data-rdv-source');
+        }
 
-      if (typeof ViewManager.updateBonsCadeauxDisplay === 'function') {
-        ViewManager.updateBonsCadeauxDisplay();
+        captureFormData('prestation');
+        const prestation = await BusinessServices.createPrestation(formData);
+
+        if (bonCadeauId && prestation) {
+          await BusinessServices.utiliserBonCadeau(bonCadeauId, prestation.id);
+        }
+
+        ModalManager.closeModal();
+        ViewManager.updatePrestationsTable();
+        ViewManager.updateDashboard();
+        ViewManager.updateCalendar();
+        UtilsServices.updateAnalytics();
+
+        if (typeof ViewManager.updateBonsCadeauxDisplay === 'function') {
+          ViewManager.updateBonsCadeauxDisplay();
+        }
+      } catch (err) {
+        console.error('Erreur soumission prestation:', err);
+        if (typeof alert !== 'undefined') {
+          alert('Erreur lors de l\'enregistrement de la prestation. Verifiez votre connexion et reessayez.\n\nDetail : ' + (err && err.message ? err.message : err));
+        }
+        // Re-enable le bouton pour permettre une nouvelle tentative
+        if (submitBtn && originalBtnHTML !== null) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = originalBtnHTML;
+          submitBtn.style.opacity = '';
+          submitBtn.style.cursor = '';
+        }
       }
     }
 

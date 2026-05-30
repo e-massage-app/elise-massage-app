@@ -5100,9 +5100,43 @@ async function quickActiverSoin(soinId) {
   showCarteSoinsModal();
 }
 
+// v1.0.7.0 : helper qui genere le markup du dropdown groupe avec valeurs existantes + "Nouveau groupe..."
+function renderGroupeSelect(currentGroupe) {
+  const groupes = DataManager.getGroupesCategories ? DataManager.getGroupesCategories({ includeAll: true }) : [];
+  const names = Array.from(new Set(groupes.map(g => g.nom).filter(Boolean))).sort();
+  // S'assurer que la valeur actuelle est dans la liste si elle n'y est pas
+  if (currentGroupe && !names.includes(currentGroupe)) names.unshift(currentGroupe);
+  const options = names.map(n => `<option value="${n.replace(/"/g, '&quot;')}" ${n === currentGroupe ? 'selected' : ''}>${n}</option>`).join('');
+  return `
+    <select id="cat-groupe" onchange="handleCategorieGroupeChange()" style="padding: 0.5rem; border-radius: 6px; border: 1px solid #ddd; width: 100%;">
+      ${options}
+      <option value="__new__">+ Créer un nouveau groupe…</option>
+    </select>
+    <input type="text" id="cat-groupe-new" placeholder="Nom du nouveau groupe" style="display: none; margin-top: 0.5rem; padding: 0.5rem; border-radius: 6px; border: 1px solid #ddd; width: 100%;">
+    <small style="color: var(--text-light); font-size: 0.8rem;">Les catégories d'un même groupe sont agrégées ensemble dans les Analyses (ex: tous les massages dans "Massages").</small>
+  `;
+}
+
+window.handleCategorieGroupeChange = function() {
+  const sel = document.getElementById('cat-groupe');
+  const newInput = document.getElementById('cat-groupe-new');
+  if (!sel || !newInput) return;
+  if (sel.value === '__new__') {
+    newInput.style.display = 'block';
+    newInput.focus();
+  } else {
+    newInput.style.display = 'none';
+    newInput.value = '';
+  }
+};
+
 function showEditCategorieModal(categorieId) {
   const cat = DataManager.getCategorieById(categorieId);
   if (!cat) return;
+
+  // v1.0.7.0 : groupe defaut = nom de la categorie si pas encore defini
+  const groupeActuel = (cat.groupe && cat.groupe.trim()) ? cat.groupe : cat.nom;
+  const couleurActuelle = cat.couleur || '#d4a574';
 
   const modalHTML = `
     <h3>Modifier la catégorie</h3>
@@ -5111,16 +5145,41 @@ function showEditCategorieModal(categorieId) {
         <label>Nom *</label>
         <input type="text" id="cat-nom" value="${cat.nom}" required>
       </div>
-      <div class="form-group">
-        <label>Ordre</label>
-        <input type="number" id="cat-ordre" value="${cat.ordre || 1}" min="1">
+      <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+        <div class="form-group">
+          <label>Ordre</label>
+          <input type="number" id="cat-ordre" value="${cat.ordre || 1}" min="1">
+        </div>
+        <div class="form-group">
+          <label>Statut</label>
+          <select id="cat-statut">
+            <option value="actif" ${cat.statut === 'actif' ? 'selected' : ''}>Active</option>
+            <option value="archive" ${cat.statut === 'archive' ? 'selected' : ''}>Archivée</option>
+          </select>
+        </div>
       </div>
       <div class="form-group">
-        <label>Statut</label>
-        <select id="cat-statut">
-          <option value="actif" ${cat.statut === 'actif' ? 'selected' : ''}>Active</option>
-          <option value="archive" ${cat.statut === 'archive' ? 'selected' : ''}>Archivée</option>
-        </select>
+        <label>🎨 Couleur</label>
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <input type="color" id="cat-couleur" value="${couleurActuelle}" style="width: 60px; height: 40px; border: 1px solid #ddd; border-radius: 6px; cursor: pointer;">
+          <small style="color: var(--text-light); font-size: 0.85rem;">Utilisée par défaut pour les soins de cette catégorie (calendrier, analyses).</small>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>📊 Groupe d'analyse</label>
+        ${renderGroupeSelect(groupeActuel)}
+      </div>
+      <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+        <div class="form-group">
+          <label>🎯 Objectif CA mensuel (€)</label>
+          <input type="number" id="cat-objectif" value="${cat.objectifCaMensuel != null ? cat.objectifCaMensuel : ''}" min="0" step="10" placeholder="Optionnel">
+          <small style="color: var(--text-light); font-size: 0.8rem;">Affiché dans les Analyses pour comparer.</small>
+        </div>
+        <div class="form-group">
+          <label>🧴 Coût produit défaut (€)</label>
+          <input type="number" id="cat-cout-produit" value="${cat.coutProduitDefault != null ? cat.coutProduitDefault : ''}" min="0" step="0.10" placeholder="Optionnel">
+          <small style="color: var(--text-light); font-size: 0.8rem;">Pré-rempli sur les nouveaux soins de la catégorie.</small>
+        </div>
       </div>
       <div class="modal-actions">
         <button type="button" class="btn-secondary" onclick="showCarteSoinsModal()">Retour</button>
@@ -5138,7 +5197,29 @@ function showAddCategorieModal() {
     <form onsubmit="event.preventDefault(); saveNewCategorie();">
       <div class="form-group">
         <label>Nom *</label>
-        <input type="text" id="cat-nom" required placeholder="Ex: Soins du Monde">
+        <input type="text" id="cat-nom" required placeholder="Ex: Épilation">
+      </div>
+      <div class="form-group">
+        <label>🎨 Couleur</label>
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <input type="color" id="cat-couleur" value="#d4a574" style="width: 60px; height: 40px; border: 1px solid #ddd; border-radius: 6px; cursor: pointer;">
+          <small style="color: var(--text-light); font-size: 0.85rem;">Utilisée par défaut pour les soins de cette catégorie.</small>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>📊 Groupe d'analyse</label>
+        ${renderGroupeSelect('')}
+        <small style="color: var(--text-light); font-size: 0.8rem; display: block; margin-top: 0.25rem;">Laisser sur "+ Créer un nouveau groupe…" et entrer le nom de la catégorie pour un groupe standalone.</small>
+      </div>
+      <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+        <div class="form-group">
+          <label>🎯 Objectif CA mensuel (€)</label>
+          <input type="number" id="cat-objectif" min="0" step="10" placeholder="Optionnel">
+        </div>
+        <div class="form-group">
+          <label>🧴 Coût produit défaut (€)</label>
+          <input type="number" id="cat-cout-produit" min="0" step="0.10" placeholder="Optionnel">
+        </div>
       </div>
       <div class="modal-actions">
         <button type="button" class="btn-secondary" onclick="showCarteSoinsModal()">Retour</button>
@@ -5150,11 +5231,31 @@ function showAddCategorieModal() {
   showModal('add-categorie-modal', modalHTML);
 }
 
+// v1.0.7.0 : recupere la valeur du groupe (avec fallback sur input "Nouveau groupe")
+function getCategorieGroupeFromForm(fallbackNom) {
+  const sel = document.getElementById('cat-groupe');
+  const newInput = document.getElementById('cat-groupe-new');
+  if (!sel) return fallbackNom || '';
+  if (sel.value === '__new__') {
+    const v = (newInput && newInput.value || '').trim();
+    return v || fallbackNom || '';
+  }
+  return sel.value;
+}
+
 async function saveEditCategorie(categorieId) {
+  const nom = document.getElementById('cat-nom').value;
+  const couleur = document.getElementById('cat-couleur')?.value || null;
+  const objectifEl = document.getElementById('cat-objectif');
+  const coutProduitEl = document.getElementById('cat-cout-produit');
   await DataManager.updateCategorie(categorieId, {
-    nom: document.getElementById('cat-nom').value,
+    nom: nom,
     ordre: parseInt(document.getElementById('cat-ordre').value) || 1,
-    statut: document.getElementById('cat-statut').value
+    statut: document.getElementById('cat-statut').value,
+    couleur: couleur,
+    groupe: getCategorieGroupeFromForm(nom),
+    objectifCaMensuel: objectifEl && objectifEl.value !== '' ? Number(objectifEl.value) : null,
+    coutProduitDefault: coutProduitEl && coutProduitEl.value !== '' ? Number(coutProduitEl.value) : null
   });
   showCarteSoinsModal();
 }
@@ -5162,8 +5263,16 @@ async function saveEditCategorie(categorieId) {
 async function saveNewCategorie() {
   const nom = document.getElementById('cat-nom').value;
   if (!nom) return;
-
-  await DataManager.addCategorie({ nom: nom });
+  const couleur = document.getElementById('cat-couleur')?.value || null;
+  const objectifEl = document.getElementById('cat-objectif');
+  const coutProduitEl = document.getElementById('cat-cout-produit');
+  await DataManager.addCategorie({
+    nom: nom,
+    couleur: couleur,
+    groupe: getCategorieGroupeFromForm(nom),
+    objectifCaMensuel: objectifEl && objectifEl.value !== '' ? Number(objectifEl.value) : null,
+    coutProduitDefault: coutProduitEl && coutProduitEl.value !== '' ? Number(coutProduitEl.value) : null
+  });
   showCarteSoinsModal();
 }
 

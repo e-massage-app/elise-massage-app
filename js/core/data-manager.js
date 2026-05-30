@@ -654,6 +654,70 @@ function migrerTarifs2026() { }
 function migrerCarteSoins() { }
 function migrerCarteSoinsV2() { }
 
+// v1.0.7.0 : Backfill du champ "groupe" sur les categories existantes.
+// Heuristique : HeadSpa -> "HeadSpa"; tout ce qui matche massage/rituel/monde -> "Massages";
+// sinon -> le nom de la categorie elle-meme (= la categorie est son propre groupe).
+// Idempotent : ne touche que les categories sans groupe defini.
+async function migrerCategoriesGroupes() {
+  const carte = getCarteSoins();
+  if (!carte || !Array.isArray(carte.categories)) return 0;
+  let modified = 0;
+  carte.categories.forEach(cat => {
+    if (cat.groupe && typeof cat.groupe === 'string' && cat.groupe.trim()) return;
+    const nom = (cat.nom || '').toLowerCase();
+    let groupe = cat.nom || 'Sans nom';
+    if (nom.includes('headspa') || nom.includes('head spa')) {
+      groupe = 'HeadSpa';
+    } else if (
+      nom.includes('massage') ||
+      nom.includes('rituel') ||
+      nom.includes('soins du monde') ||
+      nom.includes('soin du monde')
+    ) {
+      groupe = 'Massages';
+    }
+    cat.groupe = groupe;
+    modified++;
+  });
+  if (modified > 0) {
+    console.log(`Migration groupes : ${modified} categorie(s) backfillee(s).`);
+    await saveParametresToDb();
+  }
+  return modified;
+}
+
+// v1.0.7.0 : retourne la liste des groupes distincts (uniques) parmi les categories actives.
+// Chaque groupe : { nom, couleur (heritee de la 1ere cat du groupe), categorieIds: [...] }.
+function getGroupesCategories(options = {}) {
+  const cats = getCategories(options);
+  const map = new Map();
+  cats.forEach(cat => {
+    const groupe = (cat.groupe && cat.groupe.trim()) ? cat.groupe : cat.nom;
+    if (!map.has(groupe)) {
+      map.set(groupe, { nom: groupe, couleur: cat.couleur || null, categorieIds: [cat.id] });
+    } else {
+      const g = map.get(groupe);
+      g.categorieIds.push(cat.id);
+      if (!g.couleur && cat.couleur) g.couleur = cat.couleur;
+    }
+  });
+  return Array.from(map.values());
+}
+
+// v1.0.7.0 : retourne le groupe d'une categorie (par defaut son propre nom).
+function getGroupeForCategorieId(categorieId) {
+  const cat = getCategorieById(categorieId);
+  if (!cat) return null;
+  return (cat.groupe && cat.groupe.trim()) ? cat.groupe : cat.nom;
+}
+
+// v1.0.7.0 : retourne le groupe d'un soin (via sa categorie).
+function getGroupeForSoinId(soinIdOrType) {
+  const soin = resolveSoin(soinIdOrType);
+  if (!soin) return null;
+  return getGroupeForCategorieId(soin.categorieId);
+}
+
 function getHeadSpaCollaborateurId() {
   return appData.parametres?.headSpaCollaborateurId || null;
 }
@@ -1060,7 +1124,16 @@ function isPartnershipSoin(soinIdOrType) {
 }
 
 function isComboSoin(soinId) { const soin = getSoinById(soinId); if (!soin) return false; return soin.comboConfig?.isCombo === true; }
-function getCalendarColorForSoin(soinIdOrType) { const soin = resolveSoin(soinIdOrType); if (soin && soin.calendarColor) return soin.calendarColor; return null; }
+function getCalendarColorForSoin(soinIdOrType) {
+  const soin = resolveSoin(soinIdOrType);
+  if (soin && soin.calendarColor) return soin.calendarColor;
+  // v1.0.7.0 : fallback sur la couleur de la categorie si pas de couleur propre au soin
+  if (soin && soin.categorieId) {
+    const cat = getCategorieById(soin.categorieId);
+    if (cat && cat.couleur) return cat.couleur;
+  }
+  return null;
+}
 
 function getDisplayNameForType(soinIdOrType, options = {}) {
   if (!soinIdOrType) return 'Inconnu';
@@ -1137,7 +1210,12 @@ async function addCategorie(categorieData) {
     id: 'cat_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
     nom: categorieData.nom || 'Nouvelle categorie',
     ordre: categorieData.ordre || (maxOrdre + 1),
-    statut: categorieData.statut || 'actif'
+    statut: categorieData.statut || 'actif',
+    // v1.0.7.0 : champs etendus
+    couleur: categorieData.couleur || null,
+    groupe: categorieData.groupe || (categorieData.nom || 'Nouvelle categorie'),
+    objectifCaMensuel: categorieData.objectifCaMensuel != null ? Number(categorieData.objectifCaMensuel) : null,
+    coutProduitDefault: categorieData.coutProduitDefault != null ? Number(categorieData.coutProduitDefault) : null
   };
   carte.categories.push(newCategorie);
   await saveParametresToDb();
@@ -1152,6 +1230,17 @@ async function updateCategorie(categorieId, updates) {
   if (updates.nom !== undefined) categorie.nom = updates.nom;
   if (updates.ordre !== undefined) categorie.ordre = updates.ordre;
   if (updates.statut !== undefined) categorie.statut = updates.statut;
+  // v1.0.7.0 : champs etendus
+  if (updates.couleur !== undefined) categorie.couleur = updates.couleur || null;
+  if (updates.groupe !== undefined) categorie.groupe = updates.groupe || categorie.nom;
+  if (updates.objectifCaMensuel !== undefined) {
+    categorie.objectifCaMensuel = updates.objectifCaMensuel != null && updates.objectifCaMensuel !== ''
+      ? Number(updates.objectifCaMensuel) : null;
+  }
+  if (updates.coutProduitDefault !== undefined) {
+    categorie.coutProduitDefault = updates.coutProduitDefault != null && updates.coutProduitDefault !== ''
+      ? Number(updates.coutProduitDefault) : null;
+  }
   await saveParametresToDb();
   return true;
 }
@@ -1207,6 +1296,8 @@ window.DataManager = {
   getSoinsGroupedByCategorie,
   addSoin, updateSoin, archiveSoin, standBySoin, activerSoin, deleteSoin,
   addCategorie, updateCategorie, archiveCategorie,
+  // v1.0.7.0 : groupes de categories
+  migrerCategoriesGroupes, getGroupesCategories, getGroupeForCategorieId, getGroupeForSoinId,
   // Nouvelles fonctions Supabase
   insertEntity, updateEntity, deleteEntity, saveParametresToDb,
   mapClientToDb, mapClientFromDb, mapProspectToDb, mapProspectFromDb,

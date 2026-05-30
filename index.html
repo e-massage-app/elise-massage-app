@@ -62,7 +62,7 @@
         <div id="mobile-menu" class="mobile-menu">
             <div class="mobile-menu-header">
                 <span>Menu</span>
-                <div class="mobile-menu-version">v1.0.6.1</div>
+                <div class="mobile-menu-version">v1.0.7.0</div>
                 <button class="mobile-menu-close" onclick="closeMobileMenu()">&#10005;</button>
             </div>
             <div class="mobile-menu-nav">
@@ -425,16 +425,19 @@
             <div class="modern-filters">
                 <h4>Filtrer les données</h4>
                 <div class="filter-pills">
-                    <label class="filter-pill active">
-                        <input type="checkbox" id="filter-massages" checked>
-                        <span class="pill-content">💆 Massages</span>
-                        <span class="pill-amount" id="massages-amount">0€</span>
-                    </label>
-                    <label class="filter-pill active">
-                        <input type="checkbox" id="filter-headspa" checked>
-                        <span class="pill-content">💆‍♀️ HeadSpa</span>
-                        <span class="pill-amount" id="headspa-amount">0€</span>
-                    </label>
+                    <!-- v1.0.7.0 : pills par groupe de categories injectees dynamiquement (Massages, HeadSpa, Epilation, ...) -->
+                    <div id="filter-pills-groupes" style="display: contents;">
+                        <label class="filter-pill active">
+                            <input type="checkbox" id="filter-massages" checked>
+                            <span class="pill-content">💆 Massages</span>
+                            <span class="pill-amount" id="massages-amount">0€</span>
+                        </label>
+                        <label class="filter-pill active">
+                            <input type="checkbox" id="filter-headspa" checked>
+                            <span class="pill-content">💆‍♀️ HeadSpa</span>
+                            <span class="pill-amount" id="headspa-amount">0€</span>
+                        </label>
+                    </div>
                     <label class="filter-pill active">
                         <input type="checkbox" id="filter-bons-cadeaux" checked>
                         <span class="pill-content">🎁 Bons Cadeaux</span>
@@ -673,7 +676,7 @@
 
     <!-- Footer version -->
     <footer class="app-footer">
-        <span>Elise Massage &mdash; v1.0.6.1</span>
+        <span>Elise Massage &mdash; v1.0.7.0</span>
     </footer>
 
     <!-- Modal Overlay -->

@@ -26,11 +26,13 @@ jobs:
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
           # Endpoint /rest/v1/ : touche PostgREST + DB sans dependre de RLS.
-          # Retourne 200 avec OpenAPI spec si la base repond.
+          # Le endpoint exige BOTH headers : apikey + Authorization Bearer
+          # (avec apikey seul, Supabase repond HTTP 401).
           URL="${SUPABASE_URL%/}/rest/v1/"
           response=$(curl -s -o /dev/null -w "%{http_code}" \
             "$URL" \
-            -H "apikey: ${SUPABASE_ANON_KEY}")
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}")
           echo "Supabase responded with HTTP $response"
           if [ "$response" != "200" ]; then
             echo "::error::Supabase keepalive failed - HTTP $response (expected 200) on $URL"

@@ -234,9 +234,77 @@ let revenueChart = null;
 let prestationsChart = null;
 let dureesChart = null;
 
+// v1.0.7.0 : slugify pour generer des IDs HTML stables
+function slugifyGroupe(name) {
+  return (name || '').toString()
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
+
+// v1.0.7.0 : icone par defaut selon le nom de groupe (heuristique)
+function getGroupeIcon(name) {
+  const n = (name || '').toLowerCase();
+  if (n.includes('headspa') || n.includes('head spa')) return '💆‍♀️';
+  if (n.includes('massage') || n.includes('rituel') || n.includes('soins du monde')) return '💆';
+  if (n.includes('épil') || n.includes('epil')) return '✨';
+  if (n.includes('soin')) return '🌸';
+  return '🌿';
+}
+
+// v1.0.7.0 : genere les filter-pills par groupe (Massages, HeadSpa, + custom).
+// Idempotent : sait rebuilder si appele plusieurs fois.
+function renderGroupesPills() {
+  const container = document.getElementById('filter-pills-groupes');
+  if (!container || typeof DataManager === 'undefined' || !DataManager.getGroupesCategories) return;
+
+  const groupes = DataManager.getGroupesCategories();
+  // Ordre : Massages d'abord, HeadSpa ensuite, puis les autres par ordre alpha
+  const ordered = [];
+  const massages = groupes.find(g => g.nom === 'Massages');
+  const headspa = groupes.find(g => g.nom === 'HeadSpa');
+  if (massages) ordered.push(massages);
+  else ordered.push({ nom: 'Massages', couleur: null });
+  if (headspa) ordered.push(headspa);
+  else ordered.push({ nom: 'HeadSpa', couleur: null });
+  groupes
+    .filter(g => g.nom !== 'Massages' && g.nom !== 'HeadSpa')
+    .sort((a, b) => a.nom.localeCompare(b.nom))
+    .forEach(g => ordered.push(g));
+
+  // Memoriser les etats actuels (pour rester sur "checked" si l'utilisateur a coche)
+  const previousStates = {};
+  container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    previousStates[cb.id] = cb.checked;
+  });
+
+  container.innerHTML = ordered.map(g => {
+    const isMassages = g.nom === 'Massages';
+    const isHeadspa = g.nom === 'HeadSpa';
+    const inputId = isMassages ? 'filter-massages' : (isHeadspa ? 'filter-headspa' : `filter-groupe-${slugifyGroupe(g.nom)}`);
+    const amountId = isMassages ? 'massages-amount' : (isHeadspa ? 'headspa-amount' : `amount-groupe-${slugifyGroupe(g.nom)}`);
+    const checked = previousStates[inputId] !== undefined ? previousStates[inputId] : true;
+    const icon = getGroupeIcon(g.nom);
+    const couleurStyle = g.couleur ? `style="border-left: 4px solid ${g.couleur};"` : '';
+    return `
+      <label class="filter-pill ${checked ? 'active' : ''}" ${couleurStyle} data-groupe="${g.nom.replace(/"/g, '&quot;')}">
+        <input type="checkbox" id="${inputId}" ${checked ? 'checked' : ''}>
+        <span class="pill-content">${icon} ${g.nom}</span>
+        <span class="pill-amount" id="${amountId}">0€</span>
+      </label>
+    `;
+  }).join('');
+
+  // Recabler les events change (re-run setupDynamicFilters re-listera tout)
+  setupDynamicFilters();
+}
+
 function updateAnalytics() {
+  // v1.0.7.0 : (re)generer les pills par groupe avant de tout calculer
+  renderGroupesPills();
   updateFilterAmountsDisplay();
-  setupYearSelector(); 
+  setupYearSelector();
   setupDynamicFilters();
   updateRevenueChart();
   updatePrestationsChart();
@@ -405,13 +473,23 @@ function updateFilterAmountsDisplay() {
     'loyer-amount': data.amounts.loyer,
     'autre-amount': data.amounts.autre
   };
-  
+
   Object.entries(elements).forEach(([id, value]) => {
     const element = document.getElementById(id);
     if (element) {
       element.textContent = `${value.toFixed(0)}€`;
     }
   });
+
+  // v1.0.7.0 : mettre a jour les montants des pills custom groupes (Epilation et autres)
+  if (data.amounts.groupes) {
+    Object.entries(data.amounts.groupes).forEach(([nom, montant]) => {
+      if (nom === 'Massages' || nom === 'HeadSpa') return; // deja gere ci-dessus
+      const id = `amount-groupe-${slugifyGroupe(nom)}`;
+      const el = document.getElementById(id);
+      if (el) el.textContent = `${(montant || 0).toFixed(0)}€`;
+    });
+  }
   
   // Mettre à jour les stats des autres graphiques
   const totalPrestations = period === 'current-month' ? 
@@ -602,9 +680,18 @@ function handlePeriodChange(event) {
 }
 
 function updateFilteredAnalytics() {
+  // v1.0.7.0 : lecture dynamique des filtres par groupe (Massages/HeadSpa + custom)
+  const groupesFilters = {};
+  document.querySelectorAll('#filter-pills-groupes input[type="checkbox"]').forEach(cb => {
+    const label = cb.closest('label');
+    const groupeName = label && label.dataset.groupe ? label.dataset.groupe : null;
+    if (groupeName) groupesFilters[groupeName] = cb.checked;
+  });
+
   const filters = {
     massages: document.getElementById('filter-massages')?.checked || false,
     headspa: document.getElementById('filter-headspa')?.checked || false,
+    groupes: groupesFilters,
     bonsCadeaux: document.getElementById('filter-bons-cadeaux')?.checked || false,
     tips: document.getElementById('filter-tips')?.checked || false,
     depensesHuiles: document.getElementById('filter-depenses-huiles')?.checked || false,
@@ -663,6 +750,32 @@ function updateRevenueChart(filters = null, period = 12, selectedYear = 'current
 
   const chartData = Calculations.getRevenueChartData(filters, period, selectedYear, selectedMonth);
 
+  // v1.0.7.0 : injection des series par groupe (Massages + HeadSpa restent les principaux,
+  // chaque autre groupe genere automatiquement sa propre serie avec sa couleur).
+  const baseSeries = [
+    { name: 'Massages', data: chartData.revenues, color: CHART_PALETTE.primary },
+    { name: 'HeadSpa', data: chartData.headSpaRevenues, color: CHART_PALETTE.purple }
+  ];
+  const extraGroupesPalette = [CHART_PALETTE.pink, CHART_PALETTE.blue, CHART_PALETTE.accent3, CHART_PALETTE.accent2, CHART_PALETTE.grey];
+  const extraSeries = [];
+  if (chartData.groupesRevenues && typeof window.DataManager !== 'undefined') {
+    const groupes = (DataManager.getGroupesCategories ? DataManager.getGroupesCategories() : []);
+    let paletteIdx = 0;
+    Object.keys(chartData.groupesRevenues).forEach(name => {
+      if (name === 'Massages' || name === 'HeadSpa') return;
+      const meta = groupes.find(g => g.nom === name);
+      const couleur = (meta && meta.couleur) ? meta.couleur : extraGroupesPalette[paletteIdx % extraGroupesPalette.length];
+      paletteIdx++;
+      extraSeries.push({ name: name, data: chartData.groupesRevenues[name], color: couleur });
+    });
+  }
+  const trailingSeries = [
+    { name: 'Bons Cadeaux', data: chartData.bonsCadeauxRevenues, color: CHART_PALETTE.orange },
+    { name: 'Tips', data: chartData.tips, color: CHART_PALETTE.green },
+    { name: 'Coûts', data: chartData.costs, color: CHART_PALETTE.red }
+  ];
+  const allSeries = baseSeries.concat(extraSeries).concat(trailingSeries);
+
   const options = {
     chart: {
       type: 'area',
@@ -673,14 +786,8 @@ function updateRevenueChart(filters = null, period = 12, selectedYear = 'current
       animations: { enabled: true, easing: 'easeinout', speed: CHART_DEFAULTS.animSpeed },
       dropShadow: { enabled: true, top: 3, left: 0, blur: 6, opacity: 0.08 }
     },
-    series: [
-      { name: 'Massages', data: chartData.revenues },
-      { name: 'HeadSpa', data: chartData.headSpaRevenues },
-      { name: 'Bons Cadeaux', data: chartData.bonsCadeauxRevenues },
-      { name: 'Tips', data: chartData.tips },
-      { name: 'Coûts', data: chartData.costs }
-    ],
-    colors: [CHART_PALETTE.primary, CHART_PALETTE.purple, CHART_PALETTE.orange, CHART_PALETTE.green, CHART_PALETTE.red],
+    series: allSeries.map(s => ({ name: s.name, data: s.data })),
+    colors: allSeries.map(s => s.color),
     fill: {
       type: 'gradient',
       gradient: { shadeIntensity: 1, opacityFrom: 0.35, opacityTo: 0.02, stops: [0, 85, 100] }
