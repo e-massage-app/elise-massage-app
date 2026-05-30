@@ -223,78 +223,59 @@ function renderStatsTabContent(tabKey, kpis) {
 }
 
 function renderGlobalTabHTML(kpis) {
-  // Vue d'ensemble : CA / Marge / Tips / RDV / Bons cadeaux
-  const cardsHTML = `
-    <div class="stats-cards-grid">
-      <div class="stats-card">
-        <div class="stats-card-label">💰 CA du mois</div>
-        <div class="stats-card-value">${_formatEuro(kpis.revenus)}</div>
-      </div>
-      <div class="stats-card">
-        <div class="stats-card-label">📅 CA de l'année</div>
-        <div class="stats-card-value">${_formatEuro(kpis.revenusAnnee)}</div>
-      </div>
-      <div class="stats-card">
-        <div class="stats-card-label">📊 CA total</div>
-        <div class="stats-card-value">${_formatEuro(kpis.revenusTotal)}</div>
-      </div>
-      <div class="stats-card">
-        <div class="stats-card-label">💸 Tips du mois</div>
-        <div class="stats-card-value">${_formatEuro(kpis.tips)}</div>
-        <div class="stats-card-meta">${_formatEuro(kpis.tipsTotal)} cumul total</div>
-      </div>
-      <div class="stats-card ${kpis.marge >= 0 ? 'stats-card-success' : 'stats-card-warning'}">
-        <div class="stats-card-label">💵 Marge du mois</div>
-        <div class="stats-card-value">${_formatEuro(kpis.marge)}</div>
-      </div>
-      <div class="stats-card">
-        <div class="stats-card-label">📈 Taux de marge</div>
-        <div class="stats-card-value">${(kpis.tauxMarge || 0).toFixed(0)}%</div>
-      </div>
-      <div class="stats-card">
-        <div class="stats-card-label">💳 Coûts du mois</div>
-        <div class="stats-card-value">${_formatEuro(kpis.couts)}</div>
-      </div>
-      <div class="stats-card">
-        <div class="stats-card-label">🎁 Bons cadeaux non utilisés</div>
-        <div class="stats-card-value">${_formatEuro(kpis.bonsNonUtilises)}</div>
-      </div>
-      <div class="stats-card">
-        <div class="stats-card-label">📆 RDV à venir</div>
-        <div class="stats-card-value">${kpis.massagesAVenir || 0}</div>
-      </div>
-      <div class="stats-card">
-        <div class="stats-card-label">✅ Prestations du mois</div>
-        <div class="stats-card-value">${kpis.massagesRealisesMois || 0}</div>
-        <div class="stats-card-meta">${kpis.massagesRealises || 0} sur l'année</div>
-      </div>
-    </div>
-  `;
+  // v1.0.8.2 : cards comme array {id, html} pour le drag&drop et le layout par lignes
+  const cards = [
+    { id: 'ca-mois', html: `
+      <div class="stats-card-label">💰 CA du mois</div>
+      <div class="stats-card-value">${_formatEuro(kpis.revenus)}</div>
+    ` },
+    { id: 'ca-annee', html: `
+      <div class="stats-card-label">📅 CA de l'année</div>
+      <div class="stats-card-value">${_formatEuro(kpis.revenusAnnee)}</div>
+    ` },
+    { id: 'ca-total', html: `
+      <div class="stats-card-label">📊 CA total</div>
+      <div class="stats-card-value">${_formatEuro(kpis.revenusTotal)}</div>
+    ` },
+    { id: 'tips-mois', html: `
+      <div class="stats-card-label">💸 Tips du mois</div>
+      <div class="stats-card-value">${_formatEuro(kpis.tips)}</div>
+      <div class="stats-card-meta">${_formatEuro(kpis.tipsTotal)} cumul total</div>
+    ` },
+    { id: 'marge-mois', extraClass: kpis.marge >= 0 ? 'stats-card-success' : 'stats-card-warning', html: `
+      <div class="stats-card-label">💵 Marge du mois</div>
+      <div class="stats-card-value">${_formatEuro(kpis.marge)}</div>
+    ` },
+    { id: 'taux-marge', html: `
+      <div class="stats-card-label">📈 Taux de marge</div>
+      <div class="stats-card-value">${(kpis.tauxMarge || 0).toFixed(0)}%</div>
+    ` },
+    { id: 'couts-mois', html: `
+      <div class="stats-card-label">💳 Coûts du mois</div>
+      <div class="stats-card-value">${_formatEuro(kpis.couts)}</div>
+    ` },
+    { id: 'bons-cadeaux-non-utilises', html: `
+      <div class="stats-card-label">🎁 Bons cadeaux non utilisés</div>
+      <div class="stats-card-value">${_formatEuro(kpis.bonsNonUtilises)}</div>
+    ` },
+    { id: 'rdv-venir', html: `
+      <div class="stats-card-label">📆 RDV à venir</div>
+      <div class="stats-card-value">${kpis.massagesAVenir || 0}</div>
+    ` },
+    { id: 'prestations-mois', html: `
+      <div class="stats-card-label">✅ Prestations du mois</div>
+      <div class="stats-card-value">${kpis.massagesRealisesMois || 0}</div>
+      <div class="stats-card-meta">${kpis.massagesRealises || 0} sur l'année</div>
+    ` }
+  ];
 
-  // v1.0.8.1 : 3 repartitions par groupe (mois en cours, annee en cours, total)
-  const renderBreakdown = (title, revenusParGroupe) => {
-    const b = _buildGroupesBreakdown(revenusParGroupe || {});
-    if (b.rows.length === 0) return '';
-    return `
-      <div class="stats-breakdown">
-        <h3>${title}</h3>
-        <div class="stats-breakdown-list">
-          ${b.rows.map(r => `
-            <div class="stats-breakdown-row">
-              <div class="stats-breakdown-row-label">${_getGroupeIcon(r.nom)} ${r.nom}</div>
-              <div class="stats-breakdown-row-value">${_formatEuro(r.value)}</div>
-              <div class="stats-breakdown-row-pct">${r.pct.toFixed(1)}%</div>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-    `;
-  };
+  const cardsHTML = _renderStatsRowsLayout('global', cards);
 
+  // v1.0.8.2 : repartitions repliables. Mois ouvert par defaut, Annee/Total fermes.
   const breakdownHTML =
-    renderBreakdown('📊 Répartition par groupe (mois en cours)', kpis.revenusParGroupeMois) +
-    renderBreakdown('📅 Répartition par groupe (année en cours)', kpis.revenusParGroupeAnnee) +
-    renderBreakdown('🗂️ Répartition par groupe (total)', kpis.revenusParGroupeTotal);
+    _renderCollapsibleBreakdown('mois', '📊 Répartition par groupe (mois en cours)', kpis.revenusParGroupeMois, true) +
+    _renderCollapsibleBreakdown('annee', '📅 Répartition par groupe (année en cours)', kpis.revenusParGroupeAnnee, false) +
+    _renderCollapsibleBreakdown('total', '🗂️ Répartition par groupe (total)', kpis.revenusParGroupeTotal, false);
 
   return cardsHTML + breakdownHTML;
 }
@@ -311,6 +292,320 @@ function _buildGroupesBreakdown(revenusParGroupe) {
     .map(([nom, value]) => ({ nom, value: value || 0, pct: total > 0 ? (value / total * 100) : 0 }))
     .sort((a, b) => b.value - a.value);
   return { rows, total };
+}
+
+// ===== v1.0.8.2 : Breakdowns repliables =====
+const BREAKDOWN_COLLAPSED_KEY = 'elise-breakdown-collapsed-';
+
+function _isBreakdownOpen(key, defaultOpen) {
+  try {
+    const stored = localStorage.getItem(BREAKDOWN_COLLAPSED_KEY + key);
+    if (stored === null) return defaultOpen;
+    return stored === 'open';
+  } catch (e) { return defaultOpen; }
+}
+
+function toggleBreakdown(key) {
+  const wasOpen = _isBreakdownOpen(key, true);
+  try { localStorage.setItem(BREAKDOWN_COLLAPSED_KEY + key, wasOpen ? 'closed' : 'open'); } catch (e) {}
+  const el = document.querySelector(`.stats-breakdown[data-breakdown-key="${key}"]`);
+  if (!el) return;
+  el.classList.toggle('stats-breakdown-collapsed');
+}
+
+function _renderCollapsibleBreakdown(key, title, revenusParGroupe, defaultOpen) {
+  const b = _buildGroupesBreakdown(revenusParGroupe || {});
+  if (b.rows.length === 0) return '';
+  const isOpen = _isBreakdownOpen(key, defaultOpen);
+  const collapsedClass = isOpen ? '' : 'stats-breakdown-collapsed';
+  return `
+    <div class="stats-breakdown ${collapsedClass}" data-breakdown-key="${key}">
+      <h3 class="stats-breakdown-toggle" onclick="ViewManager.toggleBreakdown('${key}')">
+        <span class="breakdown-chevron">▾</span> ${title}
+      </h3>
+      <div class="stats-breakdown-list">
+        ${b.rows.map(r => `
+          <div class="stats-breakdown-row">
+            <div class="stats-breakdown-row-label">${_getGroupeIcon(r.nom)} ${r.nom}</div>
+            <div class="stats-breakdown-row-value">${_formatEuro(r.value)}</div>
+            <div class="stats-breakdown-row-pct">${r.pct.toFixed(1)}%</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+// ===== v1.0.8.2 : Drag&drop par lignes avec layout persistant =====
+const STATS_LAYOUT_KEY = 'elise-stats-layout-';
+
+// Recupere le layout sauvegarde pour un scope ('global' ou 'groupe').
+// Retourne null si pas de layout sauvegarde -> defaut = toutes les cards sur 1 ligne.
+function _getStatsLayout(scope) {
+  try {
+    const raw = localStorage.getItem(STATS_LAYOUT_KEY + scope);
+    if (!raw) return null;
+    const layout = JSON.parse(raw);
+    if (!layout || !Array.isArray(layout.rows)) return null;
+    return layout;
+  } catch (e) { return null; }
+}
+
+function _saveStatsLayout(scope, layout) {
+  try { localStorage.setItem(STATS_LAYOUT_KEY + scope, JSON.stringify(layout)); } catch (e) {}
+}
+
+// Applique le layout sauvegarde sur la liste de cards.
+// Si une carte est dans le layout mais n'existe plus -> ignoree.
+// Si une carte est nouvelle (pas dans le layout) -> ajoutee a la derniere ligne.
+function _applyStatsLayout(cards, scope) {
+  const cardsById = new Map(cards.map(c => [c.id, c]));
+  const usedIds = new Set();
+  const rows = [];
+  const layout = _getStatsLayout(scope);
+
+  if (layout) {
+    layout.rows.forEach(rowIds => {
+      const validIds = rowIds.filter(id => cardsById.has(id));
+      if (validIds.length > 0) {
+        validIds.forEach(id => usedIds.add(id));
+        rows.push(validIds.map(id => cardsById.get(id)));
+      }
+    });
+  }
+
+  // Cartes nouvelles : ajouter a une derniere ligne (ou creer la 1ere si rien)
+  const newCards = cards.filter(c => !usedIds.has(c.id));
+  if (newCards.length > 0) {
+    if (rows.length > 0) {
+      rows[rows.length - 1] = rows[rows.length - 1].concat(newCards);
+    } else {
+      rows.push(newCards);
+    }
+  }
+
+  // Fallback : si aucune ligne, tout sur 1 ligne
+  if (rows.length === 0) rows.push(cards);
+
+  return rows;
+}
+
+function _renderStatsRowsLayout(scope, cards) {
+  if (!cards || cards.length === 0) return '';
+  const rows = _applyStatsLayout(cards, scope);
+  const rowsHTML = rows.map((rowCards, rowIdx) => `
+    <div class="stats-row" data-scope="${scope}" data-row-index="${rowIdx}"
+         ondragover="ViewManager._statsRowDragOver(event)"
+         ondrop="ViewManager._statsRowDrop(event)"
+         ondragleave="ViewManager._statsRowDragLeave(event)">
+      ${rowCards.map(card => `
+        <div class="stats-card ${card.extraClass || ''}"
+             data-card-id="${card.id}"
+             data-scope="${scope}"
+             draggable="true"
+             ondragstart="ViewManager._statsCardDragStart(event)"
+             ondragend="ViewManager._statsCardDragEnd(event)"
+             ondragover="ViewManager._statsCardDragOver(event)"
+             ondrop="ViewManager._statsCardDrop(event)">
+          ${card.html}
+        </div>
+      `).join('')}
+    </div>
+  `).join('');
+  return `
+    <div class="stats-rows-container" data-scope="${scope}">
+      ${rowsHTML}
+      <button type="button" class="stats-row-add"
+              onclick="ViewManager.addStatsRow('${scope}')"
+              ondragover="ViewManager._statsRowAddDragOver(event)"
+              ondrop="ViewManager._statsRowAddDrop(event)"
+              ondragleave="ViewManager._statsRowDragLeave(event)">
+        + Nouvelle ligne
+      </button>
+      <div class="stats-rows-footer">
+        <button type="button" class="stats-layout-reset"
+                onclick="ViewManager.resetStatsLayout('${scope}')"
+                title="Remettre la disposition par defaut">
+          ↻ Réinitialiser la disposition
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+// Reconstruit le tableau rows en lisant le DOM apres un drop, puis sauvegarde.
+function _persistDOMLayout(scope) {
+  const container = document.querySelector(`.stats-rows-container[data-scope="${scope}"]`);
+  if (!container) return;
+  const rows = Array.from(container.querySelectorAll('.stats-row')).map(rowEl => {
+    return Array.from(rowEl.querySelectorAll('.stats-card')).map(cardEl => cardEl.dataset.cardId);
+  }).filter(r => r.length > 0);
+  _saveStatsLayout(scope, { rows });
+}
+
+function _cleanEmptyRows(scope) {
+  const container = document.querySelector(`.stats-rows-container[data-scope="${scope}"]`);
+  if (!container) return;
+  container.querySelectorAll('.stats-row').forEach(rowEl => {
+    if (rowEl.querySelectorAll('.stats-card').length === 0) {
+      rowEl.remove();
+    }
+  });
+}
+
+function addStatsRow(scope) {
+  const container = document.querySelector(`.stats-rows-container[data-scope="${scope}"]`);
+  if (!container) return;
+  const newRow = document.createElement('div');
+  newRow.className = 'stats-row stats-row-empty';
+  newRow.dataset.scope = scope;
+  newRow.dataset.rowIndex = String(container.querySelectorAll('.stats-row').length);
+  newRow.setAttribute('ondragover', 'ViewManager._statsRowDragOver(event)');
+  newRow.setAttribute('ondrop', 'ViewManager._statsRowDrop(event)');
+  newRow.setAttribute('ondragleave', 'ViewManager._statsRowDragLeave(event)');
+  newRow.innerHTML = '<div class="stats-row-empty-hint">Glissez une card ici…</div>';
+  // Inserer avant le bouton "+ Nouvelle ligne"
+  const addBtn = container.querySelector('.stats-row-add');
+  if (addBtn) {
+    container.insertBefore(newRow, addBtn);
+  } else {
+    container.appendChild(newRow);
+  }
+}
+
+function resetStatsLayout(scope) {
+  try { localStorage.removeItem(STATS_LAYOUT_KEY + scope); } catch (e) {}
+  // Re-render
+  if (typeof updateDashboard === 'function') updateDashboard();
+}
+
+// ===== Drag handlers =====
+let _statsDraggedCardId = null;
+let _statsDraggedFromScope = null;
+
+function _statsCardDragStart(e) {
+  const card = e.target.closest('.stats-card');
+  if (!card) return;
+  _statsDraggedCardId = card.dataset.cardId;
+  _statsDraggedFromScope = card.dataset.scope;
+  card.classList.add('stats-card-dragging');
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', _statsDraggedCardId); } catch (_) {}
+  }
+}
+
+function _statsCardDragEnd(e) {
+  document.querySelectorAll('.stats-card-dragging').forEach(c => c.classList.remove('stats-card-dragging'));
+  document.querySelectorAll('.stats-card-drop-target').forEach(c => c.classList.remove('stats-card-drop-target'));
+  document.querySelectorAll('.stats-row-drop-target').forEach(r => r.classList.remove('stats-row-drop-target'));
+  _statsDraggedCardId = null;
+  _statsDraggedFromScope = null;
+}
+
+function _statsCardDragOver(e) {
+  if (!_statsDraggedCardId) return;
+  e.preventDefault();
+  e.stopPropagation();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+  const card = e.target.closest('.stats-card');
+  if (card && card.dataset.scope === _statsDraggedFromScope && card.dataset.cardId !== _statsDraggedCardId) {
+    document.querySelectorAll('.stats-card-drop-target').forEach(c => c.classList.remove('stats-card-drop-target'));
+    card.classList.add('stats-card-drop-target');
+  }
+}
+
+function _statsCardDrop(e) {
+  if (!_statsDraggedCardId) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const targetCard = e.target.closest('.stats-card');
+  if (!targetCard || targetCard.dataset.scope !== _statsDraggedFromScope) return;
+  if (targetCard.dataset.cardId === _statsDraggedCardId) return;
+  const draggedEl = document.querySelector(
+    `.stats-card[data-scope="${_statsDraggedFromScope}"][data-card-id="${_statsDraggedCardId}"]`
+  );
+  if (!draggedEl) return;
+  // Inserer avant la carte cible
+  targetCard.parentNode.insertBefore(draggedEl, targetCard);
+  _cleanEmptyRows(_statsDraggedFromScope);
+  _persistDOMLayout(_statsDraggedFromScope);
+  // Re-render pour s'assurer que les ondragstart/etc soient toujours bien attaches
+}
+
+function _statsRowDragOver(e) {
+  if (!_statsDraggedCardId) return;
+  // Si on hover une card, c'est le handler card qui prendra le relais
+  const card = e.target.closest('.stats-card');
+  if (card) return;
+  e.preventDefault();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+  const row = e.currentTarget;
+  if (row && row.dataset.scope === _statsDraggedFromScope) {
+    document.querySelectorAll('.stats-row-drop-target').forEach(r => r.classList.remove('stats-row-drop-target'));
+    row.classList.add('stats-row-drop-target');
+  }
+}
+
+function _statsRowDragLeave(e) {
+  // Cleanup quand on quitte le row
+  const row = e.currentTarget;
+  if (row && !row.contains(e.relatedTarget)) {
+    row.classList.remove('stats-row-drop-target');
+  }
+}
+
+function _statsRowDrop(e) {
+  if (!_statsDraggedCardId) return;
+  // Si le drop est sur une card precise, on laisse le handler card s'en occuper
+  if (e.target.closest('.stats-card')) return;
+  e.preventDefault();
+  const row = e.currentTarget;
+  if (!row || row.dataset.scope !== _statsDraggedFromScope) return;
+  const draggedEl = document.querySelector(
+    `.stats-card[data-scope="${_statsDraggedFromScope}"][data-card-id="${_statsDraggedCardId}"]`
+  );
+  if (!draggedEl) return;
+  // Append a la fin de la ligne, supprimer hint si present
+  const hint = row.querySelector('.stats-row-empty-hint');
+  if (hint) hint.remove();
+  row.classList.remove('stats-row-empty');
+  row.appendChild(draggedEl);
+  _cleanEmptyRows(_statsDraggedFromScope);
+  _persistDOMLayout(_statsDraggedFromScope);
+}
+
+function _statsRowAddDragOver(e) {
+  if (!_statsDraggedCardId) return;
+  e.preventDefault();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+  e.currentTarget.classList.add('stats-row-add-drop-target');
+}
+
+function _statsRowAddDrop(e) {
+  if (!_statsDraggedCardId) return;
+  e.preventDefault();
+  const draggedEl = document.querySelector(
+    `.stats-card[data-scope="${_statsDraggedFromScope}"][data-card-id="${_statsDraggedCardId}"]`
+  );
+  if (!draggedEl) return;
+  // Creer une nouvelle ligne juste avant le bouton + et y mettre la card
+  const container = document.querySelector(`.stats-rows-container[data-scope="${_statsDraggedFromScope}"]`);
+  const addBtn = e.currentTarget;
+  if (container && addBtn) {
+    const newRow = document.createElement('div');
+    newRow.className = 'stats-row';
+    newRow.dataset.scope = _statsDraggedFromScope;
+    newRow.dataset.rowIndex = String(container.querySelectorAll('.stats-row').length);
+    newRow.setAttribute('ondragover', 'ViewManager._statsRowDragOver(event)');
+    newRow.setAttribute('ondrop', 'ViewManager._statsRowDrop(event)');
+    newRow.setAttribute('ondragleave', 'ViewManager._statsRowDragLeave(event)');
+    newRow.appendChild(draggedEl);
+    container.insertBefore(newRow, addBtn);
+  }
+  addBtn.classList.remove('stats-row-add-drop-target');
+  _cleanEmptyRows(_statsDraggedFromScope);
+  _persistDOMLayout(_statsDraggedFromScope);
 }
 
 function renderGroupeTabHTML(groupe, kpis) {
@@ -342,51 +637,53 @@ function renderGroupeTabHTML(groupe, kpis) {
   const panierMois = nbMois > 0 ? (caMois / nbMois) : 0;
   const panierTotal = nbTotal > 0 ? (caTotal / nbTotal) : 0;
 
-  return `
-    <div class="stats-cards-grid">
-      <div class="stats-card">
-        <div class="stats-card-label">💰 CA du mois</div>
-        <div class="stats-card-value">${_formatEuro(caMois)}</div>
-        <div class="stats-card-meta">${pctMois.toFixed(1)}% du CA mois total</div>
-      </div>
-      <div class="stats-card">
-        <div class="stats-card-label">📅 CA de l'année</div>
-        <div class="stats-card-value">${_formatEuro(caAnnee)}</div>
-      </div>
-      <div class="stats-card">
-        <div class="stats-card-label">📊 CA total</div>
-        <div class="stats-card-value">${_formatEuro(caTotal)}</div>
-      </div>
-      <div class="stats-card">
-        <div class="stats-card-label">🧮 Prestations mois</div>
-        <div class="stats-card-value">${nbMois}</div>
-        <div class="stats-card-meta">Panier moyen ${_formatEuro(panierMois)}</div>
-      </div>
-      <div class="stats-card">
-        <div class="stats-card-label">🧮 Prestations année</div>
-        <div class="stats-card-value">${nbAnnee}</div>
-      </div>
-      <div class="stats-card">
-        <div class="stats-card-label">🧮 Prestations total</div>
-        <div class="stats-card-value">${nbTotal}</div>
-        <div class="stats-card-meta">Panier moyen ${_formatEuro(panierTotal)}</div>
-      </div>
-      ${objectif > 0 ? `
-        <div class="stats-card ${pctObjectif >= 100 ? 'stats-card-success' : (pctObjectif >= 60 ? '' : 'stats-card-warning')}">
-          <div class="stats-card-label">🎯 Objectif mensuel</div>
-          <div class="stats-card-value">${pctObjectif.toFixed(0)}%</div>
-          <div class="stats-card-meta">${_formatEuro(caMois)} / ${_formatEuro(objectif)}</div>
-        </div>
-      ` : ''}
-      ${coutProduitTotal > 0 ? `
-        <div class="stats-card">
-          <div class="stats-card-label">🧴 Coûts produits (mois)</div>
-          <div class="stats-card-value">${_formatEuro(coutProduitTotal)}</div>
-          <div class="stats-card-meta">Marge nette estimée ${_formatEuro(caMois - coutProduitTotal)}</div>
-        </div>
-      ` : ''}
-    </div>
-  `;
+  // v1.0.8.2 : cards en array {id, html} pour drag&drop + layout par lignes
+  const cards = [
+    { id: 'g-ca-mois', html: `
+      <div class="stats-card-label">💰 CA du mois</div>
+      <div class="stats-card-value">${_formatEuro(caMois)}</div>
+      <div class="stats-card-meta">${pctMois.toFixed(1)}% du CA mois total</div>
+    ` },
+    { id: 'g-ca-annee', html: `
+      <div class="stats-card-label">📅 CA de l'année</div>
+      <div class="stats-card-value">${_formatEuro(caAnnee)}</div>
+    ` },
+    { id: 'g-ca-total', html: `
+      <div class="stats-card-label">📊 CA total</div>
+      <div class="stats-card-value">${_formatEuro(caTotal)}</div>
+    ` },
+    { id: 'g-nb-mois', html: `
+      <div class="stats-card-label">🧮 Prestations mois</div>
+      <div class="stats-card-value">${nbMois}</div>
+      <div class="stats-card-meta">Panier moyen ${_formatEuro(panierMois)}</div>
+    ` },
+    { id: 'g-nb-annee', html: `
+      <div class="stats-card-label">🧮 Prestations année</div>
+      <div class="stats-card-value">${nbAnnee}</div>
+    ` },
+    { id: 'g-nb-total', html: `
+      <div class="stats-card-label">🧮 Prestations total</div>
+      <div class="stats-card-value">${nbTotal}</div>
+      <div class="stats-card-meta">Panier moyen ${_formatEuro(panierTotal)}</div>
+    ` }
+  ];
+  if (objectif > 0) {
+    cards.push({ id: 'g-objectif', extraClass: pctObjectif >= 100 ? 'stats-card-success' : (pctObjectif >= 60 ? '' : 'stats-card-warning'), html: `
+      <div class="stats-card-label">🎯 Objectif mensuel</div>
+      <div class="stats-card-value">${pctObjectif.toFixed(0)}%</div>
+      <div class="stats-card-meta">${_formatEuro(caMois)} / ${_formatEuro(objectif)}</div>
+    ` });
+  }
+  if (coutProduitTotal > 0) {
+    cards.push({ id: 'g-couts-produits', html: `
+      <div class="stats-card-label">🧴 Coûts produits (mois)</div>
+      <div class="stats-card-value">${_formatEuro(coutProduitTotal)}</div>
+      <div class="stats-card-meta">Marge nette estimée ${_formatEuro(caMois - coutProduitTotal)}</div>
+    ` });
+  }
+
+  // Layout partage entre tous les onglets groupe (meme structure de cards)
+  return _renderStatsRowsLayout('groupe', cards);
 }
 
 function generateCustomizableDashboard(kpis) {
@@ -2619,6 +2916,19 @@ window.ViewManager = {
   // v1.0.8.0 : nouveaux onglets stats par groupe
   renderStatsTabs,
   switchStatsTab,
+  // v1.0.8.2 : drag&drop par lignes + breakdowns repliables
+  addStatsRow,
+  resetStatsLayout,
+  toggleBreakdown,
+  _statsCardDragStart,
+  _statsCardDragEnd,
+  _statsCardDragOver,
+  _statsCardDrop,
+  _statsRowDragOver,
+  _statsRowDrop,
+  _statsRowDragLeave,
+  _statsRowAddDragOver,
+  _statsRowAddDrop,
 
   // Drag & Drop
   handleDragStart,

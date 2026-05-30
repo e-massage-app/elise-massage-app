@@ -51,7 +51,7 @@ PWA de gestion pour Elise Massage, deployee sur GitHub Pages avec Supabase comme
 
 ## Versioning
 - Format : `X.Y.Z.W` ou X.Y = version PWA, Z.W = heritage version Electron
-- Version actuelle : `1.0.8.1` (Dashboard Global : ajout répartitions par groupe Année et Total)
+- Version actuelle : `1.0.8.2` (Dashboard : drag&drop par lignes des stats cards + breakdowns repliables)
 - **OBLIGATOIRE** : a chaque modification demandee par l'utilisateur, proposer un bump de version et attendre validation
 - Mettre a jour la version dans 3 endroits : `package.json`, `index.html` (burger menu + footer)
 - Le numero de version sert a verifier que la derniere version est deployee
