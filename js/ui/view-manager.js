@@ -271,22 +271,30 @@ function renderGlobalTabHTML(kpis) {
     </div>
   `;
 
-  // Répartition par groupe (mois en cours)
-  const breakdown = _buildGroupesBreakdown(kpis.revenusParGroupeMois || {});
-  const breakdownHTML = breakdown.rows.length === 0 ? '' : `
-    <div class="stats-breakdown">
-      <h3>📊 Répartition par groupe (mois en cours)</h3>
-      <div class="stats-breakdown-list">
-        ${breakdown.rows.map(r => `
-          <div class="stats-breakdown-row">
-            <div class="stats-breakdown-row-label">${_getGroupeIcon(r.nom)} ${r.nom}</div>
-            <div class="stats-breakdown-row-value">${_formatEuro(r.value)}</div>
-            <div class="stats-breakdown-row-pct">${r.pct.toFixed(1)}%</div>
-          </div>
-        `).join('')}
+  // v1.0.8.1 : 3 repartitions par groupe (mois en cours, annee en cours, total)
+  const renderBreakdown = (title, revenusParGroupe) => {
+    const b = _buildGroupesBreakdown(revenusParGroupe || {});
+    if (b.rows.length === 0) return '';
+    return `
+      <div class="stats-breakdown">
+        <h3>${title}</h3>
+        <div class="stats-breakdown-list">
+          ${b.rows.map(r => `
+            <div class="stats-breakdown-row">
+              <div class="stats-breakdown-row-label">${_getGroupeIcon(r.nom)} ${r.nom}</div>
+              <div class="stats-breakdown-row-value">${_formatEuro(r.value)}</div>
+              <div class="stats-breakdown-row-pct">${r.pct.toFixed(1)}%</div>
+            </div>
+          `).join('')}
+        </div>
       </div>
-    </div>
-  `;
+    `;
+  };
+
+  const breakdownHTML =
+    renderBreakdown('📊 Répartition par groupe (mois en cours)', kpis.revenusParGroupeMois) +
+    renderBreakdown('📅 Répartition par groupe (année en cours)', kpis.revenusParGroupeAnnee) +
+    renderBreakdown('🗂️ Répartition par groupe (total)', kpis.revenusParGroupeTotal);
 
   return cardsHTML + breakdownHTML;
 }
