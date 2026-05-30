@@ -145,7 +145,19 @@ function updateDashboard() {
 }
 
 // ===== v1.0.8.0 : SYSTEME D'ONGLETS STATS PAR GROUPE =====
-const STATS_TAB_STORAGE_KEY = 'elise-dashboard-active-tab';
+// v1.0.8.3 : persistence Supabase via appData.parametres (suit l'utilisateur sur tous ses appareils)
+
+// Debounce partage pour toutes les ecritures dashboard (drag-drop, toggle, switch tab).
+// 500ms apres la derniere action, on persiste en Supabase.
+let _dashboardPersistTimer = null;
+function _scheduleDashboardPersist() {
+  if (_dashboardPersistTimer) clearTimeout(_dashboardPersistTimer);
+  _dashboardPersistTimer = setTimeout(() => {
+    if (typeof DataManager !== 'undefined' && DataManager.saveParametresToDb) {
+      DataManager.saveParametresToDb().catch(err => console.error('Erreur persistence dashboard:', err));
+    }
+  }, 500);
+}
 
 function _getGroupeIcon(name) {
   const n = (name || '').toLowerCase();
@@ -182,12 +194,12 @@ function renderStatsTabs(kpis) {
     .sort((a, b) => a.nom.localeCompare(b.nom))
     .forEach(g => tabs.push({ key: g.nom, label: g.nom, icon: _getGroupeIcon(g.nom), couleur: g.couleur }));
 
-  // Onglet actif (persistance localStorage)
+  // v1.0.8.3 : onglet actif persiste via Supabase (appData.parametres.dashboardActiveTab)
   let activeTab = '__global__';
-  try {
-    const stored = localStorage.getItem(STATS_TAB_STORAGE_KEY);
+  if (typeof DataManager !== 'undefined' && DataManager.getAppData) {
+    const stored = DataManager.getAppData()?.parametres?.dashboardActiveTab;
     if (stored && tabs.some(t => t.key === stored)) activeTab = stored;
-  } catch (e) { /* localStorage inaccessible */ }
+  }
 
   // Render barre d'onglets
   tabBar.innerHTML = tabs.map(t => {
@@ -207,7 +219,13 @@ function renderStatsTabs(kpis) {
 }
 
 function switchStatsTab(tabKey) {
-  try { localStorage.setItem(STATS_TAB_STORAGE_KEY, tabKey); } catch (e) { /* ignore */ }
+  // v1.0.8.3 : persist via parametres Supabase (debounce)
+  if (typeof DataManager !== 'undefined' && DataManager.getAppData) {
+    const appData = DataManager.getAppData();
+    if (!appData.parametres) appData.parametres = {};
+    appData.parametres.dashboardActiveTab = tabKey;
+    _scheduleDashboardPersist();
+  }
   const kpis = Calculations.calculateDashboardKPIs();
   renderStatsTabs(kpis);
 }
@@ -294,20 +312,23 @@ function _buildGroupesBreakdown(revenusParGroupe) {
   return { rows, total };
 }
 
-// ===== v1.0.8.2 : Breakdowns repliables =====
-const BREAKDOWN_COLLAPSED_KEY = 'elise-breakdown-collapsed-';
-
+// ===== v1.0.8.2 : Breakdowns repliables (v1.0.8.3 : persistence Supabase) =====
 function _isBreakdownOpen(key, defaultOpen) {
-  try {
-    const stored = localStorage.getItem(BREAKDOWN_COLLAPSED_KEY + key);
-    if (stored === null) return defaultOpen;
-    return stored === 'open';
-  } catch (e) { return defaultOpen; }
+  if (typeof DataManager === 'undefined' || !DataManager.getAppData) return defaultOpen;
+  const state = DataManager.getAppData()?.parametres?.dashboardBreakdownState?.[key];
+  if (state === undefined || state === null) return defaultOpen;
+  return state === 'open';
 }
 
 function toggleBreakdown(key) {
   const wasOpen = _isBreakdownOpen(key, true);
-  try { localStorage.setItem(BREAKDOWN_COLLAPSED_KEY + key, wasOpen ? 'closed' : 'open'); } catch (e) {}
+  if (typeof DataManager !== 'undefined' && DataManager.getAppData) {
+    const appData = DataManager.getAppData();
+    if (!appData.parametres) appData.parametres = {};
+    if (!appData.parametres.dashboardBreakdownState) appData.parametres.dashboardBreakdownState = {};
+    appData.parametres.dashboardBreakdownState[key] = wasOpen ? 'closed' : 'open';
+    _scheduleDashboardPersist();
+  }
   const el = document.querySelector(`.stats-breakdown[data-breakdown-key="${key}"]`);
   if (!el) return;
   el.classList.toggle('stats-breakdown-collapsed');
@@ -337,22 +358,24 @@ function _renderCollapsibleBreakdown(key, title, revenusParGroupe, defaultOpen) 
 }
 
 // ===== v1.0.8.2 : Drag&drop par lignes avec layout persistant =====
-const STATS_LAYOUT_KEY = 'elise-stats-layout-';
+// v1.0.8.3 : persistance via Supabase (appData.parametres.dashboardStatsLayout)
 
 // Recupere le layout sauvegarde pour un scope ('global' ou 'groupe').
 // Retourne null si pas de layout sauvegarde -> defaut = toutes les cards sur 1 ligne.
 function _getStatsLayout(scope) {
-  try {
-    const raw = localStorage.getItem(STATS_LAYOUT_KEY + scope);
-    if (!raw) return null;
-    const layout = JSON.parse(raw);
-    if (!layout || !Array.isArray(layout.rows)) return null;
-    return layout;
-  } catch (e) { return null; }
+  if (typeof DataManager === 'undefined' || !DataManager.getAppData) return null;
+  const layout = DataManager.getAppData()?.parametres?.dashboardStatsLayout?.[scope];
+  if (!layout || !Array.isArray(layout.rows)) return null;
+  return layout;
 }
 
 function _saveStatsLayout(scope, layout) {
-  try { localStorage.setItem(STATS_LAYOUT_KEY + scope, JSON.stringify(layout)); } catch (e) {}
+  if (typeof DataManager === 'undefined' || !DataManager.getAppData) return;
+  const appData = DataManager.getAppData();
+  if (!appData.parametres) appData.parametres = {};
+  if (!appData.parametres.dashboardStatsLayout) appData.parametres.dashboardStatsLayout = {};
+  appData.parametres.dashboardStatsLayout[scope] = layout;
+  _scheduleDashboardPersist();
 }
 
 // Applique le layout sauvegarde sur la liste de cards.
@@ -474,7 +497,14 @@ function addStatsRow(scope) {
 }
 
 function resetStatsLayout(scope) {
-  try { localStorage.removeItem(STATS_LAYOUT_KEY + scope); } catch (e) {}
+  // v1.0.8.3 : reset via Supabase
+  if (typeof DataManager !== 'undefined' && DataManager.getAppData) {
+    const appData = DataManager.getAppData();
+    if (appData.parametres?.dashboardStatsLayout?.[scope]) {
+      delete appData.parametres.dashboardStatsLayout[scope];
+      _scheduleDashboardPersist();
+    }
+  }
   // Re-render
   if (typeof updateDashboard === 'function') updateDashboard();
 }
