@@ -626,8 +626,10 @@ async function deleteRdv(rdvId) {
 
 async function deletePrestation(prestationId) {
   if (await showCustomConfirm('Êtes-vous sûr de vouloir supprimer cette prestation ?')) {
-    BusinessServices.deletePrestationById(prestationId);
-    await DataManager.saveData();
+    // v1.0.7.1 : await indispensable. Sans, le cache prestations n'est pas encore
+    // filtre quand on appelle updatePrestationsTable -> la prestation reapparait
+    // et l'utilisateur doit cliquer 2x pour la supprimer.
+    await BusinessServices.deletePrestationById(prestationId);
     ViewManager.updatePrestationsTable();
     ViewManager.updateDashboard();
     ViewManager.updateCalendar();
@@ -638,8 +640,8 @@ async function deletePrestation(prestationId) {
 
 async function deleteClient(clientId) {
   if (await showCustomConfirm('Êtes-vous sûr de vouloir supprimer ce client et tous ses RDV/prestations ?')) {
-    ClientServices.deleteClientById(clientId);
-    await DataManager.saveData();
+    // v1.0.7.1 : await indispensable (meme raison que deletePrestation)
+    await ClientServices.deleteClientById(clientId);
     ViewManager.updateClientsDisplay();
     ViewManager.updateCalendar();
     ViewManager.updatePrestationsTable();
@@ -650,8 +652,8 @@ async function deleteClient(clientId) {
 
 async function deleteProspect(prospectId) {
   if (await showCustomConfirm('Êtes-vous sûr de vouloir supprimer ce prospect ?')) {
-    ClientServices.deleteProspectById(prospectId);
-    await DataManager.saveData();
+    // v1.0.7.1 : await indispensable
+    await ClientServices.deleteProspectById(prospectId);
     ViewManager.updateClientsDisplay();
     showTemporaryMessage('Prospect supprimé');
   }

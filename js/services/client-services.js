@@ -2237,10 +2237,13 @@ function getStatsParSexe(selectedYear = 'current', selectedMonth = '') {
   
   clientsFiltered.forEach(client => {
     stats.totaux.clients++;
-    
-    if (client.sexe === 'M') {
+
+    // v1.0.7.1 : retrocompat 'M' (ancien format) et 'H' (nouveau format formulaire).
+    // Accepte aussi 'Homme'/'Femme' au cas ou.
+    const sexe = (client.sexe || '').toString().trim().toUpperCase();
+    if (sexe === 'H' || sexe === 'M' || sexe === 'HOMME') {
       stats.hommes.clients++;
-    } else if (client.sexe === 'F') {
+    } else if (sexe === 'F' || sexe === 'FEMME') {
       stats.femmes.clients++;
     } else {
       stats.nonPrecise.clients++;

@@ -337,8 +337,8 @@
   .calendar-rdv.en-attente { background-color: #f39c12 !important; }
   .calendar-rdv.annulé,
   .calendar-rdv.annule { background-color: #e74c3c !important; }
-  .calendar-rdv.prestation { background-color: #d4a574 !important; opacity: 0.5; }
-  .calendar-rdv.headspa { background-color: #9b59b6 !important; }
+  .calendar-rdv.prestation { background-color: #d4a574; opacity: 0.5; }
+  .calendar-rdv.headspa { background-color: #9b59b6; }
 
   /* Institut badge : petit tag lisible */
   .institut-badge {

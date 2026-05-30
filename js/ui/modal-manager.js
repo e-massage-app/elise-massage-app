@@ -4803,7 +4803,7 @@ function showEditSoinModal(soinId) {
 
   const modalHTML = `
     <h3>Modifier le soin</h3>
-    <form id="edit-soin-form" onsubmit="event.preventDefault(); saveEditSoin('${soinId}');">
+    <form id="edit-soin-form" onsubmit="event.preventDefault(); window.withButtonLoading(this.querySelector('button[type=submit]'), () => saveEditSoin('${soinId}'));">
       <div class="form-row">
         <div class="form-group">
           <label>Nom du soin *</label>
@@ -4862,7 +4862,7 @@ function showAddSoinModal(categorieId) {
 
   const modalHTML = `
     <h3>Nouveau soin</h3>
-    <form id="add-soin-form" onsubmit="event.preventDefault(); saveNewSoin();">
+    <form id="add-soin-form" onsubmit="event.preventDefault(); window.withButtonLoading(this.querySelector('button[type=submit]'), () => saveNewSoin());">
       <div class="form-row">
         <div class="form-group">
           <label>Nom du soin *</label>
@@ -5140,7 +5140,7 @@ function showEditCategorieModal(categorieId) {
 
   const modalHTML = `
     <h3>Modifier la catégorie</h3>
-    <form onsubmit="event.preventDefault(); saveEditCategorie('${categorieId}');">
+    <form onsubmit="event.preventDefault(); window.withButtonLoading(this.querySelector('button[type=submit]'), () => saveEditCategorie('${categorieId}'));">
       <div class="form-group">
         <label>Nom *</label>
         <input type="text" id="cat-nom" value="${cat.nom}" required>
@@ -5194,7 +5194,7 @@ function showEditCategorieModal(categorieId) {
 function showAddCategorieModal() {
   const modalHTML = `
     <h3>Nouvelle catégorie</h3>
-    <form onsubmit="event.preventDefault(); saveNewCategorie();">
+    <form onsubmit="event.preventDefault(); window.withButtonLoading(this.querySelector('button[type=submit]'), () => saveNewCategorie());">
       <div class="form-group">
         <label>Nom *</label>
         <input type="text" id="cat-nom" required placeholder="Ex: Épilation">
@@ -5257,6 +5257,14 @@ async function saveEditCategorie(categorieId) {
     objectifCaMensuel: objectifEl && objectifEl.value !== '' ? Number(objectifEl.value) : null,
     coutProduitDefault: coutProduitEl && coutProduitEl.value !== '' ? Number(coutProduitEl.value) : null
   });
+  // v1.0.7.1 : rafraichir tout ce qui peut afficher la couleur / le nom / le groupe
+  if (window.ViewManager) {
+    if (typeof ViewManager.updateCalendar === 'function') ViewManager.updateCalendar();
+    if (typeof ViewManager.updateDashboard === 'function') ViewManager.updateDashboard();
+  }
+  if (window.UtilsServices && typeof UtilsServices.updateAnalytics === 'function') {
+    UtilsServices.updateAnalytics();
+  }
   showCarteSoinsModal();
 }
 
@@ -5273,6 +5281,14 @@ async function saveNewCategorie() {
     objectifCaMensuel: objectifEl && objectifEl.value !== '' ? Number(objectifEl.value) : null,
     coutProduitDefault: coutProduitEl && coutProduitEl.value !== '' ? Number(coutProduitEl.value) : null
   });
+  // v1.0.7.1 : rafraichir tout
+  if (window.ViewManager) {
+    if (typeof ViewManager.updateCalendar === 'function') ViewManager.updateCalendar();
+    if (typeof ViewManager.updateDashboard === 'function') ViewManager.updateDashboard();
+  }
+  if (window.UtilsServices && typeof UtilsServices.updateAnalytics === 'function') {
+    UtilsServices.updateAnalytics();
+  }
   showCarteSoinsModal();
 }
 
@@ -5957,7 +5973,12 @@ window.updateBonExpirationPreview = function() {
 
 async function handleBonCadeauFormSubmit(e) {
   e.preventDefault();
+  // v1.0.7.1 : disable submit + spinner
+  const submitBtnBC = e.target.querySelector('button[type="submit"]');
+  await window.withButtonLoading(submitBtnBC, () => _handleBonCadeauFormSubmitInner()).catch(() => {});
+}
 
+async function _handleBonCadeauFormSubmitInner() {
   const bonId = document.getElementById('bon-cadeau-id').value;
   const isEdit = !!bonId;
 

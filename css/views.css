@@ -258,25 +258,25 @@
 }
 
 .calendar-rdv.prestation {
-  background-color: rgba(212, 165, 116, 0.3) !important;
+  background-color: rgba(212, 165, 116, 0.3);
   border-left: 4px solid #d4a574;
   opacity: 0.6;
   font-style: italic;
 }
 
 .calendar-rdv.prestation-manuelle {
-  background-color: rgba(212, 165, 116, 0.6) !important;
+  background-color: rgba(212, 165, 116, 0.6);
   border-left: 4px solid #b8956a;
   font-weight: 600;
 }
 
 /* HeadSpa - Couleur distincte (violet/mauve) */
 .calendar-rdv.headspa {
-  background: #9b59b6 !important;
+  background: #9b59b6;
 }
 
 .calendar-rdv.headspa.prestation {
-  background-color: rgba(155, 89, 182, 0.4) !important;
+  background-color: rgba(155, 89, 182, 0.4);
   border-left: 4px solid #9b59b6;
   opacity: 0.7;
 }

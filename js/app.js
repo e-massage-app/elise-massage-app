@@ -296,32 +296,39 @@ function setupFormListeners() {
     // RDV Form
     if (e.target.id === 'rdv-form') {
       e.preventDefault();
-      const rdvTypeSelect = document.getElementById('rdv-type');
-      const formData = {
-        id: document.getElementById('rdv-id').value,
-        clientId: document.getElementById('rdv-client').value,
-        date: document.getElementById('rdv-date').value,
-        heure: document.getElementById('rdv-heure').value,
-        type: rdvTypeSelect.options[rdvTypeSelect.selectedIndex]?.text || rdvTypeSelect.value,
-        soinId: rdvTypeSelect.value,
-        duree: DataManager.getDureeValue('rdv'),
-        statut: document.getElementById('rdv-statut').value,
-        notes: document.getElementById('rdv-notes').value,
-        adresseMassage: document.getElementById('rdv-adresse-massage').value,
-        distanceKm: parseFloat(document.getElementById('rdv-distance').value) || 0,
-        fraisDeplacement: parseFloat(document.getElementById('rdv-frais').value) || 0,
-        sexe: document.getElementById('rdv-sexe').value || ''
-      };
-      captureFormData('rdv');
-      await BusinessServices.createRdv(formData);
-      ModalManager.closeModal();
-      ViewManager.updateCalendar();
-      ViewManager.updateDashboard();
+      // v1.0.7.1 : disable submit + spinner pour eviter les doublons sur connexion lente
+      const submitBtn = e.target.querySelector('button[type="submit"]');
+      await window.withButtonLoading(submitBtn, async () => {
+        const rdvTypeSelect = document.getElementById('rdv-type');
+        const formData = {
+          id: document.getElementById('rdv-id').value,
+          clientId: document.getElementById('rdv-client').value,
+          date: document.getElementById('rdv-date').value,
+          heure: document.getElementById('rdv-heure').value,
+          type: rdvTypeSelect.options[rdvTypeSelect.selectedIndex]?.text || rdvTypeSelect.value,
+          soinId: rdvTypeSelect.value,
+          duree: DataManager.getDureeValue('rdv'),
+          statut: document.getElementById('rdv-statut').value,
+          notes: document.getElementById('rdv-notes').value,
+          adresseMassage: document.getElementById('rdv-adresse-massage').value,
+          distanceKm: parseFloat(document.getElementById('rdv-distance').value) || 0,
+          fraisDeplacement: parseFloat(document.getElementById('rdv-frais').value) || 0,
+          sexe: document.getElementById('rdv-sexe').value || ''
+        };
+        captureFormData('rdv');
+        await BusinessServices.createRdv(formData);
+        ModalManager.closeModal();
+        ViewManager.updateCalendar();
+        ViewManager.updateDashboard();
+      }).catch(() => {});
     }
 
     // Client Form
     if (e.target.id === 'client-form') {
       e.preventDefault();
+      // v1.0.7.1 : disable submit + spinner
+      const submitBtnClient = e.target.querySelector('button[type="submit"]');
+      await window.withButtonLoading(submitBtnClient, async () => {
       const type = document.getElementById('client-type').value;
       const formData = {
         id: document.getElementById('client-id').value,
@@ -379,6 +386,7 @@ function setupFormListeners() {
       await ClientServices.createClient(formData, type);
       ModalManager.closeModal();
       ViewManager.updateClientsDisplay();
+      }).catch(() => {});
     }
 
     // Prestation Form
@@ -474,21 +482,25 @@ function setupFormListeners() {
     // Depenses Form
     if (e.target.id === 'depenses-form') {
       e.preventDefault();
-      const formData = {
-        id: document.getElementById('depense-id').value,
-        date: document.getElementById('depense-date').value,
-        montant: parseFloat(document.getElementById('depense-montant').value) || 0,
-        categorie: document.getElementById('depense-categorie').value,
-        fournisseur: document.getElementById('depense-fournisseur').value,
-        description: document.getElementById('depense-description').value,
-        notes: document.getElementById('depense-notes').value
-      };
+      // v1.0.7.1 : disable submit + spinner
+      const submitBtnDep = e.target.querySelector('button[type="submit"]');
+      await window.withButtonLoading(submitBtnDep, async () => {
+        const formData = {
+          id: document.getElementById('depense-id').value,
+          date: document.getElementById('depense-date').value,
+          montant: parseFloat(document.getElementById('depense-montant').value) || 0,
+          categorie: document.getElementById('depense-categorie').value,
+          fournisseur: document.getElementById('depense-fournisseur').value,
+          description: document.getElementById('depense-description').value,
+          notes: document.getElementById('depense-notes').value
+        };
 
-      await BusinessServices.createDepense(formData);
-      ModalManager.closeModal();
-      ViewManager.updateDepensesDisplay();
-      ViewManager.updateDashboard();
-      UtilsServices.updateAnalytics();
+        await BusinessServices.createDepense(formData);
+        ModalManager.closeModal();
+        ViewManager.updateDepensesDisplay();
+        ViewManager.updateDashboard();
+        UtilsServices.updateAnalytics();
+      }).catch(() => {});
     }
   });
 
@@ -515,6 +527,44 @@ window.showAddClientModal = ModalManager.showAddClientModal;
 window.showAddProspectModal = ModalManager.showAddProspectModal;
 window.showAddDepenseModal = ModalManager.showAddDepenseModal;
 window.captureFormData = captureFormData;
+
+// v1.0.7.1 : helper global pour desactiver un bouton + spinner pendant un await.
+// Empeche les double-clics qui declenchent N executions paralleles sur les forms lents.
+// Usage : await withButtonLoading(submitButton, async () => { await DoStuff(); });
+//   ou pour les forms : onsubmit="event.preventDefault(); withButtonLoading(this.querySelector('button[type=submit]'), () => saveX());"
+window.withButtonLoading = async function(button, asyncFn, options) {
+  options = options || {};
+  if (!button) return await asyncFn();
+  if (button.disabled) return null; // deja en cours, ignore le re-submit
+  const originalHTML = button.innerHTML;
+  const loadingText = button.dataset.loadingText || options.loadingText || 'Enregistrement…';
+  button.disabled = true;
+  button.style.opacity = '0.7';
+  button.style.cursor = 'wait';
+  button.innerHTML = '⏳ ' + loadingText;
+  let result = null;
+  let errored = false;
+  try {
+    result = await asyncFn();
+  } catch (err) {
+    errored = true;
+    console.error('withButtonLoading error:', err);
+    if (typeof alert !== 'undefined' && options.silent !== true) {
+      const msg = options.errorMessage || 'Erreur lors de l\'enregistrement. Verifiez votre connexion et reessayez.';
+      alert(msg + '\n\nDetail : ' + (err && err.message ? err.message : err));
+    }
+  } finally {
+    // Restaure le bouton uniquement s'il existe encore dans le DOM (la modal a pu se fermer)
+    if (button && document.body.contains(button)) {
+      button.disabled = false;
+      button.style.opacity = '';
+      button.style.cursor = '';
+      button.innerHTML = originalHTML;
+    }
+  }
+  if (errored) throw new Error('withButtonLoading failed');
+  return result;
+};
 window.exportDataUI = UtilsServices.exportDataUI;
 window.importDataUI = UtilsServices.importDataUI;
 window.exportCalendar = UtilsServices.exportCalendar;

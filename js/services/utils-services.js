@@ -286,9 +286,9 @@ function renderGroupesPills() {
     const amountId = isMassages ? 'massages-amount' : (isHeadspa ? 'headspa-amount' : `amount-groupe-${slugifyGroupe(g.nom)}`);
     const checked = previousStates[inputId] !== undefined ? previousStates[inputId] : true;
     const icon = getGroupeIcon(g.nom);
-    const couleurStyle = g.couleur ? `style="border-left: 4px solid ${g.couleur};"` : '';
+    // v1.0.7.1 : retire la bordure coloree, jugee disgracieuse - on garde juste le pill standard
     return `
-      <label class="filter-pill ${checked ? 'active' : ''}" ${couleurStyle} data-groupe="${g.nom.replace(/"/g, '&quot;')}">
+      <label class="filter-pill ${checked ? 'active' : ''}" data-groupe="${g.nom.replace(/"/g, '&quot;')}">
         <input type="checkbox" id="${inputId}" ${checked ? 'checked' : ''}>
         <span class="pill-content">${icon} ${g.nom}</span>
         <span class="pill-amount" id="${amountId}">0€</span>
