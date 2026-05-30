@@ -432,18 +432,23 @@ async function saveParametresToDb() {
     const userId = await getCurrentUserId();
     const entries = Object.entries(appData.parametres);
 
-    // Upsert chaque parametre comme une ligne cle/valeur
-    for (const [cle, valeur] of entries) {
-      const { error } = await supabaseClient
-        .from('parametres')
-        .upsert(
-          { user_id: userId, cle, valeur },
-          { onConflict: 'user_id,cle' }
-        );
-      if (error) {
-        console.error(`Erreur sauvegarde parametre ${cle}:`, error);
-      }
-    }
+    // v1.0.7.2 : Promise.all parallele au lieu de boucle sequentielle.
+    // 15-20 cles x 500-800ms sequentiel = 10-15s (super lent sur form lambda).
+    // En parallele, 1 seul round-trip latence = 1-2s.
+    const results = await Promise.all(
+      entries.map(([cle, valeur]) =>
+        supabaseClient
+          .from('parametres')
+          .upsert(
+            { user_id: userId, cle, valeur },
+            { onConflict: 'user_id,cle' }
+          )
+          .then(res => ({ cle, error: res.error }))
+      )
+    );
+    results.forEach(({ cle, error }) => {
+      if (error) console.error(`Erreur sauvegarde parametre ${cle}:`, error);
+    });
     return true;
   } catch (error) {
     console.error('Erreur sauvegarde parametres:', error);
@@ -1248,7 +1253,10 @@ async function updateCategorie(categorieId, updates) {
 async function archiveCategorie(categorieId) {
   const carte = getCarteSoins();
   if (!carte) return false;
-  await updateCategorie(categorieId, { statut: 'archive' });
+  // v1.0.7.2 : modifier le cache en une fois puis UN seul save (au lieu de 2).
+  // updateCategorie faisait deja un save -> on inline pour eviter le double round-trip.
+  const cat = carte.categories.find(c => c.id === categorieId);
+  if (cat) cat.statut = 'archive';
   carte.soins.filter(s => s.categorieId === categorieId).forEach(s => { s.statut = 'archive'; });
   await saveParametresToDb();
   return true;

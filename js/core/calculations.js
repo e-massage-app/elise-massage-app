@@ -640,15 +640,9 @@ function getRevenueChartData(filters = null, period = 12, selectedYear = 'curren
 
     const bucket = bucketByGroupe(prestationsClassiques);
 
-    // S'assurer que tous les groupes connus ont une valeur (0 si rien)
-    Object.keys(groupesRevenues).forEach(name => {
-      if (!(name in bucket)) bucket[name] = 0;
-    });
-    // Et inversement : les groupes nouvellement decouverts dans le bucket
-    Object.keys(bucket).forEach(name => {
-      if (!groupesRevenues[name]) groupesRevenues[name] = new Array(months.length - 1).fill(0);
-    });
-    // Pousser la valeur par groupe (filtree)
+    // v1.0.7.2 : on ne pousse de valeurs QUE pour les groupes deja connus (= actifs).
+    // Les buckets venant de categories archivees (ex: ancienne categorie "Test" archive)
+    // sont volontairement ignores -> ils disparaissent des pills et du chart.
     Object.keys(groupesRevenues).forEach(name => {
       const val = isGroupeActif(name) ? (bucket[name] || 0) : 0;
       groupesRevenues[name].push(val);

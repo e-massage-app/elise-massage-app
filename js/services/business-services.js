@@ -215,17 +215,33 @@ async function createAutomaticTransportDepense(prestation) {
 async function deletePrestationById(prestationId) {
   const appData = DataManager.getAppData();
 
-  // Supprimer les depenses transport associees
-  if (appData.depenses) {
-    const depensesToRemove = appData.depenses.filter(d => d.prestationId === prestationId);
-    appData.depenses = appData.depenses.filter(d => d.prestationId !== prestationId);
-    for (const d of depensesToRemove) {
-      await _persist('depenses', 'delete', d.id);
+  // v1.0.7.2 : DB-first persistence. Sans ca, si _persist echoue silencieusement
+  // le cache est filtre localement mais la DB garde la prestation -> au prochain
+  // F5 elle reapparait, et l'utilisateur croit qu'il faut cliquer Supprimer 2x.
+
+  // 1) Persister la suppression des depenses associees (echec = on garde tout en cache)
+  const depensesAssociees = appData.depenses
+    ? appData.depenses.filter(d => d.prestationId === prestationId)
+    : [];
+  for (const d of depensesAssociees) {
+    const ok = await _persist('depenses', 'delete', d.id);
+    if (!ok) {
+      // arret en cas d'echec : on ne supprime ni les depenses ni la prestation
+      return false;
     }
   }
 
+  // 2) Persister la suppression de la prestation (echec = on garde tout en cache et on restaure)
+  const prestationPersistOk = await _persist('prestations', 'delete', prestationId);
+  if (!prestationPersistOk) {
+    return false;
+  }
+
+  // 3) Maintenant qu'on a confirme la persistance, filtrer le cache local
+  if (appData.depenses && depensesAssociees.length > 0) {
+    appData.depenses = appData.depenses.filter(d => d.prestationId !== prestationId);
+  }
   appData.prestations = appData.prestations.filter(p => p.id !== prestationId);
-  await _persist('prestations', 'delete', prestationId);
 
   if (window.ViewManager) {
     if (typeof window.ViewManager.updateCalendar === 'function') window.ViewManager.updateCalendar();
@@ -233,6 +249,7 @@ async function deletePrestationById(prestationId) {
     if (typeof window.ViewManager.updateDepensesDisplay === 'function') window.ViewManager.updateDepensesDisplay();
     if (typeof window.ViewManager.updatePrestationsTable === 'function') window.ViewManager.updatePrestationsTable();
   }
+  return true;
 }
 
 // Migration des frais de deplacement existants
