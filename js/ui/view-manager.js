@@ -128,20 +128,257 @@ let dashboardConfigLoaded = false;
 function updateDashboard() {
   const kpis = Calculations.calculateDashboardKPIs();
 
-  // Charger la configuration sauvegardée UNE SEULE FOIS (sinon ça écrase les modifs en cours)
+  // v1.0.8.0 : nouveau systeme d'onglets stats par groupe (Global + 1 par groupe actif)
+  renderStatsTabs(kpis);
+
+  // LEGACY : ancienne section KPIs personnalisables, conservee pour rollback.
+  // Le container est masque (display:none) mais on continue de le remplir au cas ou.
   if (!dashboardConfigLoaded) {
     loadDashboardConfig();
     dashboardConfigLoaded = true;
   }
-
-  // Générer le dashboard personnalisable
   generateCustomizableDashboard(kpis);
-  
-  // Ajouter l'interaction Paiements à venir
   addPaiementsAVenirInteraction();
-  
-  // Affichage des prochains RDV
+
+  // Affichage des prochains RDV (preserve)
   updateProchainsRdvDisplay();
+}
+
+// ===== v1.0.8.0 : SYSTEME D'ONGLETS STATS PAR GROUPE =====
+const STATS_TAB_STORAGE_KEY = 'elise-dashboard-active-tab';
+
+function _getGroupeIcon(name) {
+  const n = (name || '').toLowerCase();
+  if (n.includes('headspa') || n.includes('head spa')) return '💆‍♀️';
+  if (n.includes('massage') || n.includes('rituel') || n.includes('soins du monde')) return '💆';
+  if (n.includes('épil') || n.includes('epil')) return '✨';
+  if (n.includes('soin')) return '🌸';
+  return '🌿';
+}
+
+function _formatEuro(value) {
+  const n = Number(value) || 0;
+  return n.toFixed(0) + ' €';
+}
+
+function renderStatsTabs(kpis) {
+  const tabBar = document.getElementById('stats-tab-bar');
+  const tabContent = document.getElementById('stats-tab-content');
+  if (!tabBar || !tabContent) return;
+
+  // Construction de la liste des onglets : Global + 1 par groupe actif (tri alpha).
+  // L'icone Massages/HeadSpa est preservee historiquement, les autres heritent du _getGroupeIcon.
+  const tabs = [{ key: '__global__', label: 'Global', icon: '🌐', couleur: null }];
+  const groupes = (typeof DataManager !== 'undefined' && DataManager.getGroupesCategories)
+    ? DataManager.getGroupesCategories()
+    : [];
+  // Ordre : Massages, HeadSpa puis le reste par ordre alpha
+  const massages = groupes.find(g => g.nom === 'Massages');
+  const headspa = groupes.find(g => g.nom === 'HeadSpa');
+  if (massages) tabs.push({ key: massages.nom, label: massages.nom, icon: '💆', couleur: massages.couleur });
+  if (headspa) tabs.push({ key: headspa.nom, label: headspa.nom, icon: '💆‍♀️', couleur: headspa.couleur });
+  groupes
+    .filter(g => g.nom !== 'Massages' && g.nom !== 'HeadSpa')
+    .sort((a, b) => a.nom.localeCompare(b.nom))
+    .forEach(g => tabs.push({ key: g.nom, label: g.nom, icon: _getGroupeIcon(g.nom), couleur: g.couleur }));
+
+  // Onglet actif (persistance localStorage)
+  let activeTab = '__global__';
+  try {
+    const stored = localStorage.getItem(STATS_TAB_STORAGE_KEY);
+    if (stored && tabs.some(t => t.key === stored)) activeTab = stored;
+  } catch (e) { /* localStorage inaccessible */ }
+
+  // Render barre d'onglets
+  tabBar.innerHTML = tabs.map(t => {
+    const isActive = t.key === activeTab;
+    const keyEsc = t.key.replace(/'/g, "\\'");
+    return `
+      <button class="stats-tab-btn ${isActive ? 'active' : ''}"
+              onclick="switchStatsTab('${keyEsc}')"
+              data-tab="${t.key.replace(/"/g, '&quot;')}">
+        ${t.icon} ${t.label}
+      </button>
+    `;
+  }).join('');
+
+  // Render contenu de l'onglet actif
+  renderStatsTabContent(activeTab, kpis);
+}
+
+function switchStatsTab(tabKey) {
+  try { localStorage.setItem(STATS_TAB_STORAGE_KEY, tabKey); } catch (e) { /* ignore */ }
+  const kpis = Calculations.calculateDashboardKPIs();
+  renderStatsTabs(kpis);
+}
+
+function renderStatsTabContent(tabKey, kpis) {
+  const container = document.getElementById('stats-tab-content');
+  if (!container) return;
+  if (tabKey === '__global__') {
+    container.innerHTML = renderGlobalTabHTML(kpis);
+  } else {
+    container.innerHTML = renderGroupeTabHTML(tabKey, kpis);
+  }
+}
+
+function renderGlobalTabHTML(kpis) {
+  // Vue d'ensemble : CA / Marge / Tips / RDV / Bons cadeaux
+  const cardsHTML = `
+    <div class="stats-cards-grid">
+      <div class="stats-card">
+        <div class="stats-card-label">💰 CA du mois</div>
+        <div class="stats-card-value">${_formatEuro(kpis.revenus)}</div>
+      </div>
+      <div class="stats-card">
+        <div class="stats-card-label">📅 CA de l'année</div>
+        <div class="stats-card-value">${_formatEuro(kpis.revenusAnnee)}</div>
+      </div>
+      <div class="stats-card">
+        <div class="stats-card-label">📊 CA total</div>
+        <div class="stats-card-value">${_formatEuro(kpis.revenusTotal)}</div>
+      </div>
+      <div class="stats-card">
+        <div class="stats-card-label">💸 Tips du mois</div>
+        <div class="stats-card-value">${_formatEuro(kpis.tips)}</div>
+        <div class="stats-card-meta">${_formatEuro(kpis.tipsTotal)} cumul total</div>
+      </div>
+      <div class="stats-card ${kpis.marge >= 0 ? 'stats-card-success' : 'stats-card-warning'}">
+        <div class="stats-card-label">💵 Marge du mois</div>
+        <div class="stats-card-value">${_formatEuro(kpis.marge)}</div>
+      </div>
+      <div class="stats-card">
+        <div class="stats-card-label">📈 Taux de marge</div>
+        <div class="stats-card-value">${(kpis.tauxMarge || 0).toFixed(0)}%</div>
+      </div>
+      <div class="stats-card">
+        <div class="stats-card-label">💳 Coûts du mois</div>
+        <div class="stats-card-value">${_formatEuro(kpis.couts)}</div>
+      </div>
+      <div class="stats-card">
+        <div class="stats-card-label">🎁 Bons cadeaux non utilisés</div>
+        <div class="stats-card-value">${_formatEuro(kpis.bonsNonUtilises)}</div>
+      </div>
+      <div class="stats-card">
+        <div class="stats-card-label">📆 RDV à venir</div>
+        <div class="stats-card-value">${kpis.massagesAVenir || 0}</div>
+      </div>
+      <div class="stats-card">
+        <div class="stats-card-label">✅ Prestations du mois</div>
+        <div class="stats-card-value">${kpis.massagesRealisesMois || 0}</div>
+        <div class="stats-card-meta">${kpis.massagesRealises || 0} sur l'année</div>
+      </div>
+    </div>
+  `;
+
+  // Répartition par groupe (mois en cours)
+  const breakdown = _buildGroupesBreakdown(kpis.revenusParGroupeMois || {});
+  const breakdownHTML = breakdown.rows.length === 0 ? '' : `
+    <div class="stats-breakdown">
+      <h3>📊 Répartition par groupe (mois en cours)</h3>
+      <div class="stats-breakdown-list">
+        ${breakdown.rows.map(r => `
+          <div class="stats-breakdown-row">
+            <div class="stats-breakdown-row-label">${_getGroupeIcon(r.nom)} ${r.nom}</div>
+            <div class="stats-breakdown-row-value">${_formatEuro(r.value)}</div>
+            <div class="stats-breakdown-row-pct">${r.pct.toFixed(1)}%</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+
+  return cardsHTML + breakdownHTML;
+}
+
+function _buildGroupesBreakdown(revenusParGroupe) {
+  const entries = Object.entries(revenusParGroupe || {});
+  // Filtre seulement les groupes actifs (eviter le bruit d'anciens groupes archives)
+  const groupesActifs = (typeof DataManager !== 'undefined' && DataManager.getGroupesCategories)
+    ? DataManager.getGroupesCategories().map(g => g.nom)
+    : null;
+  const filtered = groupesActifs ? entries.filter(([nom]) => groupesActifs.includes(nom)) : entries;
+  const total = filtered.reduce((s, [, v]) => s + (v || 0), 0);
+  const rows = filtered
+    .map(([nom, value]) => ({ nom, value: value || 0, pct: total > 0 ? (value / total * 100) : 0 }))
+    .sort((a, b) => b.value - a.value);
+  return { rows, total };
+}
+
+function renderGroupeTabHTML(groupe, kpis) {
+  const caMois = (kpis.revenusParGroupeMois || {})[groupe] || 0;
+  const caAnnee = (kpis.revenusParGroupeAnnee || {})[groupe] || 0;
+  const caTotal = (kpis.revenusParGroupeTotal || {})[groupe] || 0;
+  const nbMois = (kpis.nbParGroupeMois || {})[groupe] || 0;
+  const nbAnnee = (kpis.nbParGroupeAnnee || {})[groupe] || 0;
+  const nbTotal = (kpis.nbParGroupeTotal || {})[groupe] || 0;
+
+  // % du CA du mois (vs tous les groupes)
+  const totalAllMois = Object.values(kpis.revenusParGroupeMois || {}).reduce((s, v) => s + (v || 0), 0);
+  const pctMois = totalAllMois > 0 ? (caMois / totalAllMois * 100) : 0;
+
+  // Objectif CA mensuel : somme des objectifs des categories du groupe
+  let objectif = 0;
+  let coutProduitTotal = 0;
+  if (typeof DataManager !== 'undefined' && DataManager.getCategories) {
+    const categories = DataManager.getCategories();
+    const groupeCats = categories.filter(c => ((c.groupe && c.groupe.trim()) ? c.groupe : c.nom) === groupe);
+    groupeCats.forEach(c => {
+      if (c.objectifCaMensuel) objectif += Number(c.objectifCaMensuel) || 0;
+      if (c.coutProduitDefault) coutProduitTotal += Number(c.coutProduitDefault) * nbMois;
+    });
+  }
+  const pctObjectif = objectif > 0 ? (caMois / objectif * 100) : 0;
+
+  // Panier moyen
+  const panierMois = nbMois > 0 ? (caMois / nbMois) : 0;
+  const panierTotal = nbTotal > 0 ? (caTotal / nbTotal) : 0;
+
+  return `
+    <div class="stats-cards-grid">
+      <div class="stats-card">
+        <div class="stats-card-label">💰 CA du mois</div>
+        <div class="stats-card-value">${_formatEuro(caMois)}</div>
+        <div class="stats-card-meta">${pctMois.toFixed(1)}% du CA mois total</div>
+      </div>
+      <div class="stats-card">
+        <div class="stats-card-label">📅 CA de l'année</div>
+        <div class="stats-card-value">${_formatEuro(caAnnee)}</div>
+      </div>
+      <div class="stats-card">
+        <div class="stats-card-label">📊 CA total</div>
+        <div class="stats-card-value">${_formatEuro(caTotal)}</div>
+      </div>
+      <div class="stats-card">
+        <div class="stats-card-label">🧮 Prestations mois</div>
+        <div class="stats-card-value">${nbMois}</div>
+        <div class="stats-card-meta">Panier moyen ${_formatEuro(panierMois)}</div>
+      </div>
+      <div class="stats-card">
+        <div class="stats-card-label">🧮 Prestations année</div>
+        <div class="stats-card-value">${nbAnnee}</div>
+      </div>
+      <div class="stats-card">
+        <div class="stats-card-label">🧮 Prestations total</div>
+        <div class="stats-card-value">${nbTotal}</div>
+        <div class="stats-card-meta">Panier moyen ${_formatEuro(panierTotal)}</div>
+      </div>
+      ${objectif > 0 ? `
+        <div class="stats-card ${pctObjectif >= 100 ? 'stats-card-success' : (pctObjectif >= 60 ? '' : 'stats-card-warning')}">
+          <div class="stats-card-label">🎯 Objectif mensuel</div>
+          <div class="stats-card-value">${pctObjectif.toFixed(0)}%</div>
+          <div class="stats-card-meta">${_formatEuro(caMois)} / ${_formatEuro(objectif)}</div>
+        </div>
+      ` : ''}
+      ${coutProduitTotal > 0 ? `
+        <div class="stats-card">
+          <div class="stats-card-label">🧴 Coûts produits (mois)</div>
+          <div class="stats-card-value">${_formatEuro(coutProduitTotal)}</div>
+          <div class="stats-card-meta">Marge nette estimée ${_formatEuro(caMois - coutProduitTotal)}</div>
+        </div>
+      ` : ''}
+    </div>
+  `;
 }
 
 function generateCustomizableDashboard(kpis) {
@@ -2371,6 +2608,9 @@ window.ViewManager = {
   saveDashboardConfig,
   resetDashboardConfig,
   toggleKpiVisibility,
+  // v1.0.8.0 : nouveaux onglets stats par groupe
+  renderStatsTabs,
+  switchStatsTab,
 
   // Drag & Drop
   handleDragStart,

@@ -519,6 +519,8 @@ window.showTab = ViewManager.showTab;
 window.previousMonth = ViewManager.previousMonth;
 window.nextMonth = ViewManager.nextMonth;
 window.toggleCustomizeMode = ViewManager.toggleCustomizeMode;
+// v1.0.8.0 : nouveaux onglets stats par groupe (Global + 1 par groupe actif)
+window.switchStatsTab = ViewManager.switchStatsTab;
 window.saveDashboardConfig = ViewManager.saveDashboardConfig;
 window.showParametresModal = ModalManager.showParametresModal;
 window.showAddRdvModal = ModalManager.showAddRdvModal;
