@@ -2260,3 +2260,17 @@
 .annu-icon-btn svg { width: 17px; height: 17px; display: block; }
 .annu-icon-btn:hover { color: #b07d43; }
 .annu-icon-btn.danger:hover { color: #d0574c; border-color: #d0574c; }
+
+/* v1.0.9.3 — fix header tableau : components.css met th{background:beige;color:white}
+   mais mon override ne changeait que la couleur (-> gris illisible sur beige).
+   On assume la barre beige et on force les labels en blanc. */
+.clients-table thead { background: var(--beige-dore); }
+.clients-table th {
+  background: var(--beige-dore);
+  color: #fff;
+  border-bottom: none;
+}
+.clients-table th.sortable:hover { background: #c8975f; color: #fff; }
+.clients-table th.sortable.active { background: #c8975f; color: #fff; }
+/* Securite : la liste peut scroller horizontalement si trop etroite (2 colonnes) */
+#clients-fideles-list, #clients-list { overflow-x: auto; }

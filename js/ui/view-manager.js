@@ -1577,6 +1577,9 @@ function updateClientsList() {
   // Charger les préférences si pas encore fait
   loadAnnuaireViewPrefs();
 
+  // v1.0.9.2 : (re)remplir le dropdown filtre prestation
+  populateGroupeFilter();
+
   // Appliquer la visibilité des sections
   const fidelesSection = clientsFidelesContainer?.closest('.clients-section');
   const nouveauxSection = clientsContainer?.closest('.clients-section');
@@ -1608,6 +1611,9 @@ function updateClientsList() {
       const g = (DataManager.getGroupeForSoinId ? DataManager.getGroupeForSoinId(p.soinId || p.type) : null) || 'Autre';
       parGroupe[g] = (parGroupe[g] || 0) + 1;
     });
+
+    // v1.0.9.2 : filtre par groupe de prestation
+    if (!_matchGroupeFilter(parGroupe)) return;
 
     // Date du dernier massage
     const dernierMassage = prestationsClient.length > 0
@@ -2092,8 +2098,40 @@ function applyVilleFilter(clients) {
   if (currentVilleFilter === 'Tous') {
     return clients;
   }
-  
+
   return clients.filter(client => client.ville === currentVilleFilter);
+}
+
+// ===== v1.0.9.2 : Filtre par groupe de prestation =====
+let annuaireGroupeFilter = 'all';
+
+function setAnnuaireGroupeFilter(value) {
+  annuaireGroupeFilter = value || 'all';
+  updateClientsDisplay();
+}
+
+// Renseigne le dropdown #client-groupe-filter avec les groupes actifs (idempotent).
+function populateGroupeFilter() {
+  const sel = document.getElementById('client-groupe-filter');
+  if (!sel) return;
+  const groupes = (DataManager.getGroupesCategories ? DataManager.getGroupesCategories() : [])
+    .map(g => g.nom)
+    .filter(Boolean);
+  const wanted = ['all'].concat(groupes);
+  // Ne reconstruire que si la liste a change (evite de casser la selection)
+  const current = Array.from(sel.options).map(o => o.value);
+  const same = current.length === wanted.length && current.every((v, i) => v === wanted[i]);
+  if (!same) {
+    sel.innerHTML = `<option value="all">Toutes prestations</option>` +
+      groupes.map(g => `<option value="${g.replace(/"/g, '&quot;')}">${g}</option>`).join('');
+  }
+  sel.value = annuaireGroupeFilter;
+}
+
+// Un client passe le filtre s'il a au moins 1 prestation dans le groupe choisi.
+function _matchGroupeFilter(parGroupe) {
+  if (annuaireGroupeFilter === 'all') return true;
+  return (parGroupe[annuaireGroupeFilter] || 0) > 0;
 }
 
 // GESTION DES JOURS INSTITUT
@@ -3119,6 +3157,8 @@ window.ViewManager = {
   // Filtre par ville
   filterByVille,
   applyVilleFilter,
+  // v1.0.9.2 : filtre par groupe de prestation
+  setAnnuaireGroupeFilter,
 
   // Bons Cadeaux
   updateBonsCadeauxDisplay,
