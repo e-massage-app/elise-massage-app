@@ -1602,12 +1602,19 @@ function updateClientsList() {
     const totalMassages = prestationsClient.length;
     const revenusTotal = prestationsClient.reduce((sum, p) => sum + (p.prix || 0), 0);
 
+    // v1.0.9.2 : repartition des prestations par groupe (Massages, Epilation, HeadSpa...)
+    const parGroupe = {};
+    prestationsClient.forEach(p => {
+      const g = (DataManager.getGroupeForSoinId ? DataManager.getGroupeForSoinId(p.soinId || p.type) : null) || 'Autre';
+      parGroupe[g] = (parGroupe[g] || 0) + 1;
+    });
+
     // Date du dernier massage
     const dernierMassage = prestationsClient.length > 0
       ? prestationsClient.sort((a, b) => new Date(b.date) - new Date(a.date))[0].date
       : null;
 
-    const stats = { totalMassages, revenusTotal, rdvAnnules, dernierMassage };
+    const stats = { totalMassages, revenusTotal, rdvAnnules, dernierMassage, parGroupe };
 
     if (totalMassages >= 2) {
       clientsFideles.push({ client, stats });
@@ -2774,10 +2781,10 @@ function generateSortableTableHeaders() {
   const currentSort = annuaireViewPrefs.sortMode;
 
   const headers = [
-    { key: 'nom', label: 'Nom', sortAsc: 'nom-asc', sortDesc: 'nom-desc' },
-    { key: 'massages', label: 'Massages', sortAsc: 'massages-asc', sortDesc: 'massages-desc' },
+    { key: 'nom', label: 'Client', sortAsc: 'nom-asc', sortDesc: 'nom-desc' },
+    { key: 'massages', label: 'Prestations', sortAsc: 'massages-asc', sortDesc: 'massages-desc' },
     { key: 'ca', label: 'CA', sortAsc: 'ca-asc', sortDesc: 'ca-desc' },
-    { key: 'recent', label: 'Ajouté', sortAsc: 'recent-asc', sortDesc: 'recent-desc' },
+    { key: 'recent', label: 'Dernière visite', sortAsc: 'recent-asc', sortDesc: 'recent-desc' },
     { key: 'tel', label: 'Téléphone', sortAsc: null, sortDesc: null },
     { key: 'actions', label: 'Actions', sortAsc: null, sortDesc: null }
   ];
@@ -2861,28 +2868,72 @@ function toggleClientCard(cardElement) {
   cardElement.classList.toggle('expanded');
 }
 
+// ===== v1.0.9.2 : helpers repartition par groupe (annuaire) =====
+// Couleur d'un groupe : couleur de categorie si definie, sinon fallback heuristique.
+function _annuGroupeColor(nom) {
+  const groupes = (DataManager.getGroupesCategories ? DataManager.getGroupesCategories() : []);
+  const g = groupes.find(x => x.nom === nom);
+  if (g && g.couleur) return g.couleur;
+  const n = (nom || '').toLowerCase();
+  if (n.includes('headspa') || n.includes('head spa')) return '#8a66a3';
+  if (n.includes('épil') || n.includes('epil')) return '#c46c85';
+  if (n.includes('massage') || n.includes('rituel') || n.includes('soin')) return '#a5673a';
+  return '#9c9187';
+}
+
+// Rend les pastilles couleur "groupe · nombre" triees par volume decroissant.
+function _annuGroupePills(parGroupe) {
+  if (!parGroupe || Object.keys(parGroupe).length === 0) return '';
+  return Object.entries(parGroupe)
+    .sort((a, b) => b[1] - a[1])
+    .map(([nom, n]) => {
+      const c = _annuGroupeColor(nom);
+      return `<span class="annu-pill" style="background:${c}1a;color:${c};" title="${nom}"><span class="annu-dot" style="background:${c};"></span>${n}</span>`;
+    })
+    .join('');
+}
+
+// Petite puce fidelite si un palier est atteint et non-vu (anticipation incluse).
+function _annuFideliteChip(clientId) {
+  if (!DataManager.getFidelitePalierPourClient) return '';
+  const palier = DataManager.getFidelitePalierPourClient(clientId);
+  if (!palier) return '';
+  return `<span class="annu-fid-chip" title="Palier fidelite a feliciter">🎁 ${palier}ᵉ</span>`;
+}
+
 // Générer une card compacte pour un client
 function generateCompactClientCard(client, stats, isFidele = false) {
   const tagsHtml = ClientServices.generateTagsHTML ? ClientServices.generateTagsHTML(client.tags, true, client.id, 'client') : '';
   const fideleClass = isFidele ? 'fidele' : 'nouveau';
+  const pills = _annuGroupePills(stats.parGroupe);
+  const fidChip = _annuFideliteChip(client.id);
+  const canal = client.canalAcquisition && client.canalAcquisition !== 'non-renseigne'
+    ? (ClientServices.getCanalInfo ? (ClientServices.getCanalInfo(client.canalAcquisition)?.label || client.canalAcquisition) : client.canalAcquisition)
+    : '';
+  const subLine = [canal, client.ville].filter(Boolean).join(' · ');
 
   return `
     <div class="client-card-compact ${fideleClass}" onclick="ViewManager.toggleClientCard(this)">
       <div class="card-header">
-        <span class="client-name">${client.prenom} ${client.nom}</span>
+        <div class="cc-id">
+          <span class="client-name">${client.prenom} ${client.nom}</span>
+          ${subLine ? `<span class="cc-sub">${subLine}</span>` : ''}
+        </div>
         <div class="badges">
-          ${isFidele ? `<span class="badge badge-massages">⭐ ${stats.totalMassages}</span>` : `<span class="badge badge-massages">${stats.totalMassages}</span>`}
-          ${stats.rdvAnnules > 0 ? `<span class="badge badge-annules" title="RDV annulés">${stats.rdvAnnules}</span>` : ''}
+          <span class="cc-total" title="Prestations">${stats.totalMassages}</span>
+          ${fidChip}
           <span class="expand-icon">▼</span>
         </div>
       </div>
+      ${pills ? `<div class="cc-pills">${pills}</div>` : ''}
       <div class="card-details">
         ${client.telephone ? `<div class="info-row">📞 ${client.telephone}</div>` : ''}
         ${client.email ? `<div class="info-row">✉️ ${client.email}</div>` : ''}
         ${client.societe ? `<div class="info-row">🏢 ${client.societe}</div>` : ''}
         ${client.notes ? `<div class="info-row"><em>${client.notes}</em></div>` : ''}
         <div class="info-row ca-value">💰 ${stats.revenusTotal.toFixed(2)} €</div>
-        ${stats.dernierMassage ? `<div class="info-row">📅 Dernier : ${DataManager.formatDate(stats.dernierMassage)}</div>` : ''}
+        ${stats.dernierMassage ? `<div class="info-row">📅 Dernière visite : ${DataManager.formatDate(stats.dernierMassage)}</div>` : ''}
+        ${stats.rdvAnnules > 0 ? `<div class="info-row" style="color:#d0574c;">❌ ${stats.rdvAnnules} RDV annulé(s)</div>` : ''}
         <div class="info-row">🏷️ ${tagsHtml || '<span style="color:#999;">Aucun tag</span>'}</div>
         <div class="card-actions" onclick="event.stopPropagation();">
           <button class="btn-primary" onclick="ClientServices.showClientDetails('${client.id}')">👁️ Consulter</button>
@@ -2897,19 +2948,33 @@ function generateCompactClientCard(client, stats, isFidele = false) {
 // Générer une ligne de tableau pour un client
 function generateClientTableRow(client, stats, isFidele = false) {
   const fideleClass = isFidele ? 'fidele' : '';
-  const badgeClass = isFidele ? 'badge-mini fidele' : 'badge-mini';
+  const pills = _annuGroupePills(stats.parGroupe);
+  const fidChip = _annuFideliteChip(client.id);
+  const canal = client.canalAcquisition && client.canalAcquisition !== 'non-renseigne'
+    ? (ClientServices.getCanalInfo ? (ClientServices.getCanalInfo(client.canalAcquisition)?.label || client.canalAcquisition) : client.canalAcquisition)
+    : '';
+  const subLine = [canal, client.ville].filter(Boolean).join(' · ');
 
   return `
     <tr class="${fideleClass}">
-      <td class="name-cell" onclick="ClientServices.showClientDetails('${client.id}')">${client.prenom} ${client.nom}</td>
-      <td><span class="${badgeClass}">${isFidele ? '⭐ ' : ''}${stats.totalMassages}</span></td>
+      <td class="name-cell" onclick="ClientServices.showClientDetails('${client.id}')">
+        <span class="annu-name">${client.prenom} ${client.nom}</span>
+        ${subLine ? `<span class="annu-sub">${subLine}</span>` : ''}
+      </td>
+      <td>
+        <div class="annu-presta-cell">
+          <span class="annu-presta-total">${stats.totalMassages}</span>
+          ${pills ? `<div class="annu-pills">${pills}</div>` : ''}
+          ${fidChip}
+        </div>
+      </td>
       <td class="ca-cell">${stats.revenusTotal.toFixed(2)} €</td>
-      <td>${stats.dernierMassage ? DataManager.formatDate(stats.dernierMassage) : '-'}</td>
-      <td>${client.telephone || '-'}</td>
+      <td class="annu-muted">${stats.dernierMassage ? DataManager.formatDate(stats.dernierMassage) : '-'}</td>
+      <td class="annu-muted">${client.telephone || '-'}</td>
       <td class="actions-cell">
-        <button class="btn-primary" onclick="ClientServices.showClientDetails('${client.id}')">👁️</button>
-        <button class="btn-secondary" onclick="FormManager.editClient('${client.id}')">✏️</button>
-        <button class="btn-danger" onclick="FormManager.deleteClient('${client.id}')">🗑️</button>
+        <button class="annu-icon-btn" title="Consulter" onclick="ClientServices.showClientDetails('${client.id}')">👁️</button>
+        <button class="annu-icon-btn" title="Éditer" onclick="FormManager.editClient('${client.id}')">✏️</button>
+        <button class="annu-icon-btn danger" title="Supprimer" onclick="FormManager.deleteClient('${client.id}')">🗑️</button>
       </td>
     </tr>
   `;

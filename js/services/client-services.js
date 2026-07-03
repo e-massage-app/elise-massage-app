@@ -8,22 +8,30 @@ function getClientStats(clientId) {
   const rdvClient = appData.rdv.filter(r => r.clientId === clientId);
   const rdvAnnules = rdvClient.filter(r => r.statut === 'annulé').length;
   const totalMassages = prestationsClient.length;
-  
+
   // Calcul des revenus
   const revenusTotal = prestationsClient.reduce((sum, p) => sum + (p.prix || 0), 0);
   const revenuMoyen = totalMassages > 0 ? (revenusTotal / totalMassages) : 0;
-  
+
   // Dernière visite
-  const derniereVisite = prestationsClient.length > 0 
+  const derniereVisite = prestationsClient.length > 0
     ? prestationsClient.sort((a, b) => new Date(b.date) - new Date(a.date))[0].date
     : null;
-  
+
+  // v1.0.9.2 : repartition des prestations par groupe
+  const parGroupe = {};
+  prestationsClient.forEach(p => {
+    const g = (DataManager.getGroupeForSoinId ? DataManager.getGroupeForSoinId(p.soinId || p.type) : null) || 'Autre';
+    parGroupe[g] = (parGroupe[g] || 0) + 1;
+  });
+
   return {
     totalMassages,
     rdvAnnules,
     revenusTotal,
     revenuMoyen,
-    derniereVisite
+    derniereVisite,
+    parGroupe
   };
 }
 
@@ -563,91 +571,147 @@ if (collaborateurs.length === 0) {
   }
 }
 
-// ===== DÉTAILS CLIENT =====
+// ===== DÉTAILS CLIENT (refonte v1.0.9.2) =====
+// Helpers couleur/pastilles groupe (réutilisent la logique de l'annuaire)
+function _ficheGroupeColor(nom) {
+  const groupes = (DataManager.getGroupesCategories ? DataManager.getGroupesCategories() : []);
+  const g = groupes.find(x => x.nom === nom);
+  if (g && g.couleur) return g.couleur;
+  const n = (nom || '').toLowerCase();
+  if (n.includes('headspa') || n.includes('head spa')) return '#8a66a3';
+  if (n.includes('épil') || n.includes('epil')) return '#c46c85';
+  if (n.includes('massage') || n.includes('rituel') || n.includes('soin')) return '#a5673a';
+  return '#9c9187';
+}
+
 function showClientDetails(clientId) {
   const appData = DataManager.getAppData();
   const client = appData.clients.find(c => c.id === clientId);
   if (!client) return;
 
   const stats = getClientStats(clientId);
+  const nomComplet = `${client.prenom || ''} ${client.nom || ''}`.trim();
+  const initials = ((client.prenom || ' ')[0] + (client.nom || ' ')[0]).toUpperCase();
 
-  // v1.0.9.0 : badge fidelite (palier non-vu) + info opt-out
-  let fideliteBadge = '';
+  // Chips d'en-tête
+  const canalLabel = (client.canalAcquisition && client.canalAcquisition !== 'non-renseigne')
+    ? (getCanalInfo ? (getCanalInfo(client.canalAcquisition)?.label || client.canalAcquisition) : client.canalAcquisition)
+    : '';
+  const chips = [
+    client.telephone ? `<span class="fc-chip">📞 ${client.telephone}</span>` : '',
+    client.ville ? `<span class="fc-chip">📍 ${client.ville}</span>` : '',
+    canalLabel ? `<span class="fc-chip">✨ ${canalLabel}</span>` : '',
+    client.societe ? `<span class="fc-chip">🏢 ${client.societe}</span>` : ''
+  ].filter(Boolean).join('');
+
+  // Répartition par groupe
+  const groupeEntries = Object.entries(stats.parGroupe || {}).sort((a, b) => b[1] - a[1]);
+  const totalPresta = groupeEntries.reduce((s, [, n]) => s + n, 0);
+  const propSegments = groupeEntries.map(([nom, n]) => {
+    const c = _ficheGroupeColor(nom);
+    const w = totalPresta > 0 ? (n / totalPresta * 100) : 0;
+    return `<span style="width:${w}%; background:${c};"></span>`;
+  }).join('');
+  const legend = groupeEntries.map(([nom, n]) => {
+    const c = _ficheGroupeColor(nom);
+    return `<span class="fc-leg"><span class="fc-sw" style="background:${c};"></span>${nom} <b>${n}</b></span>`;
+  }).join('');
+
+  // Bloc fidélité
+  let fideliteBlock = '';
   if (client.sansFidelite) {
-    fideliteBadge = `
-      <div style="margin: 0.75rem 0; padding: 0.6rem 0.9rem; background: #f0f0f0; border-radius: 8px; font-size: 0.85rem; color: #666; border-left: 3px solid #999;">
-        \u{1f6ab} Ce client est exclu du suivi fidélité (paramétrage sur sa fiche).
-      </div>
-    `;
+    fideliteBlock = `<div class="fc-fid-off">🚫 Client exclu du suivi fidélité (collectif / retraite).</div>`;
   } else if (typeof DataManager.getFidelitePalierPourClient === 'function') {
-    const palierNonVu = DataManager.getFidelitePalierPourClient(client.id, 0);
+    const palierNonVu = DataManager.getFidelitePalierPourClient(client.id);
     if (palierNonVu) {
-      fideliteBadge = `
-        <div style="margin: 0.75rem 0; padding: 0.75rem 1rem; background: linear-gradient(135deg, #fff3e0, #ffe4b5); border-radius: 8px; border-left: 4px solid #b8860b; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap;">
-          <div>
-            <div style="font-weight: 600; color: #8b6914; margin-bottom: 0.2rem;">\u{1f381} ${palierNonVu}<sup>ème</sup> massage — à féliciter</div>
-            <div style="font-size: 0.8rem; color: #8b6914;">Pense à lui offrir une réduction ou du temps supplémentaire.</div>
+      fideliteBlock = `
+        <div class="fc-fid-alert">
+          <div class="fc-fid-alert-txt">
+            <div class="fc-fid-alert-title">🎁 ${palierNonVu}<sup>ème</sup> massage — à féliciter</div>
+            <div class="fc-fid-alert-sub">Pense à lui offrir une réduction ou du temps supplémentaire.</div>
           </div>
-          <div style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
-            <button type="button" onclick="markFideliteFromFiche('${client.id}', ${palierNonVu}, 'felicite')" class="btn-primary" style="background: linear-gradient(135deg, #b8860b, #d4a574); border: none; padding: 0.4rem 0.75rem; font-size: 0.85rem;">✨ Félicité</button>
-            <button type="button" onclick="markFideliteFromFiche('${client.id}', ${palierNonVu}, 'ignore')" class="btn-secondary" style="padding: 0.4rem 0.75rem; font-size: 0.85rem;">\u{1f645} Passer</button>
+          <div class="fc-fid-alert-btns">
+            <button type="button" class="fc-btn fc-btn-gold" onclick="markFideliteFromFiche('${client.id}', ${palierNonVu}, 'felicite')">✨ Félicité</button>
+            <button type="button" class="fc-btn" onclick="markFideliteFromFiche('${client.id}', ${palierNonVu}, 'ignore')">🙅 Passer</button>
           </div>
-        </div>
-      `;
+        </div>`;
+    } else {
+      // Progression vers le prochain palier
+      const cfg = DataManager.getFideliteConfig ? DataManager.getFideliteConfig() : { paliers: [] };
+      const nbFid = DataManager.getNbPrestationsMassageForClient ? DataManager.getNbPrestationsMassageForClient(client.id) : 0;
+      const next = (cfg.paliers || []).filter(p => p > nbFid).sort((a, b) => a - b)[0];
+      if (next) {
+        const pct = Math.min(100, Math.round(nbFid / next * 100));
+        fideliteBlock = `
+          <div class="fc-fid-progress">
+            <div class="fc-fid-progress-top">
+              <span class="t">🎁 Fidélité massages</span>
+              <span class="c">${nbFid} / ${next} avant récompense</span>
+            </div>
+            <div class="fc-fid-track"><div class="fc-fid-fill" style="width:${pct}%;"></div></div>
+          </div>`;
+      }
     }
   }
 
+  const paliersVus = (client.fideliteAtteinte && client.fideliteAtteinte.length > 0)
+    ? `<div class="fc-paliers-vus"><span>🎁 Paliers déjà vus : ${client.fideliteAtteinte.join(', ')}</span><button type="button" onclick="resetFideliteFromFiche('${client.id}')">Réinitialiser</button></div>`
+    : '';
+
+  // Préférences & infos secondaires
+  const prefs = [
+    client.pression ? `<span class="fc-chip">👐 ${client.pression}</span>` : '',
+    client.huiles ? `<span class="fc-chip">🫗 ${client.huiles}</span>` : '',
+    client.allergies ? `<span class="fc-chip" style="color:#c0392b;">⚠️ ${client.allergies}</span>` : '',
+    client.sexe ? `<span class="fc-chip">${client.sexe === 'H' ? '♂ Homme' : '♀ Femme'}</span>` : ''
+  ].filter(Boolean).join('');
+
   const modalHTML = `
-    <h3>Fiche client</h3>
-    ${fideliteBadge}
-    <div style="margin: 1rem 0;">
-      <p><strong>Nom:</strong> ${client.prenom} ${client.nom}</p>
-      ${client.societe ? `<p><strong>Société:</strong> ${client.societe}</p>` : ''}
-      ${client.telephone ? `<p><strong>Téléphone:</strong> ${client.telephone}</p>` : ''}
-      ${client.email ? `<p><strong>Email:</strong> ${client.email}</p>` : ''}
-      ${client.adresse ? `<p><strong>Adresse:</strong> ${client.adresse}</p>` : ''}
-      ${client.huiles ? `<p><strong>Huiles préférées:</strong> ${client.huiles}</p>` : ''}
-      ${client.allergies ? `<p><strong>Allergies:</strong> ${client.allergies}</p>` : ''}
-      ${client.pression ? `<p><strong>Pression:</strong> ${client.pression}</p>` : ''}
-      ${client.notes ? `<p><strong>Notes:</strong> ${client.notes}</p>` : ''}
-      ${client.sexe ? `<p><strong>Sexe:</strong> ${client.sexe === 'H' ? 'Homme' : 'Femme'}</p>` : ''}
-      
-      ${generateParrainageSection(client)}
-      
-      <div style="margin-top: 1.5rem; padding: 1rem; background: #f8f9fa; border-radius: 8px;">
-        <strong>📊 Statistiques & Revenus</strong><br>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 0.5rem;">
-          <div>
-            <strong>Massages effectués:</strong> ${stats.totalMassages}<br>
-            <strong>Revenus total:</strong> <span style="color: var(--beige-dore); font-weight: 600;">${stats.revenusTotal.toFixed(2)} €</span><br>
-            <strong>Revenu moyen/séance:</strong> ${stats.revenuMoyen.toFixed(2)} €
-          </div>
-          <div>
-            ${stats.rdvAnnules > 0 ? `<strong>RDV annulés:</strong> ${stats.rdvAnnules}<br>` : ''}
-            ${stats.derniereVisite ? `<strong>Dernière visite:</strong> ${DataManager.formatDate(stats.derniereVisite)}` : '<em>Aucune visite enregistrée</em>'}
-          </div>
+    <div class="fc">
+      <div class="fc-head">
+        <span class="fc-avatar">${initials}</span>
+        <div class="fc-id">
+          <div class="fc-name">${nomComplet}</div>
+          ${chips ? `<div class="fc-chips">${chips}</div>` : ''}
         </div>
       </div>
-      
-      ${generateClientHistorique(clientId)}
+
+      <div class="fc-stats">
+        <div class="fc-stat"><div class="fc-lab">Prestations</div><div class="fc-val">${stats.totalMassages}</div></div>
+        <div class="fc-stat"><div class="fc-lab">CA total</div><div class="fc-val">${stats.revenusTotal.toFixed(0)} <small>€</small></div></div>
+        <div class="fc-stat"><div class="fc-lab">Panier moyen</div><div class="fc-val">${stats.revenuMoyen.toFixed(0)} <small>€</small></div></div>
+        <div class="fc-stat"><div class="fc-lab">Dernière visite</div><div class="fc-val fc-val-sm">${stats.derniereVisite ? DataManager.formatDate(stats.derniereVisite) : '—'}</div></div>
+      </div>
+
+      <div class="fc-body">
+        ${totalPresta > 0 ? `
+        <div class="fc-section">
+          <div class="fc-section-title">Répartition par type</div>
+          <div class="fc-propbar">${propSegments}</div>
+          <div class="fc-legend">${legend}</div>
+        </div>` : ''}
+
+        ${fideliteBlock}
+        ${prefs ? `<div class="fc-section"><div class="fc-section-title">Préférences</div><div class="fc-chips">${prefs}</div></div>` : ''}
+        ${client.notes ? `<div class="fc-notes">📝 ${client.notes}</div>` : ''}
+        ${generateParrainageSection(client)}
+        ${generateClientHistorique(clientId)}
+        ${paliersVus}
+      </div>
+
+      <div class="fc-foot">
+        <button type="button" class="fc-btn" onclick="FormManager.editClient('${client.id}')">✎ Éditer</button>
+        <button type="button" class="fc-btn" onclick="showTopClientsModal()">🏆 Classement</button>
+        <button type="button" class="fc-btn fc-btn-primary" onclick="ModalManager.closeModal(); showAddRdvModal();">＋ Nouveau RDV</button>
+      </div>
     </div>
-    <div class="modal-actions" style="margin-top: 1rem;">
-      <button class="btn-secondary" onclick="editClient('${client.id}')">Éditer</button>
-      <button class="btn-primary" onclick="showTopClientsModal()">Voir classement clients</button>
-      <button type="button" class="btn-secondary" onclick="ModalManager.closeModal()">Fermer</button>
-    </div>
-    ${(client.fideliteAtteinte && client.fideliteAtteinte.length > 0) ? `
-    <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #eee; display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem; color: var(--text-light);">
-      <span>\u{1f381} Paliers fidélité déjà vus : ${client.fideliteAtteinte.join(', ')}</span>
-      <button type="button" onclick="resetFideliteFromFiche('${client.id}')" style="background: none; border: none; color: #999; text-decoration: underline; cursor: pointer; font-size: 0.78rem;">Réinitialiser</button>
-    </div>` : ''}
   `;
 
   // Utiliser le modal manager pour afficher
   if (window.ModalManager) {
     ModalManager.showModal('rdv-modal', modalHTML);
   } else {
-    alert('Détails client: ' + client.prenom + ' ' + client.nom);
+    alert('Détails client: ' + nomComplet);
   }
 }
 
