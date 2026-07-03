@@ -767,14 +767,34 @@ function getNbPrestationsMassageForClient(clientId) {
     .length;
 }
 
-// Retourne le plus grand palier atteint ET non-vu pour un client (null sinon).
-// nbAdditional : ajouter N prestations "virtuelles" (utile a la creation d'un RDV pour anticiper).
-function getFidelitePalierPourClient(clientId, nbAdditional) {
-  const nbAdd = Number.isFinite(nbAdditional) ? nbAdditional : 0;
+// v1.0.9.1 : compte les RDVs futurs non-transformes du client dans les groupes surveilles.
+// Utile pour anticiper le palier : "ce RDV massage planifie fera de lui son 5eme"
+// -> le badge apparait DES la creation du RDV, pas seulement apres validation.
+function getNbRdvsFuturesMassageForClient(clientId) {
+  if (!clientId) return 0;
+  const cfg = getFideliteConfig();
+  const groupes = cfg.groupesComptes;
+  if (!groupes || groupes.length === 0) return 0;
+  return (appData.rdv || [])
+    .filter(r => r.clientId === clientId && !r.transformeEnPrestation && r.statut !== 'annulé' && r.statut !== 'annule')
+    .filter(r => {
+      const soinKey = r.soinId || r.type;
+      const g = getGroupeForSoinId(soinKey) || (isPartnershipSoin(soinKey) ? 'HeadSpa' : 'Massages');
+      return groupes.includes(g);
+    })
+    .length;
+}
+
+// v1.0.9.1 : retourne le plus grand palier atteint ET non-vu pour un client.
+// Compte : prestations validees + RDVs futurs planifies dans les groupes surveilles.
+// Ainsi, un RDV massage planifie fait apparaitre le badge d'anticipation immediatement.
+function getFidelitePalierPourClient(clientId, _legacy) {
   const client = (appData.clients || []).find(c => c.id === clientId);
   if (!client || client.sansFidelite) return null;
   const cfg = getFideliteConfig();
-  const nb = getNbPrestationsMassageForClient(clientId) + nbAdd;
+  const nbPrestas = getNbPrestationsMassageForClient(clientId);
+  const nbFutures = getNbRdvsFuturesMassageForClient(clientId);
+  const nb = nbPrestas + nbFutures;
   const dejaVus = Array.isArray(client.fideliteAtteinte) ? client.fideliteAtteinte : [];
   const eligibles = cfg.paliers.filter(p => p <= nb && !dejaVus.includes(p));
   if (eligibles.length === 0) return null;

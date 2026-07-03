@@ -328,21 +328,19 @@ function setupFormListeners() {
         ViewManager.updateCalendar();
         ViewManager.updateDashboard();
 
-        // v1.0.9.0 : Alerte fidelite. On anticipe : ce RDV sera son (nbPrestas+1)-eme
-        // massage. Si un palier est atteint et pas encore vu -> popup 3 boutons.
+        // v1.0.9.1 : Alerte fidelite. Le RDV vient d'etre cree et compte deja comme
+        // RDV futur dans getFidelitePalierPourClient -> pas de nbAdditional.
         try {
           const soinKey = formData.soinId || formData.type;
           const groupe = DataManager.getGroupeForSoinId(soinKey);
           const cfg = DataManager.getFideliteConfig();
-          // Ne compter que si le soin appartient a un groupe surveille
+          // Ne declencher que si le soin appartient a un groupe surveille
           if (groupe && cfg.groupesComptes.includes(groupe)) {
-            const palier = DataManager.getFidelitePalierPourClient(formData.clientId, 1);
+            const palier = DataManager.getFidelitePalierPourClient(formData.clientId);
             if (palier) {
               const client = DataManager.getClientById(formData.clientId);
-              if (client) {
-                if (typeof window.showFidelitePalierPopup === 'function') {
-                  window.showFidelitePalierPopup(client, palier);
-                }
+              if (client && typeof window.showFidelitePalierPopup === 'function') {
+                window.showFidelitePalierPopup(client, palier);
               }
             }
           }
