@@ -1246,15 +1246,23 @@ function showAddClientModal() {
         <label>Notes</label>
         <textarea id="client-notes"></textarea>
       </div>
+      <!-- v1.0.9.0 : opt-out fidelite -->
+      <div class="form-group" style="background: #fdfaf3; padding: 0.75rem; border-radius: 8px; border-left: 3px solid var(--beige-dore);">
+        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin: 0;">
+          <input type="checkbox" id="client-sans-fidelite">
+          <span>\u{1f6ab} Pas de suivi fidélité (collectif, retraite, groupe)</span>
+        </label>
+        <small style="display: block; margin-top: 0.35rem; color: var(--text-light); font-size: 0.8rem;">\u{1f4a1} À cocher si ce client représente en réalité plusieurs personnes différentes.</small>
+      </div>
       <div class="modal-actions">
         <button type="button" class="btn-secondary" onclick="closeModal()">Annuler</button>
         <button type="submit" class="btn-primary">Enregistrer</button>
       </div>
     </form>
   `;
-  
+
   showModal('client-modal', modalHTML);
-  
+
   setTimeout(() => {
     if (typeof createParrainAutocomplete !== 'undefined') {
       createParrainAutocomplete('client-parrain-search', 'client-parrain');
@@ -1599,10 +1607,112 @@ function showParametresModal() {
         </div>
       </div>
 
+      <!-- v1.0.9.0 : Fidelite -->
+      <div class="parametres-card" onclick="showParametresFideliteModal()" style="cursor: pointer; padding: 1.25rem; background: #fff; border-radius: 12px; border: 1px solid #eee; transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+          <div style="width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #fff3e0, #ffd699); display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
+            \u{1f381}
+          </div>
+          <div style="flex: 1;">
+            <div style="font-weight: 600; color: var(--text-dark); font-size: 0.95rem;">Fid\u00e9lit\u00e9 clients</div>
+          </div>
+        </div>
+        <p style="margin: 0; font-size: 0.8rem; color: var(--text-light);">Paliers et groupes comptabilis\u00e9s</p>
+        <div style="margin-top: 0.5rem;">
+          <span style="font-size: 0.75rem; color: var(--beige-dore); font-weight: 500;">${(DataManager.getFideliteConfig ? DataManager.getFideliteConfig().paliers : []).join(', ') || 'Aucun palier'}</span>
+        </div>
+      </div>
+
     </div>
   `;
 
   showModal('parametres-modal', modalHTML);
+}
+
+// v1.0.9.0 : sous-modale Fidelite
+function showParametresFideliteModal() {
+  const cfg = DataManager.getFideliteConfig();
+  const groupesActifs = (DataManager.getGroupesCategories ? DataManager.getGroupesCategories() : []).map(g => g.nom);
+  const paliersStr = cfg.paliers.join(', ');
+  const checkboxesHTML = groupesActifs.map(gn => `
+    <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.6rem; background: #fafafa; border-radius: 6px; cursor: pointer;">
+      <input type="checkbox" class="fidelite-groupe-checkbox" value="${gn.replace(/"/g, '&quot;')}" ${cfg.groupesComptes.includes(gn) ? 'checked' : ''}>
+      <span style="font-size: 0.9rem;">${gn}</span>
+    </label>
+  `).join('');
+
+  const modalHTML = `
+    <h3>\u{1f381} Fid\u00e9lit\u00e9 clients</h3>
+    <p style="color: var(--text-light); font-size: 0.9rem; margin-bottom: 1rem;">
+      Configure les paliers auxquels tu veux \u00eatre alert\u00e9e pour f\u00e9liciter tes clients fid\u00e8les.
+    </p>
+    <form id="fidelite-config-form" onsubmit="event.preventDefault(); window.withButtonLoading(this.querySelector('button[type=submit]'), () => saveFideliteConfig());">
+      <div class="form-group">
+        <label>\u{1f3af} Paliers de fid\u00e9lit\u00e9</label>
+        <input type="text" id="fidelite-paliers" value="${paliersStr}" placeholder="5, 10, 20" required>
+        <small style="color: var(--text-light); font-size: 0.8rem;">S\u00e9pare les valeurs par des virgules (ex: 5, 10, 20, 50).</small>
+      </div>
+      <div class="form-group">
+        <label>\u{1f4ca} Compter les prestations de ces groupes</label>
+        <div id="fidelite-groupes" style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem;">
+          ${checkboxesHTML || "<em style=\"color: var(--text-light); font-size: 0.85rem;\">Aucun groupe actif. Configure d'abord tes cat\u00e9gories.</em>"}
+        </div>
+        <small style="color: var(--text-light); font-size: 0.8rem;">Seules les prestations des groupes coch\u00e9s comptent pour les paliers.</small>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" onclick="showParametresModal()">Retour</button>
+        <button type="submit" class="btn-primary">Enregistrer</button>
+      </div>
+    </form>
+  `;
+  showModal('parametres-fidelite-modal', modalHTML);
+}
+
+async function saveFideliteConfig() {
+  const raw = document.getElementById('fidelite-paliers').value || '';
+  const paliers = raw.split(/[,\s]+/).map(s => parseInt(s, 10)).filter(n => Number.isFinite(n) && n > 0);
+  const groupesComptes = Array.from(document.querySelectorAll('.fidelite-groupe-checkbox'))
+    .filter(cb => cb.checked)
+    .map(cb => cb.value);
+  await DataManager.setFideliteConfig({ paliers, groupesComptes });
+  showParametresModal();
+}
+
+// v1.0.9.0 : popup fidelite palier atteint (bloquante, 3 boutons)
+function showFidelitePalierPopup(client, palier) {
+  const nomComplet = `${client.prenom || ''} ${client.nom || ''}`.trim() || 'ce client';
+  const modalHTML = `
+    <div style="text-align: center; padding: 0.5rem;">
+      <div style="font-size: 3rem; margin-bottom: 0.5rem;">\u{1f389}</div>
+      <h3 style="margin: 0 0 0.5rem 0; color: #b8860b;">Palier fid\u00e9lit\u00e9 atteint !</h3>
+      <p style="margin: 0.5rem 0 1rem 0; color: var(--text-dark); font-size: 1rem;">
+        Ce RDV sera le <strong>${palier}<sup>\u00e8me</sup> massage</strong> de <strong>${nomComplet}</strong>.
+      </p>
+      <p style="margin: 0 0 1.5rem 0; color: var(--text-light); font-size: 0.9rem;">
+        Pense \u00e0 lui offrir une petite attention (r\u00e9duction ou temps suppl\u00e9mentaire) \u{1f60a}
+      </p>
+      <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+        <button class="btn-primary" onclick="markFideliteAndClose('${client.id}', ${palier}, 'felicite')" style="background: linear-gradient(135deg, #b8860b, #d4a574); border: none;">\u2728 Palier f\u00e9licit\u00e9</button>
+        <button class="btn-secondary" onclick="markFideliteAndClose('${client.id}', ${palier}, 'ignore')">\u{1f645} Passer ce palier</button>
+        <button class="btn-secondary" onclick="closeModal()" style="background: #f5f5f5;">\u23f1 Plus tard (garder l'alerte)</button>
+      </div>
+    </div>
+  `;
+  showModal('fidelite-palier-modal', modalHTML);
+}
+
+async function markFideliteAndClose(clientId, palier, action) {
+  try {
+    await DataManager.markFidelitePalierVu(clientId, palier);
+  } catch (err) {
+    console.error('markFideliteAndClose error:', err);
+  }
+  closeModal();
+  if (window.ViewManager && typeof window.ViewManager.updateDashboard === 'function') {
+    window.ViewManager.updateDashboard();
+  }
+  const label = action === 'felicite' ? `\u2728 Palier ${palier} marqu\u00e9 comme f\u00e9licit\u00e9 !` : `\u{1f645} Palier ${palier} pass\u00e9.`;
+  if (typeof window.showTemporaryMessage === 'function') window.showTemporaryMessage(label);
 }
 
 // ===== SOUS-MODALES PARAMETRES =====
@@ -5466,6 +5576,11 @@ window.showParametresGoogleAdsModal = showParametresGoogleAdsModal;
 window.showParametresSauvegardeModal = showParametresSauvegardeModal;
 window.showParametresApiModal = showParametresApiModal;
 window.showParametresAbonnementsModal = showParametresAbonnementsModal;
+// v1.0.9.0 : Fidelite
+window.showParametresFideliteModal = showParametresFideliteModal;
+window.saveFideliteConfig = saveFideliteConfig;
+window.showFidelitePalierPopup = showFidelitePalierPopup;
+window.markFideliteAndClose = markFideliteAndClose;
 window.showAddAbonnementModal = showAddAbonnementModal;
 window.saveAbonnement = saveAbonnement;
 window.toggleAbonnement = toggleAbonnement;

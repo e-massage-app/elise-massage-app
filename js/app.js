@@ -128,6 +128,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.warn('Migration groupes categories : echec non bloquant', err);
       }
 
+      // v1.0.9.0 : backfill fidelite (marque les paliers deja depasses comme vus)
+      try {
+        await DataManager.migrerFidelite();
+      } catch (err) {
+        console.warn('Migration fidelite : echec non bloquant', err);
+      }
+
       // Synchronisation Google Ads au demarrage (silencieuse)
       await syncGoogleAdsCostsOnStartup();
 
@@ -320,6 +327,28 @@ function setupFormListeners() {
         ModalManager.closeModal();
         ViewManager.updateCalendar();
         ViewManager.updateDashboard();
+
+        // v1.0.9.0 : Alerte fidelite. On anticipe : ce RDV sera son (nbPrestas+1)-eme
+        // massage. Si un palier est atteint et pas encore vu -> popup 3 boutons.
+        try {
+          const soinKey = formData.soinId || formData.type;
+          const groupe = DataManager.getGroupeForSoinId(soinKey);
+          const cfg = DataManager.getFideliteConfig();
+          // Ne compter que si le soin appartient a un groupe surveille
+          if (groupe && cfg.groupesComptes.includes(groupe)) {
+            const palier = DataManager.getFidelitePalierPourClient(formData.clientId, 1);
+            if (palier) {
+              const client = DataManager.getClientById(formData.clientId);
+              if (client) {
+                if (typeof window.showFidelitePalierPopup === 'function') {
+                  window.showFidelitePalierPopup(client, palier);
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('Fidelite check apres RDV : echec non bloquant', err);
+        }
       }).catch(() => {});
     }
 
@@ -351,6 +380,8 @@ function setupFormListeners() {
         formData.zones = document.getElementById('client-zones').value;
         formData.allergies = document.getElementById('client-allergies').value;
         formData.pression = document.getElementById('client-pression').value;
+        // v1.0.9.0 : opt-out fidelite
+        formData.sansFidelite = document.getElementById('client-sans-fidelite')?.checked || false;
       } else {
         formData.statut = document.getElementById('prospect-statut').value;
         formData.actions = {

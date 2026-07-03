@@ -51,7 +51,7 @@ PWA de gestion pour Elise Massage, deployee sur GitHub Pages avec Supabase comme
 
 ## Versioning
 - Format : `X.Y.Z.W` ou X.Y = version PWA, Z.W = heritage version Electron
-- Version actuelle : `1.0.8.4` (fix Google Ads API v20 deprecated → v21 : rétablit Analytics par campagne)
+- Version actuelle : `1.0.9.0` (alerte fidélité clients à la création de RDV avec paliers paramétrables + section Dashboard)
 - **OBLIGATOIRE** : a chaque modification demandee par l'utilisateur, proposer un bump de version et attendre validation
 - Mettre a jour la version dans 3 endroits : `package.json`, `index.html` (burger menu + footer)
 - Le numero de version sert a verifier que la derniere version est deployee

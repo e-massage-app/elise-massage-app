@@ -131,6 +131,9 @@ function updateDashboard() {
   // v1.0.8.0 : nouveau systeme d'onglets stats par groupe (Global + 1 par groupe actif)
   renderStatsTabs(kpis);
 
+  // v1.0.9.0 : section clients a feliciter (fidelite)
+  renderFideliteSection();
+
   // LEGACY : ancienne section KPIs personnalisables, conservee pour rollback.
   // Le container est masque (display:none) mais on continue de le remplir au cas ou.
   if (!dashboardConfigLoaded) {
@@ -142,6 +145,42 @@ function updateDashboard() {
 
   // Affichage des prochains RDV (preserve)
   updateProchainsRdvDisplay();
+}
+
+// ===== v1.0.9.0 : Section Dashboard "Clients a feliciter" =====
+function renderFideliteSection() {
+  const container = document.getElementById('fidelite-a-feliciter-section');
+  if (!container) return;
+  if (typeof DataManager === 'undefined' || typeof DataManager.getClientsAAlerter !== 'function') {
+    container.innerHTML = '';
+    return;
+  }
+  const aFeliciter = DataManager.getClientsAAlerter();
+  if (aFeliciter.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+  const items = aFeliciter.slice(0, 8).map(({ client, palier }) => `
+    <div onclick="showClientDetails('${client.id}')" style="cursor: pointer; padding: 0.75rem 1rem; background: linear-gradient(135deg, #fff, #fdfaf3); border-radius: 8px; border-left: 4px solid #b8860b; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; transition: transform 0.15s;" onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform=''">
+      <div>
+        <div style="font-weight: 600; color: var(--text-dark);">${client.prenom || ''} ${client.nom || ''}</div>
+        <div style="font-size: 0.8rem; color: var(--text-light);">Ouvrir la fiche pour marquer le palier</div>
+      </div>
+      <div style="background: linear-gradient(135deg, #b8860b, #d4a574); color: white; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.85rem; font-weight: 600; white-space: nowrap;">
+        \u{1f381} ${palier}<sup>e</sup> massage
+      </div>
+    </div>
+  `).join('');
+  const extra = aFeliciter.length > 8 ? `<div style="text-align: center; margin-top: 0.5rem; font-size: 0.8rem; color: var(--text-light);">+ ${aFeliciter.length - 8} autre(s) client(s) a feliciter</div>` : '';
+  container.innerHTML = `
+    <div class="stats-tabs-container" style="padding: 1.25rem;">
+      <h3 style="margin: 0 0 0.75rem 0; font-size: 1rem; color: var(--text-dark);">\u{1f381} Clients a feliciter (${aFeliciter.length})</h3>
+      <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+        ${items}
+      </div>
+      ${extra}
+    </div>
+  `;
 }
 
 // ===== v1.0.8.0 : SYSTEME D'ONGLETS STATS PAR GROUPE =====
@@ -2946,6 +2985,8 @@ window.ViewManager = {
   // v1.0.8.0 : nouveaux onglets stats par groupe
   renderStatsTabs,
   switchStatsTab,
+  // v1.0.9.0 : section clients a feliciter
+  renderFideliteSection,
   // v1.0.8.2 : drag&drop par lignes + breakdowns repliables
   addStatsRow,
   resetStatsLayout,

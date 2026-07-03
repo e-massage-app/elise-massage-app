@@ -51,6 +51,9 @@ function mapClientFromDb(row) {
     allergies: row.allergies,
     pression: row.pression,
     tags: row.tags || [],
+    // v1.0.9.0 : fidelite
+    sansFidelite: row.sans_fidelite === true,
+    fideliteAtteinte: Array.isArray(row.fidelite_atteinte) ? row.fidelite_atteinte : [],
     createdAt: row.created_at
   };
 }
@@ -73,7 +76,10 @@ function mapClientToDb(obj) {
     zones: obj.zones || null,
     allergies: obj.allergies || null,
     pression: obj.pression || null,
-    tags: obj.tags || []
+    tags: obj.tags || [],
+    // v1.0.9.0 : fidelite
+    sans_fidelite: obj.sansFidelite === true,
+    fidelite_atteinte: Array.isArray(obj.fideliteAtteinte) ? obj.fideliteAtteinte : []
   };
   if (obj.id) row.id = obj.id;
   return row;
@@ -723,6 +729,144 @@ function getGroupeForSoinId(soinIdOrType) {
   return getGroupeForCategorieId(soin.categorieId);
 }
 
+// ===== v1.0.9.0 : FIDELITE CLIENT =====
+// Config par defaut : paliers [5, 10, 20], groupes ["Massages"]
+const FIDELITE_DEFAULT_CONFIG = { paliers: [5, 10, 20], groupesComptes: ['Massages'] };
+
+function getFideliteConfig() {
+  const cfg = appData.parametres?.fideliteConfig;
+  if (!cfg) return { paliers: FIDELITE_DEFAULT_CONFIG.paliers.slice(), groupesComptes: FIDELITE_DEFAULT_CONFIG.groupesComptes.slice() };
+  return {
+    paliers: Array.isArray(cfg.paliers) ? cfg.paliers.slice() : FIDELITE_DEFAULT_CONFIG.paliers.slice(),
+    groupesComptes: Array.isArray(cfg.groupesComptes) ? cfg.groupesComptes.slice() : FIDELITE_DEFAULT_CONFIG.groupesComptes.slice()
+  };
+}
+
+async function setFideliteConfig(cfg) {
+  if (!appData.parametres) appData.parametres = {};
+  appData.parametres.fideliteConfig = {
+    paliers: Array.isArray(cfg.paliers) ? cfg.paliers.filter(n => Number.isFinite(n) && n > 0).sort((a, b) => a - b) : FIDELITE_DEFAULT_CONFIG.paliers.slice(),
+    groupesComptes: Array.isArray(cfg.groupesComptes) ? cfg.groupesComptes.slice() : FIDELITE_DEFAULT_CONFIG.groupesComptes.slice()
+  };
+  await saveParametresToDb();
+}
+
+// Compte les prestations d'un client dans les groupes selectionnes.
+function getNbPrestationsMassageForClient(clientId) {
+  if (!clientId) return 0;
+  const cfg = getFideliteConfig();
+  const groupes = cfg.groupesComptes;
+  if (!groupes || groupes.length === 0) return 0;
+  return (appData.prestations || [])
+    .filter(p => p.clientId === clientId)
+    .filter(p => {
+      const soinKey = p.soinId || p.type;
+      const g = getGroupeForSoinId(soinKey) || (isPartnershipSoin(soinKey) ? 'HeadSpa' : 'Massages');
+      return groupes.includes(g);
+    })
+    .length;
+}
+
+// Retourne le plus grand palier atteint ET non-vu pour un client (null sinon).
+// nbAdditional : ajouter N prestations "virtuelles" (utile a la creation d'un RDV pour anticiper).
+function getFidelitePalierPourClient(clientId, nbAdditional) {
+  const nbAdd = Number.isFinite(nbAdditional) ? nbAdditional : 0;
+  const client = (appData.clients || []).find(c => c.id === clientId);
+  if (!client || client.sansFidelite) return null;
+  const cfg = getFideliteConfig();
+  const nb = getNbPrestationsMassageForClient(clientId) + nbAdd;
+  const dejaVus = Array.isArray(client.fideliteAtteinte) ? client.fideliteAtteinte : [];
+  const eligibles = cfg.paliers.filter(p => p <= nb && !dejaVus.includes(p));
+  if (eligibles.length === 0) return null;
+  return Math.max.apply(null, eligibles);
+}
+
+async function markFidelitePalierVu(clientId, palier) {
+  const client = (appData.clients || []).find(c => c.id === clientId);
+  if (!client) return false;
+  if (!Array.isArray(client.fideliteAtteinte)) client.fideliteAtteinte = [];
+  if (!client.fideliteAtteinte.includes(palier)) {
+    client.fideliteAtteinte.push(palier);
+    client.fideliteAtteinte.sort((a, b) => a - b);
+  }
+  await updateEntity('clients', client.id, client, mapClientToDb);
+  return true;
+}
+
+async function resetFideliteForClient(clientId) {
+  const client = (appData.clients || []).find(c => c.id === clientId);
+  if (!client) return false;
+  client.fideliteAtteinte = [];
+  await updateEntity('clients', client.id, client, mapClientToDb);
+  return true;
+}
+
+async function toggleSansFidelite(clientId, sansFidelite) {
+  const client = (appData.clients || []).find(c => c.id === clientId);
+  if (!client) return false;
+  client.sansFidelite = !!sansFidelite;
+  await updateEntity('clients', client.id, client, mapClientToDb);
+  return true;
+}
+
+// Retourne les clients avec un palier atteint mais non-vu (pour la section Dashboard).
+function getClientsAAlerter() {
+  return (appData.clients || [])
+    .filter(c => !c.sansFidelite)
+    .map(c => {
+      const palier = getFidelitePalierPourClient(c.id, 0);
+      if (!palier) return null;
+      return { client: c, palier };
+    })
+    .filter(x => x !== null)
+    .sort((a, b) => b.palier - a.palier);
+}
+
+// Migration retroactive : marque tous les paliers deja depasses comme "vus"
+// pour eviter de spammer Elise au 1er lancement.
+// Flag idempotent dans parametres.fideliteMigrationDone.
+async function migrerFidelite() {
+  if (!appData.parametres) appData.parametres = {};
+  if (!appData.parametres.fideliteConfig) {
+    appData.parametres.fideliteConfig = {
+      paliers: FIDELITE_DEFAULT_CONFIG.paliers.slice(),
+      groupesComptes: FIDELITE_DEFAULT_CONFIG.groupesComptes.slice()
+    };
+  }
+  if (appData.parametres.fideliteMigrationDone) return 0;
+
+  const cfg = appData.parametres.fideliteConfig;
+  const clientsToUpdate = [];
+  (appData.clients || []).forEach(client => {
+    let modified = false;
+    if (client.sansFidelite === undefined) { client.sansFidelite = false; modified = true; }
+    if (!Array.isArray(client.fideliteAtteinte)) { client.fideliteAtteinte = []; modified = true; }
+    const nbActuel = getNbPrestationsMassageForClient(client.id);
+    cfg.paliers.forEach(palier => {
+      if (nbActuel >= palier && !client.fideliteAtteinte.includes(palier)) {
+        client.fideliteAtteinte.push(palier);
+        modified = true;
+      }
+    });
+    if (modified) {
+      client.fideliteAtteinte.sort((a, b) => a - b);
+      clientsToUpdate.push(client);
+    }
+  });
+
+  if (clientsToUpdate.length > 0) {
+    console.log(`Migration fidelite : ${clientsToUpdate.length} client(s) migre(s) (paliers deja depasses marques comme vus).`);
+    await Promise.all(
+      clientsToUpdate.map(c => updateEntity('clients', c.id, c, mapClientToDb).catch(err => {
+        console.error('Erreur migration fidelite client', c.id, err);
+      }))
+    );
+  }
+  appData.parametres.fideliteMigrationDone = true;
+  await saveParametresToDb();
+  return clientsToUpdate.length;
+}
+
 function getHeadSpaCollaborateurId() {
   return appData.parametres?.headSpaCollaborateurId || null;
 }
@@ -1319,6 +1463,10 @@ window.DataManager = {
   addCategorie, updateCategorie, archiveCategorie, deleteCategorieById,
   // v1.0.7.0 : groupes de categories
   migrerCategoriesGroupes, getGroupesCategories, getGroupeForCategorieId, getGroupeForSoinId,
+  // v1.0.9.0 : fidelite
+  getFideliteConfig, setFideliteConfig, getNbPrestationsMassageForClient,
+  getFidelitePalierPourClient, markFidelitePalierVu, resetFideliteForClient,
+  toggleSansFidelite, getClientsAAlerter, migrerFidelite,
   // Nouvelles fonctions Supabase
   insertEntity, updateEntity, deleteEntity, saveParametresToDb,
   mapClientToDb, mapClientFromDb, mapProspectToDb, mapProspectFromDb,

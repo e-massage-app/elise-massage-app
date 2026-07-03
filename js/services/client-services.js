@@ -568,11 +568,38 @@ function showClientDetails(clientId) {
   const appData = DataManager.getAppData();
   const client = appData.clients.find(c => c.id === clientId);
   if (!client) return;
-  
+
   const stats = getClientStats(clientId);
-  
+
+  // v1.0.9.0 : badge fidelite (palier non-vu) + info opt-out
+  let fideliteBadge = '';
+  if (client.sansFidelite) {
+    fideliteBadge = `
+      <div style="margin: 0.75rem 0; padding: 0.6rem 0.9rem; background: #f0f0f0; border-radius: 8px; font-size: 0.85rem; color: #666; border-left: 3px solid #999;">
+        \u{1f6ab} Ce client est exclu du suivi fidélité (paramétrage sur sa fiche).
+      </div>
+    `;
+  } else if (typeof DataManager.getFidelitePalierPourClient === 'function') {
+    const palierNonVu = DataManager.getFidelitePalierPourClient(client.id, 0);
+    if (palierNonVu) {
+      fideliteBadge = `
+        <div style="margin: 0.75rem 0; padding: 0.75rem 1rem; background: linear-gradient(135deg, #fff3e0, #ffe4b5); border-radius: 8px; border-left: 4px solid #b8860b; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap;">
+          <div>
+            <div style="font-weight: 600; color: #8b6914; margin-bottom: 0.2rem;">\u{1f381} ${palierNonVu}<sup>ème</sup> massage — à féliciter</div>
+            <div style="font-size: 0.8rem; color: #8b6914;">Pense à lui offrir une réduction ou du temps supplémentaire.</div>
+          </div>
+          <div style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
+            <button type="button" onclick="markFideliteFromFiche('${client.id}', ${palierNonVu}, 'felicite')" class="btn-primary" style="background: linear-gradient(135deg, #b8860b, #d4a574); border: none; padding: 0.4rem 0.75rem; font-size: 0.85rem;">✨ Félicité</button>
+            <button type="button" onclick="markFideliteFromFiche('${client.id}', ${palierNonVu}, 'ignore')" class="btn-secondary" style="padding: 0.4rem 0.75rem; font-size: 0.85rem;">\u{1f645} Passer</button>
+          </div>
+        </div>
+      `;
+    }
+  }
+
   const modalHTML = `
     <h3>Fiche client</h3>
+    ${fideliteBadge}
     <div style="margin: 1rem 0;">
       <p><strong>Nom:</strong> ${client.prenom} ${client.nom}</p>
       ${client.societe ? `<p><strong>Société:</strong> ${client.societe}</p>` : ''}
@@ -609,13 +636,49 @@ function showClientDetails(clientId) {
       <button class="btn-primary" onclick="showTopClientsModal()">Voir classement clients</button>
       <button type="button" class="btn-secondary" onclick="ModalManager.closeModal()">Fermer</button>
     </div>
+    ${(client.fideliteAtteinte && client.fideliteAtteinte.length > 0) ? `
+    <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #eee; display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem; color: var(--text-light);">
+      <span>\u{1f381} Paliers fidélité déjà vus : ${client.fideliteAtteinte.join(', ')}</span>
+      <button type="button" onclick="resetFideliteFromFiche('${client.id}')" style="background: none; border: none; color: #999; text-decoration: underline; cursor: pointer; font-size: 0.78rem;">Réinitialiser</button>
+    </div>` : ''}
   `;
-  
+
   // Utiliser le modal manager pour afficher
   if (window.ModalManager) {
     ModalManager.showModal('rdv-modal', modalHTML);
   } else {
     alert('Détails client: ' + client.prenom + ' ' + client.nom);
+  }
+}
+
+// v1.0.9.0 : actions fidelite depuis la fiche client
+async function markFideliteFromFiche(clientId, palier, action) {
+  try {
+    await DataManager.markFidelitePalierVu(clientId, palier);
+    if (window.ViewManager && typeof window.ViewManager.updateDashboard === 'function') {
+      window.ViewManager.updateDashboard();
+    }
+    showClientDetails(clientId); // reload la fiche
+    const label = action === 'felicite' ? `✨ Palier ${palier} félicité !` : `\u{1f645} Palier ${palier} passé.`;
+    if (typeof window.showTemporaryMessage === 'function') window.showTemporaryMessage(label);
+  } catch (err) {
+    console.error('markFideliteFromFiche error:', err);
+    alert('Erreur lors du marquage du palier');
+  }
+}
+
+async function resetFideliteFromFiche(clientId) {
+  if (!confirm('Réinitialiser tous les paliers de fidélité vus pour ce client ? Les alertes des paliers déjà atteints se re-déclencheront.')) return;
+  try {
+    await DataManager.resetFideliteForClient(clientId);
+    if (window.ViewManager && typeof window.ViewManager.updateDashboard === 'function') {
+      window.ViewManager.updateDashboard();
+    }
+    showClientDetails(clientId);
+    if (typeof window.showTemporaryMessage === 'function') window.showTemporaryMessage('\u{1f501} Fidélité réinitialisée.');
+  } catch (err) {
+    console.error('resetFideliteFromFiche error:', err);
+    alert('Erreur lors de la réinitialisation');
   }
 }
 
@@ -980,6 +1043,14 @@ function editClient(clientId) {
       <div class="form-group">
         <label>Notes</label>
         <textarea id="client-notes">${client.notes || ''}</textarea>
+      </div>
+      <!-- v1.0.9.0 : opt-out fidelite -->
+      <div class="form-group" style="background: #fdfaf3; padding: 0.75rem; border-radius: 8px; border-left: 3px solid var(--beige-dore);">
+        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin: 0;">
+          <input type="checkbox" id="client-sans-fidelite" ${client.sansFidelite ? 'checked' : ''}>
+          <span>🚫 Pas de suivi fidélité (collectif, retraite, groupe)</span>
+        </label>
+        <small style="display: block; margin-top: 0.35rem; color: var(--text-light); font-size: 0.8rem;">💡 À cocher si ce client représente en réalité plusieurs personnes différentes.</small>
       </div>
       <div class="modal-actions">
         <button type="button" class="btn-secondary" onclick="closeModal()">Annuler</button>
@@ -2356,6 +2427,9 @@ window.ClientServices = {
 
 // Fonctions globales pour l'HTML
 window.showClientDetails = showClientDetails;
+// v1.0.9.0 : actions fidelite depuis la fiche
+window.markFideliteFromFiche = markFideliteFromFiche;
+window.resetFideliteFromFiche = resetFideliteFromFiche;
 window.showTopClients = showTopClientsModal;
 window.editClient = editClient;
 window.editProspect = editProspect;
