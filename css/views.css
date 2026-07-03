@@ -2253,3 +2253,10 @@
   margin-right: 5px;
   width: 32px; height: 32px;
 }
+
+/* v1.0.9.2c — icones SVG (pastilles groupe + actions) */
+.annu-pill svg.annu-gi { width: 13px; height: 13px; flex: none; }
+.annu-icon-btn { display: inline-flex; align-items: center; justify-content: center; color: var(--text-light); }
+.annu-icon-btn svg { width: 17px; height: 17px; display: block; }
+.annu-icon-btn:hover { color: #b07d43; }
+.annu-icon-btn.danger:hover { color: #d0574c; border-color: #d0574c; }
