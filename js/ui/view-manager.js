@@ -2888,7 +2888,7 @@ function _annuGroupePills(parGroupe) {
     .sort((a, b) => b[1] - a[1])
     .map(([nom, n]) => {
       const c = _annuGroupeColor(nom);
-      return `<span class="annu-pill" style="background:${c}1a;color:${c};" title="${nom}"><span class="annu-dot" style="background:${c};"></span>${n}</span>`;
+      return `<span class="annu-pill" style="background:${c}22;color:${c};border:1px solid ${c}55;" title="${nom}"><span class="annu-dot" style="background:${c};"></span>${n}</span>`;
     })
     .join('');
 }

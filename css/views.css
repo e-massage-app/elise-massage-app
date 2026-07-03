@@ -2176,3 +2176,80 @@
 @media (max-width: 620px) {
   .fc-stats { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ===================================================================== */
+/* v1.0.9.2b — Restyle réel du tableau annuaire (override .clients-table) */
+/* Placé en fin de fichier : gagne sur les règles .clients-table du dessus */
+/* ===================================================================== */
+.clients-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.9rem;
+  background: #fff;
+  border: 1px solid #ece1d5;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 6px 22px rgba(150, 110, 70, 0.08);
+}
+.clients-table thead { background: #fdfaf6; }
+.clients-table th {
+  padding: 13px 16px;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  font-weight: 700;
+  color: #9c9187;
+  border-bottom: 1px solid #f3ebe1;
+}
+.clients-table th.sortable:hover { background: #f6efe6; color: #b07d43; }
+.clients-table th.sortable.active { background: #f6efe6; color: #b07d43; }
+.clients-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid #f3ebe1;
+  vertical-align: middle;
+}
+.clients-table tbody tr:last-child td { border-bottom: none; }
+.clients-table tbody tr:hover { background: #fdfaf6; }
+/* Plus de dégradé jaune sur les fidèles : distinction via la section, pas la ligne */
+.clients-table tbody tr.fidele,
+.clients-table tbody tr.fidele:hover {
+  background: transparent;
+}
+.clients-table tbody tr.fidele:hover { background: #fdfaf6; }
+
+.clients-table .name-cell { font-weight: 400; color: inherit; }
+.clients-table .name-cell .annu-name {
+  font-family: 'Playfair Display', serif;
+  font-weight: 500;
+  font-size: 1.02rem;
+  color: var(--beige-dore);
+}
+.clients-table .name-cell:hover .annu-name { text-decoration: underline; }
+.clients-table .ca-cell {
+  font-weight: 700;
+  color: var(--text-dark);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Pastilles + total, plus lisibles */
+.annu-pill {
+  padding: 3px 9px 3px 7px;
+  font-size: 0.8rem;
+}
+.annu-pill .annu-dot { width: 8px; height: 8px; }
+.annu-presta-total {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.3rem;
+  font-weight: 500;
+}
+.annu-presta-cell { gap: 10px; }
+
+/* Boutons d'action : un peu plus grands, cliquables */
+.clients-table .actions-cell { white-space: nowrap; }
+.clients-table .actions-cell button.annu-icon-btn {
+  font-size: 0.9rem;
+  padding: 0;
+  margin-right: 5px;
+  width: 32px; height: 32px;
+}
