@@ -2257,25 +2257,10 @@ let currentVilleFilter = 'Ajaccio'; // Par défaut Ajaccio
 
 function filterByVille(ville) {
   currentVilleFilter = ville;
-  
-  // Mettre à jour les styles des boutons
+  // v1.0.9.5 : styling par classe (le look segmente est gere en CSS)
   document.querySelectorAll('.ville-filter-btn').forEach(btn => {
-    if (btn.dataset.ville === ville) {
-      btn.classList.add('active');
-      btn.style.border = '2px solid var(--beige-dore)';
-      btn.style.background = 'var(--beige-dore)';
-      btn.style.color = 'white';
-      btn.style.fontWeight = '600';
-    } else {
-      btn.classList.remove('active');
-      btn.style.border = '2px solid #ddd';
-      btn.style.background = 'white';
-      btn.style.color = 'var(--text-dark)';
-      btn.style.fontWeight = '500';
-    }
+    btn.classList.toggle('active', btn.dataset.ville === ville);
   });
-  
-  // Appliquer le filtre
   updateClientsDisplay();
 }
 
@@ -3153,7 +3138,8 @@ function _annuGroupePills(parGroupe) {
     .sort((a, b) => b[1] - a[1])
     .map(([nom, n]) => {
       const c = _annuGroupeColor(nom);
-      return `<span class="annu-pill" style="background:${c}22;color:${c};border:1px solid ${c}55;" title="${nom}">${_annuGroupeIconSvg(nom)}${n}</span>`;
+      // v1.0.9.5 : chiffre en fonce (lisible), icone + bordure en couleur du groupe
+      return `<span class="annu-pill" style="background:${c}1f;border:1px solid ${c}66;color:#3a352f;" title="${nom}"><span class="annu-pill-ic" style="color:${c};">${_annuGroupeIconSvg(nom)}</span>${n}</span>`;
     })
     .join('');
 }

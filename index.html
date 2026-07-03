@@ -62,7 +62,7 @@
         <div id="mobile-menu" class="mobile-menu">
             <div class="mobile-menu-header">
                 <span>Menu</span>
-                <div class="mobile-menu-version">v1.0.9.4</div>
+                <div class="mobile-menu-version">v1.0.9.5</div>
                 <button class="mobile-menu-close" onclick="closeMobileMenu()">&#10005;</button>
             </div>
             <div class="mobile-menu-nav">
@@ -100,7 +100,7 @@
         <!-- Dashboard Tab -->
         <div id="dashboard" class="tab-content active">
             <div class="dashboard-grid">
-                <!-- v1.0.9.4 : Stats onglets par groupe (Global + 1 onglet par groupe actif) -->
+                <!-- v1.0.9.5 : Stats onglets par groupe (Global + 1 onglet par groupe actif) -->
                 <div class="kpi-section">
                     <div id="stats-tabs-container" class="stats-tabs-container">
                         <div id="stats-tab-bar" class="stats-tab-bar">
@@ -112,13 +112,13 @@
                     </div>
 
                     <!-- LEGACY : ancienne section KPIs personnalisables.
-                         Masquee en v1.0.9.4, conservee pour rollback rapide.
+                         Masquee en v1.0.9.5, conservee pour rollback rapide.
                          Pour rollback : retirer le 'display:none' ci-dessous + virer #stats-tabs-container -->
                     <div class="dashboard-kpis" id="legacy-dashboard-kpis" style="display: none;">
                         <!-- KPIs générés dynamiquement -->
                     </div>
 
-                    <!-- v1.0.9.4 : section clients à féliciter (fidélité) -->
+                    <!-- v1.0.9.5 : section clients à féliciter (fidélité) -->
                     <div id="fidelite-a-feliciter-section" style="margin-top: 1.5rem;">
                         <!-- Contenu généré dynamiquement par ViewManager.updateFideliteSection -->
                     </div>
@@ -239,76 +239,43 @@
 
         <!-- Clients Tab -->
         <div id="clients" class="tab-content">
-<div class="clients-header">
-  <!-- Ligne principale : Titre + Recherche + Boutons principaux + Boutons tags -->
-  <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
-    <div>
-      <h2 class="annu-title" style="margin: 0 0 0.6rem 0;">Répertoire</h2>
-      <!-- Filtres par ville -->
-      <div class="ville-filter-buttons" style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
-        <button class="ville-filter-btn active" data-ville="Ajaccio" onclick="ViewManager.filterByVille('Ajaccio')">Ajaccio</button>
-        <button class="ville-filter-btn" data-ville="Porto-Vecchio" onclick="ViewManager.filterByVille('Porto-Vecchio')">Porto-Vecchio</button>
-        <button class="ville-filter-btn" data-ville="Tous" onclick="ViewManager.filterByVille('Tous')">Tous</button>
-      </div>
-    </div>
-    
-    <!-- Barre de recherche centrée -->
-    <div class="search-container" style="flex: 1; max-width: 400px; min-width: 250px;">
-      <div class="search-input-wrapper" style="position: relative;">
-        <input 
-          type="text" 
-          id="client-search" 
-          placeholder="🔍 Rechercher..." 
-          style="width: 100%; padding: 0.6rem 2.5rem 0.6rem 1rem; border: 2px solid #e0e0e0; border-radius: 20px; font-size: 0.9rem; transition: all 0.3s ease; background: #fff;"
-        >
-        <button 
-          id="clear-search" 
-          style="position: absolute; right: 0.6rem; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 1rem; cursor: pointer; color: #999; display: none;"
-          title="Effacer la recherche"
-        >✖️</button>
-      </div>
-      <div id="search-results-count" style="text-align: center; margin-top: 0.25rem; font-size: 0.8rem;"></div>
-<div class="filter-group" style="margin: 0.5rem 0;">
-  <label for="client-canal-filter">Canal d'acquisition :</label>
-  <select id="client-canal-filter" style="padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; width: 200px;">
-    <option value="">Tous les canaux</option>
-  </select>
-</div>
-<div class="filter-group" style="margin: 0.5rem 0;">
-  <label for="client-groupe-filter">Prestation :</label>
-  <select id="client-groupe-filter" style="padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; width: 200px;" onchange="ViewManager.setAnnuaireGroupeFilter(this.value)">
-    <option value="all">Toutes prestations</option>
-  </select>
-</div>
-    </div>
-    
-    <!-- Bloc de droite : Boutons principaux + Boutons tags en dessous -->
-    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.75rem;">
-      <!-- Boutons principaux -->
-      <div class="clients-controls" style="display: flex; align-items: center; gap: 0.5rem;">
-        <div class="dropdown-container" style="position: relative;">
-          <button class="btn-primary dropdown-btn" onclick="toggleAddDropdown()">
-            ➕ Ajouter <span style="margin-left: 0.5rem;">▼</span>
-          </button>
-          <div id="add-dropdown" class="dropdown-menu" style="display: none; position: absolute; top: 100%; right: 0; background: white; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); min-width: 180px; z-index: 1000;">
-            <button class="dropdown-menu-item" onclick="showAddClientModal(); hideAddDropdown()">Nouveau client</button>
-            <button class="dropdown-menu-item" onclick="showAddProspectModal(); hideAddDropdown()">Nouveau prospect</button>
-            <button class="dropdown-menu-item" onclick="showAddCollaborateurModal(); hideAddDropdown()">Nouveau collaborateur</button>
-          </div>
+<div class="clients-header annu-top">
+  <div class="annu-top-row">
+    <h2 class="annu-title">Répertoire</h2>
+    <div class="annu-top-actions">
+      <div class="dropdown-container" style="position: relative;">
+        <button class="btn-primary dropdown-btn" onclick="toggleAddDropdown()">➕ Ajouter <span style="margin-left: 0.4rem;">▼</span></button>
+        <div id="add-dropdown" class="dropdown-menu" style="display: none; position: absolute; top: 100%; right: 0; background: white; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); min-width: 180px; z-index: 1000;">
+          <button class="dropdown-menu-item" onclick="showAddClientModal(); hideAddDropdown()">Nouveau client</button>
+          <button class="dropdown-menu-item" onclick="showAddProspectModal(); hideAddDropdown()">Nouveau prospect</button>
+          <button class="dropdown-menu-item" onclick="showAddCollaborateurModal(); hideAddDropdown()">Nouveau collaborateur</button>
         </div>
-        <span style="color: var(--text-light); margin: 0 0.5rem;">|</span>
-        <button class="btn-primary" onclick="showTopClients()">🏆 Top Clients</button>
       </div>
-      
-      <!-- Boutons tags en dessous -->
-      <div style="display: flex; gap: 0.5rem;">
-        <button class="btn-secondary" onclick="ClientServices.showTagsFilter()" style="font-size: 0.85rem; padding: 0.4rem 0.8rem;">🏷️ Filtrer par tags</button>
-        <button class="btn-secondary" onclick="ClientServices.showTagsManagementModal()" style="font-size: 0.85rem; padding: 0.4rem 0.8rem;">⚙️ Gérer les tags</button>
-      </div>
+      <button class="btn-primary" onclick="showTopClients()">🏆 Top Clients</button>
+      <button class="annu-ghost-btn" onclick="ClientServices.showTagsFilter()" title="Filtrer par tags">🏷️ Tags</button>
+      <button class="annu-ghost-btn" onclick="ClientServices.showTagsManagementModal()" title="Gérer les tags">⚙️</button>
     </div>
   </div>
 
-  <!-- v1.0.9.4 : onglets d'entite + tri -->
+  <div class="annu-fbar2">
+    <div class="annu-search2">
+      <span class="annu-search2-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg></span>
+      <input type="text" id="client-search" placeholder="Rechercher un client, un téléphone…">
+      <button id="clear-search" title="Effacer la recherche" style="display: none;">✕</button>
+    </div>
+    <div class="ville-filter-buttons annu-seg2">
+      <button class="ville-filter-btn active" data-ville="Ajaccio" onclick="ViewManager.filterByVille('Ajaccio')">Ajaccio</button>
+      <button class="ville-filter-btn" data-ville="Porto-Vecchio" onclick="ViewManager.filterByVille('Porto-Vecchio')">Porto-Vecchio</button>
+      <button class="ville-filter-btn" data-ville="Tous" onclick="ViewManager.filterByVille('Tous')">Tous</button>
+    </div>
+    <div id="annu-client-filters" class="annu-cfilters">
+      <select id="client-canal-filter" class="annu-fsel2"><option value="">Tous les canaux</option></select>
+      <select id="client-groupe-filter" class="annu-fsel2" onchange="ViewManager.setAnnuaireGroupeFilter(this.value)"><option value="all">Toutes prestations</option></select>
+    </div>
+  </div>
+  <div id="search-results-count" class="annu-rescount"></div>
+
+  <!-- v1.0.9.5 : onglets d'entite + tri -->
   <div class="annu-etabs">
     <button id="etab-clients" class="annu-etab active" onclick="ViewManager.setAnnuaireEntity('clients')">👤 Clients <span class="annu-etab-cnt" id="etab-cnt-clients">0</span></button>
     <button id="etab-prospects" class="annu-etab" onclick="ViewManager.setAnnuaireEntity('prospects')">🌱 Prospects <span class="annu-etab-cnt" id="etab-cnt-prospects">0</span></button>
@@ -326,7 +293,7 @@
   </div>
 </div>
 
-            <!-- v1.0.9.4 : liste unique unifiee (onglets d'entite) -->
+            <!-- v1.0.9.5 : liste unique unifiee (onglets d'entite) -->
             <div id="annu-list-host" class="annu-host"><!-- genere dynamiquement --></div>
         </div>
 
@@ -388,7 +355,7 @@
             <div class="modern-filters">
                 <h4>Filtrer les données</h4>
                 <div class="filter-pills">
-                    <!-- v1.0.9.4 : pills par groupe de categories injectees dynamiquement (Massages, HeadSpa, Epilation, ...) -->
+                    <!-- v1.0.9.5 : pills par groupe de categories injectees dynamiquement (Massages, HeadSpa, Epilation, ...) -->
                     <div id="filter-pills-groupes" style="display: contents;">
                         <label class="filter-pill active">
                             <input type="checkbox" id="filter-massages" checked>
@@ -639,7 +606,7 @@
 
     <!-- Footer version -->
     <footer class="app-footer">
-        <span>Elise Massage &mdash; v1.0.9.4</span>
+        <span>Elise Massage &mdash; v1.0.9.5</span>
     </footer>
 
     <!-- Modal Overlay -->
