@@ -2110,20 +2110,37 @@ function setAnnuaireGroupeFilter(value) {
   updateClientsDisplay();
 }
 
-// Renseigne le dropdown #client-groupe-filter avec les groupes actifs (idempotent).
+// Renseigne le dropdown #client-groupe-filter (idempotent).
+// v1.0.9.3 : on ne liste que les groupes REELLEMENT presents chez des clients.
+// (ex: HeadSpa est un partenariat rattache au collaborateur Jenny, pas aux
+//  clients d'Elise -> il n'apparait donc pas ici tant qu'aucun client n'en a.)
 function populateGroupeFilter() {
   const sel = document.getElementById('client-groupe-filter');
   if (!sel) return;
-  const groupes = (DataManager.getGroupesCategories ? DataManager.getGroupesCategories() : [])
-    .map(g => g.nom)
-    .filter(Boolean);
-  const wanted = ['all'].concat(groupes);
-  // Ne reconstruire que si la liste a change (evite de casser la selection)
+  const app = DataManager.getAppData();
+  const clientIds = new Set((app.clients || []).map(c => c.id));
+  const present = new Set();
+  (app.prestations || []).forEach(p => {
+    if (!clientIds.has(p.clientId)) return;
+    const g = (DataManager.getGroupeForSoinId ? DataManager.getGroupeForSoinId(p.soinId || p.type) : null) || 'Autre';
+    present.add(g);
+  });
+  // Ordre : suivre getGroupesCategories, puis les extras eventuels (ex: "Autre")
+  const ordered = (DataManager.getGroupesCategories ? DataManager.getGroupesCategories() : [])
+    .map(x => x.nom).filter(n => present.has(n));
+  present.forEach(n => { if (!ordered.includes(n)) ordered.push(n); });
+
+  // Si le filtre courant ne correspond plus a un groupe present, on revient a "all"
+  if (annuaireGroupeFilter !== 'all' && !present.has(annuaireGroupeFilter)) {
+    annuaireGroupeFilter = 'all';
+  }
+
+  const wanted = ['all'].concat(ordered);
   const current = Array.from(sel.options).map(o => o.value);
   const same = current.length === wanted.length && current.every((v, i) => v === wanted[i]);
   if (!same) {
     sel.innerHTML = `<option value="all">Toutes prestations</option>` +
-      groupes.map(g => `<option value="${g.replace(/"/g, '&quot;')}">${g}</option>`).join('');
+      ordered.map(g => `<option value="${g.replace(/"/g, '&quot;')}">${g}</option>`).join('');
   }
   sel.value = annuaireGroupeFilter;
 }
