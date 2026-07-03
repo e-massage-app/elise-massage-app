@@ -62,7 +62,7 @@
         <div id="mobile-menu" class="mobile-menu">
             <div class="mobile-menu-header">
                 <span>Menu</span>
-                <div class="mobile-menu-version">v1.0.9.3</div>
+                <div class="mobile-menu-version">v1.0.9.4</div>
                 <button class="mobile-menu-close" onclick="closeMobileMenu()">&#10005;</button>
             </div>
             <div class="mobile-menu-nav">
@@ -100,7 +100,7 @@
         <!-- Dashboard Tab -->
         <div id="dashboard" class="tab-content active">
             <div class="dashboard-grid">
-                <!-- v1.0.9.3 : Stats onglets par groupe (Global + 1 onglet par groupe actif) -->
+                <!-- v1.0.9.4 : Stats onglets par groupe (Global + 1 onglet par groupe actif) -->
                 <div class="kpi-section">
                     <div id="stats-tabs-container" class="stats-tabs-container">
                         <div id="stats-tab-bar" class="stats-tab-bar">
@@ -112,13 +112,13 @@
                     </div>
 
                     <!-- LEGACY : ancienne section KPIs personnalisables.
-                         Masquee en v1.0.9.3, conservee pour rollback rapide.
+                         Masquee en v1.0.9.4, conservee pour rollback rapide.
                          Pour rollback : retirer le 'display:none' ci-dessous + virer #stats-tabs-container -->
                     <div class="dashboard-kpis" id="legacy-dashboard-kpis" style="display: none;">
                         <!-- KPIs générés dynamiquement -->
                     </div>
 
-                    <!-- v1.0.9.3 : section clients à féliciter (fidélité) -->
+                    <!-- v1.0.9.4 : section clients à féliciter (fidélité) -->
                     <div id="fidelite-a-feliciter-section" style="margin-top: 1.5rem;">
                         <!-- Contenu généré dynamiquement par ViewManager.updateFideliteSection -->
                     </div>
@@ -243,7 +243,7 @@
   <!-- Ligne principale : Titre + Recherche + Boutons principaux + Boutons tags -->
   <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
     <div>
-      <h2 style="margin: 0 0 0.75rem 0;">Gestion Clients, Prospects & Collaborateurs</h2>
+      <h2 class="annu-title" style="margin: 0 0 0.6rem 0;">Répertoire</h2>
       <!-- Filtres par ville -->
       <div class="ville-filter-buttons" style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
         <button class="ville-filter-btn active" data-ville="Ajaccio" onclick="ViewManager.filterByVille('Ajaccio')">Ajaccio</button>
@@ -308,86 +308,26 @@
     </div>
   </div>
 
-  <!-- Barre de contrôle des vues -->
-  <div class="view-controls-bar">
-    <!-- Gauche : Toggle vue grille/liste -->
-    <div class="view-controls-group">
-      <span class="view-control-label">Vue :</span>
-      <button id="view-grid-btn" class="view-toggle-btn active" onclick="ViewManager.setViewMode('grid')" title="Vue grille">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
-      </button>
-      <button id="view-list-btn" class="view-toggle-btn" onclick="ViewManager.setViewMode('list')" title="Vue liste">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="2" width="14" height="2" rx="0.5"/><rect x="1" y="7" width="14" height="2" rx="0.5"/><rect x="1" y="12" width="14" height="2" rx="0.5"/></svg>
-      </button>
-    </div>
-
-    <!-- Centre : Toggles sections -->
-    <div class="view-controls-sections">
-      <label class="section-toggle">
-        <input type="checkbox" id="toggle-fideles" checked onchange="ViewManager.toggleSection('fideles', this.checked)">
-        <span>⭐ Fidèles</span>
-      </label>
-      <label class="section-toggle">
-        <input type="checkbox" id="toggle-nouveaux" checked onchange="ViewManager.toggleSection('nouveaux', this.checked)">
-        <span>🌱 Nouveaux</span>
-      </label>
-      <label class="section-toggle">
-        <input type="checkbox" id="toggle-prospects" checked onchange="ViewManager.toggleSection('prospects', this.checked)">
-        <span>👁️ Prospects</span>
-      </label>
-      <label class="section-toggle">
-        <input type="checkbox" id="toggle-collaborateurs" checked onchange="ViewManager.toggleSection('collaborateurs', this.checked)">
-        <span>🤝 Collab.</span>
-      </label>
-    </div>
-
-    <!-- Droite : Tri -->
-    <div class="view-controls-group">
-      <span class="view-control-label">Tri :</span>
-      <select id="client-sort-select" class="view-sort-select" onchange="ViewManager.setSortMode(this.value)">
-        <option value="massages-desc">Nb prestations ↓</option>
+  <!-- v1.0.9.4 : onglets d'entite + tri -->
+  <div class="annu-etabs">
+    <button id="etab-clients" class="annu-etab active" onclick="ViewManager.setAnnuaireEntity('clients')">👤 Clients <span class="annu-etab-cnt" id="etab-cnt-clients">0</span></button>
+    <button id="etab-prospects" class="annu-etab" onclick="ViewManager.setAnnuaireEntity('prospects')">🌱 Prospects <span class="annu-etab-cnt" id="etab-cnt-prospects">0</span></button>
+    <button id="etab-collaborateurs" class="annu-etab" onclick="ViewManager.setAnnuaireEntity('collaborateurs')">🤝 Collaborateurs <span class="annu-etab-cnt" id="etab-cnt-collaborateurs">0</span></button>
+    <div class="annu-sortwrap">
+      <select id="client-sort-select" class="annu-fsel" onchange="ViewManager.setSortMode(this.value)">
+        <option value="massages-desc">Tri : Nb prestations ↓</option>
         <option value="massages-asc">Nb prestations ↑</option>
-        <option value="ca-desc">CA ↓</option>
-        <option value="ca-asc">CA ↑</option>
         <option value="nom-asc">Nom A-Z</option>
         <option value="nom-desc">Nom Z-A</option>
-        <option value="recent-desc">Plus récent ↓</option>
-        <option value="recent-asc">Plus ancien ↓</option>
+        <option value="recent-desc">Plus récent</option>
+        <option value="recent-asc">Plus ancien</option>
       </select>
     </div>
   </div>
 </div>
 
-            <!-- Grille 2x2 pour clients, prospects et collaborateurs -->
-            <div class="clients-sections" id="clients-sections-container">
-                <div class="clients-section fideles-section">
-                    <h3>⭐ Clients fidèles <span class="section-subtitle">(2+ prestations)</span></h3>
-                    <div id="clients-fideles-list" class="clients-grid">
-                        <!-- Clients fidèles générés dynamiquement -->
-                    </div>
-                </div>
-
-                <div class="clients-section nouveaux-section">
-                    <h3>🌱 Nouveaux clients <span class="section-subtitle">(1 prestation)</span></h3>
-                    <div id="clients-list" class="clients-grid">
-                        <!-- Nouveaux clients générés dynamiquement -->
-                    </div>
-                </div>
-
-                <div class="prospects-section">
-                    <h3>👁️ Prospects</h3>
-                    <div id="prospects-list" class="clients-grid">
-                        <!-- Prospects générés dynamiquement -->
-                    </div>
-                </div>
-
-                <div class="collaborateurs-section">
-                    <h3>🤝 Collaborateurs</h3>
-                    <div id="collaborateurs-list" class="clients-grid">
-                        <!-- Collaborateurs générés dynamiquement -->
-                    </div>
-                </div>
-            </div>
+            <!-- v1.0.9.4 : liste unique unifiee (onglets d'entite) -->
+            <div id="annu-list-host" class="annu-host"><!-- genere dynamiquement --></div>
         </div>
 
         <!-- ===== ✅ REMPLACEZ VOTRE SECTION ANALYTICS DANS index.html ===== -->
@@ -448,7 +388,7 @@
             <div class="modern-filters">
                 <h4>Filtrer les données</h4>
                 <div class="filter-pills">
-                    <!-- v1.0.9.3 : pills par groupe de categories injectees dynamiquement (Massages, HeadSpa, Epilation, ...) -->
+                    <!-- v1.0.9.4 : pills par groupe de categories injectees dynamiquement (Massages, HeadSpa, Epilation, ...) -->
                     <div id="filter-pills-groupes" style="display: contents;">
                         <label class="filter-pill active">
                             <input type="checkbox" id="filter-massages" checked>
@@ -699,7 +639,7 @@
 
     <!-- Footer version -->
     <footer class="app-footer">
-        <span>Elise Massage &mdash; v1.0.9.3</span>
+        <span>Elise Massage &mdash; v1.0.9.4</span>
     </footer>
 
     <!-- Modal Overlay -->

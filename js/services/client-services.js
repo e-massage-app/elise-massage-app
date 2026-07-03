@@ -309,7 +309,7 @@ function setupClientSearch() {
   if (!searchInput) return;
   
   // Populer le dropdown des canaux
-  if (canalFilter) {
+  if (canalFilter && canalFilter.options.length <= 1) {
     const canaux = ClientServices.getAvailableCanaux();
     canaux.forEach(canal => {
       const option = document.createElement('option');
@@ -317,44 +317,27 @@ function setupClientSearch() {
       option.textContent = canal.label;
       canalFilter.appendChild(option);
     });
-    
-    // Event listener pour le filtre canal
-    canalFilter.addEventListener('change', () => {
-      const query = searchInput.value.toLowerCase().trim();
-      if (query === '' && canalFilter.value === '') {
-        ViewManager.updateClientsDisplay();
-        resultCount.textContent = '';
-      } else {
-        filterAndDisplayClients(query);
-      }
+  }
+
+  // v1.0.9.4 : tout passe par le rendu unifie (renderAnnuaire lit la recherche + le canal)
+  if (canalFilter) {
+    canalFilter.addEventListener('change', () => { ViewManager.updateClientsDisplay(); });
+  }
+
+  searchInput.addEventListener('input', (e) => {
+    const query = e.target.value.trim();
+    if (clearBtn) clearBtn.style.display = query === '' ? 'none' : 'block';
+    ViewManager.updateClientsDisplay();
+  });
+
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      searchInput.value = '';
+      clearBtn.style.display = 'none';
+      ViewManager.updateClientsDisplay();
+      searchInput.focus();
     });
   }
-  
-  searchInput.addEventListener('input', (e) => {
-    const query = e.target.value.toLowerCase().trim();
-    
-    if (query === '') {
-      // Afficher tous les clients
-      ViewManager.updateClientsDisplay();
-      clearBtn.style.display = 'none';
-      resultCount.textContent = '';
-      return;
-    }
-    
-    // Afficher le bouton clear
-    clearBtn.style.display = 'block';
-    
-    // Filtrer et afficher les résultats
-    filterAndDisplayClients(query);
-  });
-  
-  clearBtn.addEventListener('click', () => {
-    searchInput.value = '';
-    clearBtn.style.display = 'none';
-    resultCount.textContent = '';
-    ViewManager.updateClientsDisplay();
-    searchInput.focus();
-  });
 }
 
 function filterAndDisplayClients(query) {
@@ -658,13 +641,40 @@ function showClientDetails(clientId) {
     ? `<div class="fc-paliers-vus"><span>🎁 Paliers déjà vus : ${client.fideliteAtteinte.join(', ')}</span><button type="button" onclick="resetFideliteFromFiche('${client.id}')">Réinitialiser</button></div>`
     : '';
 
-  // Préférences & infos secondaires
-  const prefs = [
-    client.pression ? `<span class="fc-chip">👐 ${client.pression}</span>` : '',
-    client.huiles ? `<span class="fc-chip">🫗 ${client.huiles}</span>` : '',
-    client.allergies ? `<span class="fc-chip" style="color:#c0392b;">⚠️ ${client.allergies}</span>` : '',
-    client.sexe ? `<span class="fc-chip">${client.sexe === 'H' ? '♂ Homme' : '♀ Femme'}</span>` : ''
-  ].filter(Boolean).join('');
+  // v1.0.9.4 : historique NEUTRE (fini le vert), construit ici pour maitriser le style
+  const prestasClient = (appData.prestations || [])
+    .filter(p => p.clientId === clientId)
+    .sort((a, b) => new Date(b.date + ' ' + (b.heure || '')) - new Date(a.date + ' ' + (a.heure || '')));
+  const totalTips = prestasClient.reduce((s, p) => s + (p.tips || 0), 0);
+  const nbTips = prestasClient.filter(p => p.tips > 0).length;
+  const historyHTML = prestasClient.length === 0
+    ? '<div class="fc-empty">Aucune prestation enregistrée</div>'
+    : `<div class="fc-hist-sum">${prestasClient.length} prestation${prestasClient.length > 1 ? 's' : ''}${totalTips > 0 ? ` · ${totalTips.toFixed(0)} € de pourboires (${nbTips} fois)` : ''}</div>` +
+      prestasClient.map(p => {
+        const g = (DataManager.getGroupeForSoinId ? DataManager.getGroupeForSoinId(p.soinId || p.type) : null) || 'Autre';
+        const c = _ficheGroupeColor(g);
+        const nom = DataManager.getDisplayNameForType ? DataManager.getDisplayNameForType(p.soinId || p.type) : (p.type || 'Prestation');
+        const tip = p.tips > 0 ? `<span class="fc-h-tip">+${p.tips.toFixed(0)}</span>` : '';
+        return `<div class="fc-hrow"><span class="fc-hd">${DataManager.formatDate(p.date)}</span><span class="fc-hdot" style="background:${c};"></span><span class="fc-hn">${nom}${p.duree ? ` <small>· ${p.duree} min</small>` : ''}</span><span class="fc-hp">${(p.prix || 0).toFixed(0)} € ${tip}</span></div>`;
+      }).join('');
+
+  // v1.0.9.4 : onglet Infos & preferences
+  const _irow = (k, v, empty) => `<div class="fc-irow"><span class="fc-k">${k}</span><span class="fc-v${empty ? ' fc-empty-v' : ''}">${v}</span></div>`;
+  const infosHTML = `
+    <div class="fc-section-title">Coordonnées</div>
+    ${_irow('Téléphone', client.telephone || 'Non renseigné', !client.telephone)}
+    ${_irow('Email', client.email || 'Non renseigné', !client.email)}
+    ${_irow('Adresse', client.adresse || 'Non renseignée', !client.adresse)}
+    ${_irow('Ville', client.ville || '—', !client.ville)}
+    ${client.societe ? _irow('Société', client.societe, false) : ''}
+    <div class="fc-section-title" style="margin-top:18px;">Préférences soin</div>
+    ${_irow('Pression', client.pression || 'Non renseigné', !client.pression)}
+    ${_irow('Huiles préférées', client.huiles || 'Non renseigné', !client.huiles)}
+    ${_irow('Zones sensibles', client.zones || 'Non renseigné', !client.zones)}
+    ${_irow('Allergies', client.allergies || 'Aucune connue', !client.allergies)}
+    ${_irow('Sexe', client.sexe ? (client.sexe === 'H' ? 'Homme' : 'Femme') : 'Non renseigné', !client.sexe)}
+    ${client.notes ? `<div class="fc-section-title" style="margin-top:18px;">Notes</div><div class="fc-notes">📝 ${client.notes}</div>` : ''}
+  `;
 
   const modalHTML = `
     <div class="fc">
@@ -676,27 +686,32 @@ function showClientDetails(clientId) {
         </div>
       </div>
 
-      <div class="fc-stats">
-        <div class="fc-stat"><div class="fc-lab">Prestations</div><div class="fc-val">${stats.totalMassages}</div></div>
-        <div class="fc-stat"><div class="fc-lab">CA total</div><div class="fc-val">${stats.revenusTotal.toFixed(0)} <small>€</small></div></div>
-        <div class="fc-stat"><div class="fc-lab">Panier moyen</div><div class="fc-val">${stats.revenuMoyen.toFixed(0)} <small>€</small></div></div>
-        <div class="fc-stat"><div class="fc-lab">Dernière visite</div><div class="fc-val fc-val-sm">${stats.derniereVisite ? DataManager.formatDate(stats.derniereVisite) : '—'}</div></div>
+      <div class="fc-tabs">
+        <button class="fc-tab active" data-t="ov" onclick="switchFicheTab(this,'ov')">Vue d'ensemble</button>
+        <button class="fc-tab" data-t="hi" onclick="switchFicheTab(this,'hi')">Historique</button>
+        <button class="fc-tab" data-t="inf" onclick="switchFicheTab(this,'inf')">Infos &amp; préférences</button>
+        <button class="fc-tab" data-t="par" onclick="switchFicheTab(this,'par')">Parrainage</button>
       </div>
-
       <div class="fc-body">
-        ${totalPresta > 0 ? `
-        <div class="fc-section">
-          <div class="fc-section-title">Répartition par type</div>
-          <div class="fc-propbar">${propSegments}</div>
-          <div class="fc-legend">${legend}</div>
-        </div>` : ''}
-
-        ${fideliteBlock}
-        ${prefs ? `<div class="fc-section"><div class="fc-section-title">Préférences</div><div class="fc-chips">${prefs}</div></div>` : ''}
-        ${client.notes ? `<div class="fc-notes">📝 ${client.notes}</div>` : ''}
-        ${generateParrainageSection(client)}
-        ${generateClientHistorique(clientId)}
-        ${paliersVus}
+        <div class="fc-panel active" data-p="ov">
+          <div class="fc-stats">
+            <div class="fc-stat"><div class="fc-lab">Prestations</div><div class="fc-val">${stats.totalMassages}</div></div>
+            <div class="fc-stat"><div class="fc-lab">CA total</div><div class="fc-val">${stats.revenusTotal.toFixed(0)} <small>€</small></div></div>
+            <div class="fc-stat"><div class="fc-lab">Panier moyen</div><div class="fc-val">${stats.revenuMoyen.toFixed(0)} <small>€</small></div></div>
+            <div class="fc-stat"><div class="fc-lab">Dernière visite</div><div class="fc-val fc-val-sm">${stats.derniereVisite ? DataManager.formatDate(stats.derniereVisite) : '—'}</div></div>
+          </div>
+          ${totalPresta > 0 ? `
+          <div class="fc-section">
+            <div class="fc-section-title">Répartition par type</div>
+            <div class="fc-propbar">${propSegments}</div>
+            <div class="fc-legend">${legend}</div>
+          </div>` : ''}
+          ${fideliteBlock}
+          ${paliersVus}
+        </div>
+        <div class="fc-panel" data-p="hi">${historyHTML}</div>
+        <div class="fc-panel" data-p="inf">${infosHTML}</div>
+        <div class="fc-panel" data-p="par">${generateParrainageSection(client)}</div>
       </div>
 
       <div class="fc-foot">
@@ -714,6 +729,15 @@ function showClientDetails(clientId) {
     alert('Détails client: ' + nomComplet);
   }
 }
+
+// v1.0.9.4 : bascule d'onglets dans la fiche client
+function switchFicheTab(btn, tab) {
+  const root = btn.closest('.fc');
+  if (!root) return;
+  root.querySelectorAll('.fc-tab').forEach(b => b.classList.toggle('active', b === btn));
+  root.querySelectorAll('.fc-panel').forEach(p => p.classList.toggle('active', p.dataset.p === tab));
+}
+window.switchFicheTab = switchFicheTab;
 
 // v1.0.9.0 : actions fidelite depuis la fiche client
 async function markFideliteFromFiche(clientId, palier, action) {

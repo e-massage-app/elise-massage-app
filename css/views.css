@@ -2274,3 +2274,72 @@
 .clients-table th.sortable.active { background: #c8975f; color: #fff; }
 /* Securite : la liste peut scroller horizontalement si trop etroite (2 colonnes) */
 #clients-fideles-list, #clients-list { overflow-x: auto; }
+
+/* ===================================================================== */
+/* v1.0.9.4 — Refonte annuaire (liste unique + onglets) & fiche a onglets */
+/* ===================================================================== */
+.annu-title { font-family: 'Playfair Display', serif; font-size: 1.5rem; color: var(--text-dark); }
+
+/* onglets d'entite */
+.annu-etabs { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid #f0e6d8; margin: 0.5rem 0 0; flex-wrap: wrap; }
+.annu-etab { background: none; border: none; padding: 10px 16px; font-size: 0.98rem; font-weight: 600; color: #9c9187; cursor: pointer; border-bottom: 2.5px solid transparent; display: inline-flex; align-items: center; gap: 7px; }
+.annu-etab:hover { color: var(--text-dark); }
+.annu-etab.active { color: var(--text-dark); border-bottom-color: var(--beige-dore); }
+.annu-etab-cnt { font-size: 0.75rem; background: #f0e8dd; color: #6b6259; border-radius: 20px; padding: 1px 8px; font-weight: 700; }
+.annu-etab.active .annu-etab-cnt { background: var(--beige-dore); color: #fff; }
+.annu-sortwrap { margin-left: auto; }
+.annu-fsel { padding: 8px 12px; border: 1.5px solid #ece1d5; border-radius: 10px; font-size: 0.88rem; font-weight: 500; color: var(--text-dark); background: #fff; cursor: pointer; font-family: inherit; }
+
+/* liste unique */
+.annu-host { margin-top: 1rem; overflow-x: auto; }
+.annu-table { width: 100%; border-collapse: separate; border-spacing: 0; background: #fff; border: 1px solid #ece1d5; border-radius: 14px; overflow: hidden; box-shadow: 0 6px 22px rgba(150,110,70,.08); }
+.annu-table thead th { background: var(--beige-dore); color: #fff; text-align: left; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.07em; font-weight: 700; padding: 12px 18px; white-space: nowrap; }
+.annu-table tbody td { padding: 15px 18px; border-bottom: 1px solid #f3ebe1; vertical-align: middle; }
+.annu-table tbody tr:last-child td { border-bottom: none; }
+.annu-table tbody tr:hover { background: #fdfaf6; }
+.annu-cname-cell { cursor: pointer; }
+.annu-cname { font-size: 1.05rem; font-weight: 600; color: var(--gold-deep, #a86f36); line-height: 1.2; }
+.annu-cname-cell:hover .annu-cname { text-decoration: underline; }
+.annu-csub { font-size: 0.8rem; color: #6b6259; margin-top: 3px; }
+.annu-presta-cell { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.annu-presta-total { font-size: 1.15rem; font-weight: 700; color: var(--text-dark); font-variant-numeric: tabular-nums; min-width: 16px; }
+.annu-tel { font-size: 0.95rem; font-weight: 600; color: var(--text-dark); text-decoration: none; display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+.annu-tel:hover { color: var(--gold-deep, #a86f36); text-decoration: underline; }
+.annu-tel .annu-tel-ic { color: var(--beige-dore); display: flex; }
+.annu-tel .annu-tel-ic svg { width: 15px; height: 15px; }
+.annu-tel.empty { color: #9c9187; font-weight: 400; }
+.annu-statut { display: inline-block; background: #eef4ff; color: #3b6bb0; border: 1px solid #d5e3fb; border-radius: 20px; padding: 3px 11px; font-size: 0.82rem; font-weight: 600; }
+.annu-muted { color: #6b6259; font-size: 0.9rem; }
+.annu-actions { text-align: right; white-space: nowrap; }
+.annu-actions .annu-icon-btn { margin-left: 5px; }
+.annu-empty { text-align: center; padding: 2.5rem 1rem; color: #9c9187; font-style: italic; background: #fff; border: 1px solid #ece1d5; border-radius: 14px; }
+
+/* tidy filtres du haut */
+#client-canal-filter, #client-groupe-filter { border: 1.5px solid #ece1d5 !important; border-radius: 10px !important; }
+.filter-group { display: flex; align-items: center; gap: 8px; }
+.filter-group label { font-size: 0.85rem; color: #6b6259; font-weight: 500; white-space: nowrap; }
+
+/* ===== FICHE : onglets ===== */
+.fc-tabs { display: flex; gap: 2px; padding: 0 4px; border-bottom: 1px solid #f3ebe1; margin: 4px 0 0; overflow-x: auto; }
+.fc-tab { background: none; border: none; padding: 12px 14px; font-size: 0.9rem; font-weight: 600; color: #9c9187; cursor: pointer; border-bottom: 2.5px solid transparent; white-space: nowrap; }
+.fc-tab:hover { color: var(--text-dark); }
+.fc-tab.active { color: var(--gold-deep, #a86f36); border-bottom-color: var(--beige-dore); }
+.fc-panel { display: none; }
+.fc-panel.active { display: block; }
+/* historique neutre */
+.fc-hist-sum { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: #9c9187; font-weight: 700; margin-bottom: 10px; }
+.fc-hrow { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid #f3ebe1; }
+.fc-hrow:last-child { border-bottom: none; }
+.fc-hd { font-size: 0.78rem; color: #9c9187; width: 92px; flex: none; font-weight: 600; }
+.fc-hdot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.fc-hn { flex: 1; font-size: 0.92rem; font-weight: 500; color: var(--text-dark); }
+.fc-hn small { color: #9c9187; font-weight: 400; }
+.fc-hp { font-weight: 700; font-size: 0.92rem; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--text-dark); }
+.fc-h-tip { color: #8a66a3; font-weight: 600; font-size: 0.78rem; }
+/* infos */
+.fc-irow { display: flex; justify-content: space-between; gap: 12px; padding: 11px 0; border-bottom: 1px solid #f3ebe1; font-size: 0.92rem; }
+.fc-irow:last-child { border-bottom: none; }
+.fc-k { color: #6b6259; font-weight: 500; }
+.fc-v { font-weight: 600; text-align: right; color: var(--text-dark); }
+.fc-empty-v { color: #b3a89c; font-weight: 400; font-style: italic; }
+.fc-empty { text-align: center; padding: 2rem 1rem; color: #9c9187; font-style: italic; }

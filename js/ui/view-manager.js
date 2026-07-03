@@ -1562,11 +1562,196 @@ function duplicatePrestation(prestationId) {
   });
 }
 
-// ===== ✅ NOUVEAU : CLIENTS DISPLAY AVEC COLLABORATEURS =====
+// ===================================================================
+// v1.0.9.4 : ANNUAIRE UNIFIE — liste unique + onglets d'entite
+// Une seule entree (updateClientsDisplay -> renderAnnuaire) : recherche,
+// filtres (ville/canal/prestation), tri et onglets passent tous par la.
+// ===================================================================
+let annuaireEntity = 'clients'; // 'clients' | 'prospects' | 'collaborateurs'
+
+function setAnnuaireEntity(entity) {
+  annuaireEntity = entity;
+  ['clients', 'prospects', 'collaborateurs'].forEach(e => {
+    const btn = document.getElementById('etab-' + e);
+    if (btn) btn.classList.toggle('active', e === entity);
+  });
+  // Les filtres canal/prestation/ville ne concernent que les clients
+  const clientOnly = document.getElementById('annu-client-filters');
+  if (clientOnly) clientOnly.style.display = (entity === 'clients') ? '' : 'none';
+  renderAnnuaire();
+}
+
+function _annuNorm(s) {
+  return (s || '').toString().normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+}
+
+function _svgPhone() {
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.1-8.7A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg>';
+}
+
+function _annuTelCell(tel) {
+  if (!tel) return '<span class="annu-tel empty">—</span>';
+  const clean = tel.replace(/[^0-9+]/g, '');
+  return `<a class="annu-tel" href="tel:${clean}" onclick="event.stopPropagation();"><span class="annu-tel-ic">${_svgPhone()}</span>${tel}</a>`;
+}
+
+function _annuCanalLabel(canalId) {
+  if (!canalId || canalId === 'non-renseigne') return '';
+  return (ClientServices.getCanalInfo ? (ClientServices.getCanalInfo(canalId)?.label || canalId) : canalId);
+}
+
+function _annuHead(cols) {
+  return `<thead><tr>${cols.map(c => `<th${c.right ? ' style="text-align:right;"' : ''}>${c.label}</th>`).join('')}</tr></thead>`;
+}
+
+function _annuClientRow(client, stats) {
+  const pills = _annuGroupePills(stats.parGroupe);
+  const fid = _annuFideliteChip(client.id);
+  const sub = [_annuCanalLabel(client.canalAcquisition), client.ville].filter(Boolean).join(' · ');
+  return `
+    <tr>
+      <td class="annu-cname-cell" onclick="ClientServices.showClientDetails('${client.id}')">
+        <div class="annu-cname">${client.prenom || ''} ${client.nom || ''}</div>
+        ${sub ? `<div class="annu-csub">${sub}</div>` : ''}
+      </td>
+      <td><div class="annu-presta-cell"><span class="annu-presta-total">${stats.totalMassages}</span>${pills ? `<div class="annu-pills">${pills}</div>` : ''}${fid}</div></td>
+      <td>${_annuTelCell(client.telephone)}</td>
+      <td class="annu-actions">
+        <button class="annu-icon-btn" title="Consulter" onclick="ClientServices.showClientDetails('${client.id}')">${_svgAction('eye')}</button>
+        <button class="annu-icon-btn" title="Éditer" onclick="FormManager.editClient('${client.id}')">${_svgAction('edit')}</button>
+        <button class="annu-icon-btn del" title="Supprimer" onclick="FormManager.deleteClient('${client.id}')">${_svgAction('trash')}</button>
+      </td>
+    </tr>`;
+}
+
+function _annuProspectRow(prospect) {
+  const sub = [_annuCanalLabel(prospect.canalAcquisition), prospect.ville].filter(Boolean).join(' · ');
+  const statut = prospect.statut || 'Prospect';
+  return `
+    <tr>
+      <td class="annu-cname-cell">
+        <div class="annu-cname" style="cursor:default;">${prospect.prenom || ''} ${prospect.nom || ''}</div>
+        ${sub ? `<div class="annu-csub">${sub}</div>` : ''}
+      </td>
+      <td><span class="annu-statut">${statut}</span></td>
+      <td>${_annuTelCell(prospect.telephone)}</td>
+      <td class="annu-actions">
+        <button class="annu-icon-btn" title="Convertir en client" onclick="FormManager.convertToClient('${prospect.id}')">${_svgAction('edit')}</button>
+        <button class="annu-icon-btn" title="Éditer" onclick="FormManager.editProspect('${prospect.id}')">${_svgAction('edit')}</button>
+        <button class="annu-icon-btn del" title="Supprimer" onclick="FormManager.deleteProspect('${prospect.id}')">${_svgAction('trash')}</button>
+      </td>
+    </tr>`;
+}
+
+function _annuCollabRow(collab) {
+  const sub = [collab.entreprise, collab.specialites].filter(Boolean).join(' · ');
+  return `
+    <tr>
+      <td class="annu-cname-cell">
+        <div class="annu-cname" style="cursor:default;">${collab.prenom || ''} ${collab.nom || ''}</div>
+        ${sub ? `<div class="annu-csub">${sub}</div>` : ''}
+      </td>
+      <td><span class="annu-muted">${collab.email || '—'}</span></td>
+      <td>${_annuTelCell(collab.telephone)}</td>
+      <td class="annu-actions">
+        <button class="annu-icon-btn" title="Éditer" onclick="FormManager.editCollaborateur('${collab.id}')">${_svgAction('edit')}</button>
+        <button class="annu-icon-btn del" title="Supprimer" onclick="FormManager.deleteCollaborateur('${collab.id}')">${_svgAction('trash')}</button>
+      </td>
+    </tr>`;
+}
+
+function _annuEmpty(msg) {
+  return `<div class="annu-empty">${msg}</div>`;
+}
+
+function _updateEntityCounts(app) {
+  const set = (id, n) => { const el = document.getElementById(id); if (el) el.textContent = n; };
+  set('etab-cnt-clients', (app.clients || []).length);
+  set('etab-cnt-prospects', (app.prospects || []).length);
+  set('etab-cnt-collaborateurs', (app.collaborateurs || []).length);
+}
+
+function renderAnnuaire() {
+  const host = document.getElementById('annu-list-host');
+  if (!host) return;
+  loadAnnuaireViewPrefs();
+  populateGroupeFilter();
+  const app = DataManager.getAppData();
+  _updateEntityCounts(app);
+
+  const q = (document.getElementById('client-search')?.value || '').trim();
+  const nq = _annuNorm(q);
+  const canalFilter = document.getElementById('client-canal-filter')?.value || '';
+  const resultCount = document.getElementById('search-results-count');
+
+  let html = '';
+  let count = 0;
+
+  if (annuaireEntity === 'clients') {
+    const base = applyVilleFilter(app.clients || []);
+    const rows = [];
+    base.forEach(client => {
+      const prestationsClient = (app.prestations || []).filter(p => p.clientId === client.id);
+      const rdvAnnules = (app.rdv || []).filter(r => r.clientId === client.id && r.statut === 'annulé').length;
+      const totalMassages = prestationsClient.length;
+      const revenusTotal = prestationsClient.reduce((s, p) => s + (p.prix || 0), 0);
+      const parGroupe = {};
+      prestationsClient.forEach(p => {
+        const g = (DataManager.getGroupeForSoinId ? DataManager.getGroupeForSoinId(p.soinId || p.type) : null) || 'Autre';
+        parGroupe[g] = (parGroupe[g] || 0) + 1;
+      });
+      if (!_matchGroupeFilter(parGroupe)) return;
+      if (canalFilter && client.canalAcquisition !== canalFilter) return;
+      const dernierMassage = prestationsClient.length > 0
+        ? prestationsClient.slice().sort((a, b) => new Date(b.date) - new Date(a.date))[0].date : null;
+      // Recherche
+      if (nq) {
+        const hay = _annuNorm([client.prenom, client.nom, client.societe, client.email, client.ville, (client.tags || []).join(' ')].join(' '));
+        const tel = (client.telephone || '').replace(/[^0-9+]/g, '');
+        if (!hay.includes(nq) && !(nq.replace(/[^0-9+]/g, '') && tel.includes(nq.replace(/[^0-9+]/g, '')))) return;
+      }
+      rows.push({ client, stats: { totalMassages, revenusTotal, rdvAnnules, dernierMassage, parGroupe } });
+    });
+    sortClients(rows);
+    count = rows.length;
+    html = rows.length === 0
+      ? _annuEmpty(nq ? 'Aucun client ne correspond à la recherche' : 'Aucun client')
+      : `<table class="annu-table">${_annuHead([{ label: 'Client' }, { label: 'Prestations' }, { label: 'Téléphone' }, { label: 'Actions', right: true }])}<tbody>${rows.map(r => _annuClientRow(r.client, r.stats)).join('')}</tbody></table>`;
+  } else if (annuaireEntity === 'prospects') {
+    let list = (app.prospects || []).slice();
+    if (nq) list = list.filter(p => {
+      const hay = _annuNorm([p.prenom, p.nom, p.societe, p.email, p.ville].join(' '));
+      const tel = (p.telephone || '').replace(/[^0-9+]/g, '');
+      return hay.includes(nq) || (nq.replace(/[^0-9+]/g, '') && tel.includes(nq.replace(/[^0-9+]/g, '')));
+    });
+    list.sort((a, b) => `${a.prenom} ${a.nom}`.localeCompare(`${b.prenom} ${b.nom}`));
+    count = list.length;
+    html = list.length === 0
+      ? _annuEmpty(nq ? 'Aucun prospect ne correspond' : 'Aucun prospect enregistré')
+      : `<table class="annu-table">${_annuHead([{ label: 'Prospect' }, { label: 'Statut' }, { label: 'Téléphone' }, { label: 'Actions', right: true }])}<tbody>${list.map(_annuProspectRow).join('')}</tbody></table>`;
+  } else {
+    let list = (app.collaborateurs || []).slice();
+    if (nq) list = list.filter(c => {
+      const hay = _annuNorm([c.prenom, c.nom, c.entreprise, c.specialites, c.email].join(' '));
+      const tel = (c.telephone || '').replace(/[^0-9+]/g, '');
+      return hay.includes(nq) || (nq.replace(/[^0-9+]/g, '') && tel.includes(nq.replace(/[^0-9+]/g, '')));
+    });
+    list.sort((a, b) => `${a.prenom} ${a.nom || ''}`.localeCompare(`${b.prenom} ${b.nom || ''}`));
+    count = list.length;
+    html = list.length === 0
+      ? _annuEmpty(nq ? 'Aucun collaborateur ne correspond' : 'Aucun collaborateur enregistré')
+      : `<table class="annu-table">${_annuHead([{ label: 'Collaborateur' }, { label: 'Email' }, { label: 'Téléphone' }, { label: 'Actions', right: true }])}<tbody>${list.map(_annuCollabRow).join('')}</tbody></table>`;
+  }
+
+  host.innerHTML = html;
+  if (resultCount) {
+    resultCount.textContent = nq ? `${count} résultat${count > 1 ? 's' : ''}` : '';
+  }
+}
+
+// Entree unique (appelee partout apres mutation)
 function updateClientsDisplay() {
-  updateClientsList();
-  updateProspectsList();
-  updateCollaborateursList(); // ✅ NOUVEAU
+  renderAnnuaire();
 }
 
 function updateClientsList() {
@@ -3176,6 +3361,9 @@ window.ViewManager = {
   applyVilleFilter,
   // v1.0.9.2 : filtre par groupe de prestation
   setAnnuaireGroupeFilter,
+  // v1.0.9.4 : annuaire unifie (onglets entite)
+  setAnnuaireEntity,
+  renderAnnuaire,
 
   // Bons Cadeaux
   updateBonsCadeauxDisplay,
