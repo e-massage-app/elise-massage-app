@@ -3600,7 +3600,7 @@ async function testAccessibleCustomers(accessToken) {
     console.log('📋 Test accès clients Google Ads...');
     
     // ✅ URL CORRECTE avec : au lieu de /
-    const response = await fetch('https://googleads.googleapis.com/v20/customers:listAccessibleCustomers', {
+    const response = await fetch('https://googleads.googleapis.com/v21/customers:listAccessibleCustomers', {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -3699,8 +3699,8 @@ async function testCampaignData(accessToken, customerId) {
       LIMIT 5
     `;
     
-    // ✅ URL correcte v20
-    const response = await fetch(`https://googleads.googleapis.com/v20/customers/${customerId}/googleAds:searchStream`, {
+    // ✅ URL correcte v21 (v20 deprecated par Google en 07/2026)
+    const response = await fetch(`https://googleads.googleapis.com/v21/customers/${customerId}/googleAds:searchStream`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -4035,7 +4035,7 @@ async function getCampaignsForCustomer(accessToken, customerId) {
       LIMIT 50
     `;
     
-    const response = await fetch(`https://googleads.googleapis.com/v20/customers/${customerId}/googleAds:searchStream`, {
+    const response = await fetch(`https://googleads.googleapis.com/v21/customers/${customerId}/googleAds:searchStream`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${accessToken}`,

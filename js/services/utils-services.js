@@ -2802,7 +2802,7 @@ async function getCampaignsForCustomerWithPeriod(accessToken, customerId, period
     
     // Requête GAQL prête
     
-    const response = await fetch(`https://googleads.googleapis.com/v20/customers/${customerId}/googleAds:searchStream`, {
+    const response = await fetch(`https://googleads.googleapis.com/v21/customers/${customerId}/googleAds:searchStream`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
