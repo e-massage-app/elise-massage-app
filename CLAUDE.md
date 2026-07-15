@@ -6,12 +6,25 @@ PWA de gestion pour Elise Massage, deployee sur GitHub Pages avec Supabase comme
 ## Deploiement
 
 ### Push vers GitHub
-**IMPORTANT** : Le git push ne fonctionne PAS en ligne de commande car le credential manager est configure pour le compte Tiimizy.
+Le push en ligne de commande **fonctionne** depuis le 15/07/2026 (`git push origin main` via Claude).
 
-**Procedure obligatoire :**
-1. Faire le commit normalement via Claude (`git add` + `git commit`)
-2. **Rappeler a l'utilisateur** : "Ouvre GitHub Desktop, selectionne le repo `elise-massage-app`, et clique sur **Push origin** pour publier les changements."
-3. Attendre la confirmation de l'utilisateur avant de continuer
+**Contexte multi-comptes GitHub (important) :**
+L'utilisateur a plusieurs comptes GitHub. Le Credential Manager Windows est cale sur
+`neaujordan` (= Tiimizy + Installizy), qui n'a **aucun acces** a ce repo -> tout remote
+HTTPS renvoie un 403. Le repo appartient au compte **`e-massage-app`** (gamezoneyt@gmail.com).
+
+**Solution en place :** cle SSH dediee + alias, qui contourne le Credential Manager.
+- Cle : `~/.ssh/id_ed25519_emassage` (enregistree sur le compte `e-massage-app`)
+- Alias dans `~/.ssh/config` : `Host github.com-emassage` -> `IdentityFile ~/.ssh/id_ed25519_emassage` + `IdentitiesOnly yes`
+- Remote : `git@github.com-emassage:e-massage-app/elise-massage-app.git`
+- Verification : `ssh -T git@github.com-emassage` doit repondre `Hi e-massage-app!`
+
+**NE PAS TOUCHER** au `Host github.com` standard, au Credential Manager, ni a la cle
+`~/.ssh/id_ed25519` : les projets pros de l'utilisateur (Tiimizy, Installizy, Graphidesk,
+GreenFork) en dependent. L'alias `github.com-emassage` est isole et ne concerne que ce repo.
+
+**Procedure :** commit + `git push origin main` via Claude, puis rappeler a l'utilisateur
+de faire **Ctrl+Shift+R** (le cache HTTP du navigateur est distinct du cache du service worker).
 
 ### GitHub Pages
 - Repo : `e-massage-app/elise-massage-app` (prive)
