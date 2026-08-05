@@ -92,14 +92,34 @@ if ('serviceWorker' in navigator) {
 }
 
 // ===== INITIALISATION =====
+// v1.0.10.1 : revele l'app et retire le loader.
+// DOIT etre appelee sur TOUS les chemins de sortie, y compris les erreurs :
+// avant, un echec de chargement laissait un ecran blanc definitif.
+function revealApp() {
+  document.body.classList.add('loaded');
+  const loader = document.getElementById('app-loader');
+  if (loader) {
+    loader.classList.add('hidden');
+    setTimeout(() => loader.remove(), 400);
+  }
+}
+
+function setLoaderText(txt) {
+  const el = document.getElementById('app-loader-text');
+  if (el) el.textContent = txt;
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('Initialisation de l\'application PWA...');
 
   // Verifier la connexion
   if (!navigator.onLine) {
+    revealApp();
     showOfflineOverlay();
     return;
   }
+
+  setLoaderText('Connexion…');
 
   // Verifier l'authentification
   try {
@@ -116,6 +136,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   try {
     // Chargement des donnees depuis Supabase
+    setLoaderText('Chargement des données…');
     const dataLoaded = await DataManager.loadData();
     if (dataLoaded) {
       console.log('Donnees chargees avec succes');
@@ -135,10 +156,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.warn('Migration fidelite : echec non bloquant', err);
       }
 
-      // Synchronisation Google Ads au demarrage (silencieuse)
-      await syncGoogleAdsCostsOnStartup();
+      // v1.0.10.1 : Google Ads en TACHE DE FOND (plus de await).
+      // Cet appel (refresh OAuth + requete API) prenait plusieurs secondes une
+      // fois par jour, pendant lesquelles l'ecran restait blanc. Il rafraichit
+      // desormais les analytics quand il aboutit, sans retarder l'affichage.
+      syncGoogleAdsCostsOnStartup()
+        .then(() => {
+          if (typeof UtilsServices?.updateAnalytics === 'function') UtilsServices.updateAnalytics();
+        })
+        .catch(err => console.warn('Sync Google Ads (fond) :', err));
 
       // Initialiser le dashboard par defaut
+      setLoaderText('Préparation…');
       ViewManager.updateDashboard();
 
       // Initialiser les analytics
@@ -160,16 +189,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Setup des formulaires
       setupFormListeners();
 
-      setTimeout(() => {
-        document.body.style.opacity = '1';
-        document.body.classList.add('loaded');
-      }, 200);
+      revealApp();
 
     } else {
       console.error('Erreur lors du chargement des donnees');
+      revealApp(); // sinon : ecran blanc definitif
+      alert('Impossible de charger les données. Vérifie ta connexion et recharge la page.');
     }
   } catch (error) {
     console.error('Erreur d\'initialisation:', error);
+    revealApp(); // sinon : ecran blanc definitif
+    alert('Erreur au démarrage.\n\nDétail : ' + (error && error.message ? error.message : error));
   }
 });
 

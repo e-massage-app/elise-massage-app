@@ -3374,12 +3374,16 @@ function _renderRelanceList() {
   }
 
   host.innerHTML = `
+    <div class="relance-scope">
+      Le suivi porte sur <strong>toutes les prestations ${relanceGroupeActif}</strong> :
+      n'importe laquelle relance le compteur. Les zones ci-dessous sont un simple mémo.
+    </div>
     <div class="table-container annu-tablewrap">
       <table class="clients-table annu-table">
         <thead>
           <tr>
             <th>Cliente</th>
-            <th>Prestations suivies</th>
+            <th>Zones / mémo</th>
             <th>Dernier RDV</th>
             <th>Relance prévue</th>
             <th>Statut</th>
@@ -3397,7 +3401,8 @@ function _relanceRow({ r, statut, date }) {
   const nom = `${client.prenom || ''} ${client.nom || ''}`.trim();
   const dernier = DataManager.getDernierRdvRelance(r);
   const notes = (client.notes || '').replace(/\s+/g, ' ').trim();
-  const notesCourt = notes.length > 70 ? notes.slice(0, 70) + '…' : notes;
+  const tronque = notes.length > 70;
+  const notesCourt = tronque ? notes.slice(0, 70) + '…' : notes;
   const esc = s => String(s || '').replace(/"/g, '&quot;');
 
   const dateTxt = date
@@ -3419,7 +3424,10 @@ function _relanceRow({ r, statut, date }) {
     <tr>
       <td class="annu-cname-cell" onclick="ClientServices.showClientDetails('${r.clientId}')">
         <div class="annu-cname">${nom}</div>
-        ${notesCourt ? `<div class="annu-csub" title="${esc(notes)}">${notesCourt}</div>` : ''}
+        ${notesCourt ? `<div class="annu-csub">${notesCourt}${tronque
+          ? ` <button type="button" class="relance-note-more" title="Voir la note complète"
+                 onclick="event.stopPropagation();ViewManager.showRelanceNotesModal('${r.clientId}')">voir tout</button>`
+          : ''}</div>` : ''}
       </td>
       <td><span class="relance-precisions">${r.precisions || '<span class="annu-tel empty">—</span>'}</span>
           <div class="relance-interval">tous les ${r.intervalleJours} j</div></td>
@@ -3481,7 +3489,7 @@ function showAddRelanceModal() {
       </select>
     </div>
     <div class="form-group">
-      <label>Prestations suivies <span style="font-weight:normal;color:var(--text-light);">(pré-rempli, modifiable)</span></label>
+      <label>Zones / mémo <span style="font-weight:normal;color:var(--text-light);">(pré-rempli, modifiable — n'influence pas le calcul)</span></label>
       <input type="text" id="relance-precisions" placeholder="Ex : Maillot intégral + aisselles">
     </div>
     <div class="form-group">
@@ -3535,6 +3543,26 @@ async function saveNewRelance(btn) {
   }, { loadingText: 'Ajout…' });
 }
 
+// ----- Modal : note complete de la cliente -----
+function showRelanceNotesModal(clientId) {
+  const client = DataManager.getClientById(clientId);
+  if (!client) return;
+  const nom = `${client.prenom || ''} ${client.nom || ''}`.trim();
+  const notes = (client.notes || '').trim();
+  const escHtml = s => String(s || '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  const html = `
+    <h3 style="margin:0 0 0.25rem 0;">${escHtml(nom)}</h3>
+    <p style="margin:0 0 1rem 0;color:var(--text-light);font-size:0.88rem;">Notes de la fiche cliente</p>
+    <div class="relance-notes-full">${notes ? escHtml(notes).replace(/\n/g, '<br>') : '<em>Aucune note</em>'}</div>
+    <div style="display:flex;gap:0.5rem;margin-top:1rem;">
+      <button class="btn-primary" onclick="closeModal();ClientServices.showClientDetails('${clientId}')">Ouvrir la fiche</button>
+      <button class="btn-secondary" onclick="closeModal()">Fermer</button>
+    </div>`;
+  showModal('relance-notes-modal', html);
+}
+
 // ----- Modal : editer un suivi -----
 function showEditRelanceModal(id) {
   const r = DataManager.getRelanceById(id);
@@ -3548,7 +3576,7 @@ function showEditRelanceModal(id) {
     <h3 style="margin:0 0 0.25rem 0;">${nom}</h3>
     <p style="margin:0 0 1rem 0;color:var(--text-light);font-size:0.9rem;">Suivi ${r.groupe}</p>
     <div class="form-group">
-      <label>Prestations suivies</label>
+      <label>Zones / mémo</label>
       <input type="text" id="relance-e-precisions" value="${esc(r.precisions)}">
     </div>
     <div class="form-group">
@@ -3704,6 +3732,7 @@ window.ViewManager = {
   relanceMarquer,
   relanceAnnuler,
   relanceRetirer,
+  showRelanceNotesModal,
   showRelanceSmsModal,
   copyRelanceSms,
   openRelanceSms,

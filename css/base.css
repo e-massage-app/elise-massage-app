@@ -27,13 +27,18 @@ body {
     background: #F5F0E8 !important; /* ✅ FORCER avec !important */
     color: var(--text-dark);
     min-height: 100vh;
-    opacity: 0; /* ✅ NOUVEAU : Invisible au début */
-    transition: opacity 0.3s ease; /* ✅ NOUVEAU : Transition douce */
 }
+
+/* v1.0.10.1 : l'opacite porte desormais sur .app-container et non sur <body>.
+   Sinon le loader (enfant de body) heriterait de opacity:0 et resterait invisible. */
+.app-container {
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+body.loaded .app-container { opacity: 1; }
 
 body.loaded {
     background: linear-gradient(135deg, var(--beige-clair) 0%, var(--rose-poudre) 100%) !important;
-    opacity: 1; /* ✅ NOUVEAU : Visible quand prêt */
 }
 
 h1, h2, h3, h4 {
@@ -193,4 +198,60 @@ h1, h2, h3, h4 {
   .tab-content {
     padding: 1rem;
   }
+}
+/* ==========================================================================
+   v1.0.10.1 — LOADER DE DEMARRAGE
+   Affiche immediatement (il est hors de .app-container, donc non masque).
+   Retire par revealApp() dans app.js, sur TOUS les chemins (succes ET erreur).
+   ========================================================================== */
+#app-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  background: linear-gradient(135deg, #F5F0E8 0%, #f3e3e0 100%);
+  transition: opacity 0.35s ease, visibility 0.35s ease;
+}
+#app-loader.hidden { opacity: 0; visibility: hidden; }
+
+.app-loader-logo {
+  width: 130px;
+  max-width: 45vw;
+  animation: appLoaderBreathe 2.4s ease-in-out infinite;
+}
+
+/* Respiration douce : evoque la detente plutot qu'un spinner technique */
+@keyframes appLoaderBreathe {
+  0%, 100% { transform: scale(1);    opacity: 0.85; }
+  50%      { transform: scale(1.06); opacity: 1; }
+}
+
+.app-loader-dots { display: flex; gap: 8px; }
+.app-loader-dots span {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: #d4a574;
+  animation: appLoaderDot 1.4s ease-in-out infinite;
+}
+.app-loader-dots span:nth-child(2) { animation-delay: 0.2s; }
+.app-loader-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes appLoaderDot {
+  0%, 80%, 100% { transform: translateY(0);    opacity: 0.35; }
+  40%           { transform: translateY(-7px); opacity: 1; }
+}
+
+.app-loader-text {
+  font-size: 0.9rem;
+  color: #9c8f80;
+  letter-spacing: 0.04em;
+  min-height: 1.2em;
+}
+
+/* Respect des preferences systeme : pas d'animation si l'utilisateur n'en veut pas */
+@media (prefers-reduced-motion: reduce) {
+  .app-loader-logo, .app-loader-dots span { animation: none; }
 }

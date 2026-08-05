@@ -30,6 +30,15 @@
     <script src="https://cdn.jsdelivr.net/npm/date-fns@2.30.0/index.min.js"></script>
 </head>
 <body>
+    <!-- v1.0.10.1 : loader de demarrage. Hors de .app-container pour rester
+         visible pendant que l'app se charge. Retire par revealApp() (app.js). -->
+    <div id="app-loader">
+        <img src="assets/logo.png" alt="Elise Massage & Bien-etre" class="app-loader-logo"
+             onerror="this.style.display='none';">
+        <div class="app-loader-dots"><span></span><span></span><span></span></div>
+        <div class="app-loader-text" id="app-loader-text">Chargement…</div>
+    </div>
+
     <div class="app-container">
         <!-- Header -->
         <header class="app-header">
@@ -62,7 +71,7 @@
         <div id="mobile-menu" class="mobile-menu">
             <div class="mobile-menu-header">
                 <span>Menu</span>
-                <div class="mobile-menu-version">v1.0.10.0</div>
+                <div class="mobile-menu-version">v1.0.10.1</div>
                 <button class="mobile-menu-close" onclick="closeMobileMenu()">&#10005;</button>
             </div>
             <div class="mobile-menu-nav">
@@ -623,7 +632,7 @@
 
     <!-- Footer version -->
     <footer class="app-footer">
-        <span>Elise Massage &mdash; v1.0.10.0</span>
+        <span>Elise Massage &mdash; v1.0.10.1</span>
     </footer>
 
     <!-- Modal Overlay -->

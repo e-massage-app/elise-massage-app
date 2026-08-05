@@ -2453,3 +2453,21 @@
 .fc-rel-g { font-weight: 700; color: #3a352f; min-width: 90px; }
 .fc-rel-s { font-weight: 700; white-space: nowrap; }
 .fc-rel-d { font-size: 0.85rem; color: #6b6259; }
+
+/* Bandeau rappelant le perimetre reel du suivi (groupe, pas prestation) */
+.relance-scope {
+  margin: 0 0 0.85rem 0; padding: 0.6rem 0.9rem;
+  background: #faf6f1; border: 1px solid #ece1d5; border-left: 3px solid #d4a574;
+  border-radius: 8px; font-size: 0.87rem; color: #6b6259;
+}
+.relance-note-more {
+  background: none; border: none; padding: 0; margin-left: 4px;
+  color: #b07d43; font-size: 0.78rem; font-weight: 700;
+  text-decoration: underline; cursor: pointer;
+}
+.relance-note-more:hover { color: #8a5f31; }
+.relance-notes-full {
+  padding: 0.9rem; background: #faf6f1; border: 1px solid #ece1d5;
+  border-radius: 10px; color: #3a352f; line-height: 1.55; white-space: pre-wrap;
+  max-height: 45vh; overflow-y: auto;
+}
