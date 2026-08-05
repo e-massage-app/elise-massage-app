@@ -12,6 +12,7 @@ let appData = {
   rdv: [],
   depenses: [],
   bonsCadeaux: [],
+  relances: [],
   parametres: {
     tarifsMassage: {
       "Massage sur mesure": { 30: 50, 45: 60, 60: 80, 90: 110 },
@@ -354,6 +355,7 @@ async function loadData() {
       prestationsRes,
       depensesRes,
       bonsCadeauxRes,
+      relancesRes,
       parametresRes
     ] = await Promise.all([
       supabaseClient.from('clients').select('*').eq('user_id', userId),
@@ -363,10 +365,14 @@ async function loadData() {
       supabaseClient.from('prestations').select('*').eq('user_id', userId),
       supabaseClient.from('depenses').select('*').eq('user_id', userId),
       supabaseClient.from('bons_cadeaux').select('*').eq('user_id', userId),
+      supabaseClient.from('relances').select('*').eq('user_id', userId),
       supabaseClient.from('parametres').select('*').eq('user_id', userId)
     ]);
 
     // Verifier les erreurs
+    // NB : relancesRes est volontairement exclu du bloc bloquant. Si la table
+    // n'existe pas encore (migration-relances.sql pas joue), l'app doit
+    // continuer a fonctionner sans l'onglet Relances plutot que de tout bloquer.
     const errors = [clientsRes, prospectsRes, collaborateursRes, rdvRes, prestationsRes, depensesRes, bonsCadeauxRes, parametresRes]
       .filter(r => r.error);
     if (errors.length > 0) {
@@ -382,6 +388,13 @@ async function loadData() {
     appData.prestations = (prestationsRes.data || []).map(mapPrestationFromDb);
     appData.depenses = (depensesRes.data || []).map(mapDepenseFromDb);
     appData.bonsCadeaux = (bonsCadeauxRes.data || []).map(mapBonCadeauFromDb);
+    // v1.0.10.0 : relances (degradation douce si la table n'existe pas encore)
+    if (relancesRes.error) {
+      console.warn('Table relances indisponible (migration non jouee ?) :', relancesRes.error.message);
+      appData.relances = [];
+    } else {
+      appData.relances = (relancesRes.data || []).map(mapRelanceFromDb);
+    }
 
     // Reconstituer les parametres depuis les lignes cle/valeur
     const parametresDefaults = appData.parametres; // Garder les defaults
@@ -415,7 +428,8 @@ async function loadData() {
       rdv: appData.rdv.length,
       prestations: appData.prestations.length,
       depenses: appData.depenses.length,
-      bonsCadeaux: appData.bonsCadeaux.length
+      bonsCadeaux: appData.bonsCadeaux.length,
+      relances: appData.relances.length
     });
 
     return true;
@@ -1449,6 +1463,241 @@ function getJoursInstitut() {
   return appData.parametres.joursInstitut;
 }
 
+// ============================================================================
+// v1.0.10.0 : RELANCES
+// Suivi OPT-IN : Elise choisit QUI relancer (au feeling), l'app calcule QUAND.
+// Une ligne = un client x un groupe (ex: Nesi x Epilation).
+// Remplace le fichier Suivi-Epilation-Elise.xlsx.
+// ============================================================================
+
+const RELANCE_SEUIL_BIENTOT = 5;       // jours avant echeance -> statut "bientot" (seuil repris de son fichier)
+const RELANCE_INTERVALLE_DEFAUT = 28;  // jours
+
+function mapRelanceFromDb(row) {
+  return {
+    id: row.id,
+    clientId: row.client_id,
+    groupe: row.groupe,
+    precisions: row.precisions || '',
+    intervalleJours: parseInt(row.intervalle_jours) || RELANCE_INTERVALLE_DEFAUT,
+    dernierRdvOverride: row.dernier_rdv_override || '',
+    dateRelanceOverride: row.date_relance_override || '',
+    relancee: row.relancee === true,
+    relanceeLe: row.relancee_le || '',
+    createdAt: row.created_at
+  };
+}
+
+function mapRelanceToDb(r) {
+  return {
+    id: r.id,
+    client_id: r.clientId,
+    groupe: r.groupe,
+    precisions: r.precisions || null,
+    intervalle_jours: parseInt(r.intervalleJours) || RELANCE_INTERVALLE_DEFAUT,
+    dernier_rdv_override: r.dernierRdvOverride || null,
+    date_relance_override: r.dateRelanceOverride || null,
+    relancee: r.relancee === true,
+    relancee_le: r.relanceeLe || null,
+    updated_at: new Date().toISOString()
+  };
+}
+
+// ----- Helpers dates (format TEXT 'YYYY-MM-DD', convention de l'app) -----
+function _relanceToday() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function _relanceAddDays(dateStr, days) {
+  if (!dateStr) return '';
+  // T12:00 : evite les bascules de jour liees au fuseau / heure d'ete
+  const d = new Date(dateStr + 'T12:00:00');
+  if (isNaN(d.getTime())) return '';
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// ----- Lecture -----
+function getAllRelances() { return appData.relances || []; }
+function getRelanceById(id) { return getAllRelances().find(r => r.id === id) || null; }
+function getRelancesForGroupe(groupe) { return getAllRelances().filter(r => r.groupe === groupe); }
+function getRelanceForClient(clientId, groupe) {
+  return getAllRelances().find(r => r.clientId === clientId && r.groupe === groupe) || null;
+}
+function getRelancesForClient(clientId) {
+  return getAllRelances().filter(r => r.clientId === clientId);
+}
+
+// ----- Calculs -----
+// Derniere prestation REALISEE du groupe. C'est le filtrage par groupe qui compte :
+// sans lui, un massage ferait derailler la relance epilation (cas verifie en base).
+function getDernierRdvGroupe(clientId, groupe) {
+  const dates = (appData.prestations || [])
+    .filter(p => p.clientId === clientId && p.date)
+    .filter(p => getGroupeForSoinId(p.soinId || p.type) === groupe)
+    .map(p => p.date)
+    .sort();
+  return dates.length ? dates[dates.length - 1] : '';
+}
+
+// RDV futur deja pose sur ce groupe -> inutile de relancer.
+function getProchainRdvGroupe(clientId, groupe) {
+  const today = _relanceToday();
+  const dates = (appData.rdv || [])
+    .filter(r => r.clientId === clientId && r.date && r.date >= today)
+    .filter(r => !r.transformeEnPrestation)
+    .filter(r => getGroupeForSoinId(r.soinId || r.type) === groupe)
+    .map(r => r.date)
+    .sort();
+  return dates.length ? dates[0] : '';
+}
+
+function getDernierRdvRelance(relance) {
+  if (!relance) return '';
+  return relance.dernierRdvOverride || getDernierRdvGroupe(relance.clientId, relance.groupe);
+}
+
+function getDateRelance(relance) {
+  if (!relance) return '';
+  if (relance.dateRelanceOverride) return relance.dateRelanceOverride;
+  const dernier = getDernierRdvRelance(relance);
+  if (!dernier) return '';
+  return _relanceAddDays(dernier, relance.intervalleJours || RELANCE_INTERVALLE_DEFAUT);
+}
+
+// Statuts : les 4 de son fichier Excel + "RDV prevu" (ajout : evite de relancer
+// une cliente qui a deja repris rendez-vous).
+function getStatutRelance(relance) {
+  const prochain = getProchainRdvGroupe(relance.clientId, relance.groupe);
+  if (prochain) {
+    return { cle: 'rdvprevu', label: 'RDV prévu', icone: '📅', couleur: '#5b8bb5', date: prochain };
+  }
+  if (relance.relancee) {
+    return { cle: 'relancee', label: 'Relancée', icone: '✅', couleur: '#4a9d6e' };
+  }
+  const date = getDateRelance(relance);
+  if (!date) {
+    return { cle: 'inconnu', label: 'Date à définir', icone: '⚪', couleur: '#9a938a' };
+  }
+  const today = _relanceToday();
+  if (date < today) return { cle: 'depassee', label: 'Dépassée', icone: '🔴', couleur: '#c0504d' };
+  if (date <= _relanceAddDays(today, RELANCE_SEUIL_BIENTOT)) {
+    return { cle: 'bientot', label: 'Bientôt', icone: '🟠', couleur: '#e08a3c' };
+  }
+  return { cle: 'ajour', label: 'À jour', icone: '🟢', couleur: '#4a9d6e' };
+}
+
+// Nb de relances demandant une action (pour le badge de l'onglet)
+function getNbRelancesAAgir() {
+  return getAllRelances().filter(r => {
+    const s = getStatutRelance(r);
+    return s.cle === 'depassee' || s.cle === 'bientot';
+  }).length;
+}
+
+// ----- Ecriture (DB-first, rollback du cache si echec) -----
+async function addRelance(clientId, groupe, options = {}) {
+  if (!clientId || !groupe) throw new Error('Client et groupe requis');
+  const existante = getRelanceForClient(clientId, groupe);
+  if (existante) return existante; // idempotent : deja suivie sur ce groupe
+
+  const relance = {
+    id: generateId(),
+    clientId,
+    groupe,
+    precisions: options.precisions || '',
+    intervalleJours: parseInt(options.intervalleJours) || RELANCE_INTERVALLE_DEFAUT,
+    dernierRdvOverride: options.dernierRdvOverride || '',
+    dateRelanceOverride: options.dateRelanceOverride || '',
+    relancee: false,
+    relanceeLe: ''
+  };
+  await insertEntity('relances', relance, mapRelanceToDb);
+  if (!appData.relances) appData.relances = [];
+  appData.relances.push(relance);
+  return relance;
+}
+
+async function updateRelance(id, patch) {
+  const relance = getRelanceById(id);
+  if (!relance) throw new Error('Relance introuvable');
+  const avant = { ...relance };
+  Object.assign(relance, patch);
+  try {
+    await updateEntity('relances', id, relance, mapRelanceToDb);
+  } catch (e) {
+    Object.assign(relance, avant); // rollback cache
+    throw e;
+  }
+  return relance;
+}
+
+async function deleteRelanceById(id) {
+  const relance = getRelanceById(id);
+  if (!relance) return;
+  await deleteEntity('relances', id);           // DB d'abord
+  appData.relances = getAllRelances().filter(r => r.id !== id);
+}
+
+async function marquerRelancee(id) {
+  return updateRelance(id, { relancee: true, relanceeLe: _relanceToday() });
+}
+
+async function annulerRelancee(id) {
+  return updateRelance(id, { relancee: false, relanceeLe: '' });
+}
+
+// Hook appele apres creation d'un RDV / d'une prestation.
+// Le nouveau RDV redemarre le cycle : on repasse "non relancee" et on purge les
+// surcharges de DATE (l'intervalle choisi par Elise, lui, est conserve).
+async function syncRelanceApresRdv(clientId, soinIdOrType) {
+  try {
+    const groupe = getGroupeForSoinId(soinIdOrType);
+    if (!groupe) return;
+    const relance = getRelanceForClient(clientId, groupe);
+    if (!relance) return;
+    if (!relance.relancee && !relance.dernierRdvOverride && !relance.dateRelanceOverride) return;
+    await updateRelance(relance.id, {
+      relancee: false,
+      relanceeLe: '',
+      dernierRdvOverride: '',
+      dateRelanceOverride: ''
+    });
+  } catch (e) {
+    console.warn('syncRelanceApresRdv:', e);
+  }
+}
+
+// ----- Modeles SMS (par groupe, stockes dans parametres) -----
+const RELANCE_SMS_DEFAUT = {
+  'Épilation': "Coucou {prenom} ! J'espère que tu vas bien 🌸 Ta dernière épilation date du {dernierRdv}, c'est le moment idéal pour reprendre rendez-vous si tu le souhaites. À très vite ! Elise",
+  'Massages': "Bonjour {prenom}, j'espère que vous allez bien 🌿 Cela fait un moment depuis votre dernier massage ({dernierRdv}). N'hésitez pas si vous souhaitez reprendre rendez-vous. Belle journée ! Elise",
+  'HeadSpa': "Bonjour {prenom} ! Votre dernier HeadSpa remonte au {dernierRdv} ✨ Si vous avez envie d'un nouveau moment de détente, je suis là. À bientôt ! Elise"
+};
+
+function getRelanceSmsTemplates() {
+  const stored = appData.parametres?.relanceSmsTemplates;
+  return { ...RELANCE_SMS_DEFAUT, ...(stored || {}) };
+}
+
+async function setRelanceSmsTemplates(templates) {
+  if (!appData.parametres) appData.parametres = {};
+  appData.parametres.relanceSmsTemplates = templates;
+  return saveParametresToDb();
+}
+
+function buildRelanceSms(relance) {
+  const client = getClientById(relance.clientId);
+  const tpl = getRelanceSmsTemplates()[relance.groupe] || RELANCE_SMS_DEFAUT['Massages'];
+  const dernier = getDernierRdvRelance(relance);
+  return tpl
+    .replace(/\{prenom\}/g, client?.prenom || '')
+    .replace(/\{nom\}/g, client?.nom || '')
+    .replace(/\{precisions\}/g, relance.precisions || '')
+    .replace(/\{dernierRdv\}/g, dernier ? formatDate(dernier) : '—');
+}
+
 // ===== EXPORTS GLOBAUX =====
 window.DataManager = {
   loadData, saveData, getAppData, setAppData,
@@ -1487,6 +1736,13 @@ window.DataManager = {
   getFideliteConfig, setFideliteConfig, getNbPrestationsMassageForClient,
   getFidelitePalierPourClient, markFidelitePalierVu, resetFideliteForClient,
   toggleSansFidelite, getClientsAAlerter, migrerFidelite,
+  // v1.0.10.0 : relances
+  getAllRelances, getRelanceById, getRelancesForGroupe, getRelanceForClient, getRelancesForClient,
+  getDernierRdvGroupe, getProchainRdvGroupe, getDernierRdvRelance, getDateRelance,
+  getStatutRelance, getNbRelancesAAgir,
+  addRelance, updateRelance, deleteRelanceById, marquerRelancee, annulerRelancee,
+  syncRelanceApresRdv, getRelanceSmsTemplates, setRelanceSmsTemplates, buildRelanceSms,
+  mapRelanceFromDb, mapRelanceToDb,
   // Nouvelles fonctions Supabase
   insertEntity, updateEntity, deleteEntity, saveParametresToDb,
   mapClientToDb, mapClientFromDb, mapProspectToDb, mapProspectFromDb,

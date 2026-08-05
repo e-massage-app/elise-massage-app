@@ -637,6 +637,29 @@ function showClientDetails(clientId) {
     }
   }
 
+  // v1.0.10.0 : bloc suivi de relance (distinct de la fidelite : fideliser vs reveiller)
+  let relanceBlock = '';
+  if (DataManager.getRelancesForClient) {
+    const relances = DataManager.getRelancesForClient(clientId);
+    if (relances.length > 0) {
+      const lignes = relances.map(r => {
+        const s = DataManager.getStatutRelance(r);
+        const d = DataManager.getDateRelance(r);
+        const detail = s.cle === 'rdvprevu'
+          ? `RDV prévu le ${DataManager.formatDate(s.date)}`
+          : (d ? `prochaine relance le ${DataManager.formatDate(d)}` : 'date à définir');
+        return `<div class="fc-rel-row">
+            <span class="fc-rel-g">${r.groupe}</span>
+            <span class="fc-rel-s" style="color:${s.couleur};">${s.icone} ${s.label}</span>
+            <span class="fc-rel-d">${detail}</span>
+          </div>`;
+      }).join('');
+      relanceBlock = `<div class="fc-section fc-rel">
+          <div class="fc-section-title">🔔 Suivi de relance</div>${lignes}
+        </div>`;
+    }
+  }
+
   const paliersVus = (client.fideliteAtteinte && client.fideliteAtteinte.length > 0)
     ? `<div class="fc-paliers-vus"><span>🎁 Paliers déjà vus : ${client.fideliteAtteinte.join(', ')}</span><button type="button" onclick="resetFideliteFromFiche('${client.id}')">Réinitialiser</button></div>`
     : '';
@@ -708,6 +731,7 @@ function showClientDetails(clientId) {
           </div>` : ''}
           ${fideliteBlock}
           ${paliersVus}
+          ${relanceBlock}
         </div>
         <div class="fc-panel" data-p="hi">${historyHTML}</div>
         <div class="fc-panel" data-p="inf">${infosHTML}</div>

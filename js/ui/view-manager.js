@@ -113,6 +113,9 @@ function showTab(tabName) {
     case 'clients':
       updateClientsDisplay();
       break;
+    case 'relances':
+      updateRelancesDisplay();
+      break;
     case 'analytics':
       UtilsServices.updateAnalytics();
       break;
@@ -3288,9 +3291,425 @@ function generateCompactCollaborateurCard(collaborateur) {
   `;
 }
 
+// ============================================================================
+// v1.0.10.0 : RELANCES — remplace le fichier Suivi-Epilation-Elise.xlsx
+// Suivi opt-in : Elise choisit QUI relancer, l'app calcule QUAND.
+// ============================================================================
+
+let relanceGroupeActif = null;
+
+// Ordre d'urgence : ce qui demande une action remonte en haut.
+const RELANCE_ORDRE_STATUT = {
+  depassee: 0, bientot: 1, ajour: 2, inconnu: 3, relancee: 4, rdvprevu: 5
+};
+
+function _relanceGroupes() {
+  const groupes = DataManager.getGroupesCategories().map(g => g.nom);
+  // Un groupe archive peut encore porter des suivis : on ne le perd pas.
+  DataManager.getAllRelances().forEach(r => {
+    if (!groupes.includes(r.groupe)) groupes.push(r.groupe);
+  });
+  return groupes;
+}
+
+function updateRelancesDisplay() {
+  const groupes = _relanceGroupes();
+  if (!relanceGroupeActif || !groupes.includes(relanceGroupeActif)) {
+    // Defaut : le groupe le plus suivi (en pratique Epilation)
+    relanceGroupeActif = groupes.slice().sort((a, b) =>
+      DataManager.getRelancesForGroupe(b).length - DataManager.getRelancesForGroupe(a).length
+    )[0] || null;
+  }
+  _renderRelanceTabs(groupes);
+  _renderRelanceList();
+  updateRelanceBadges();
+}
+
+function setRelanceGroupe(groupe) {
+  relanceGroupeActif = groupe;
+  updateRelancesDisplay();
+}
+
+function _renderRelanceTabs(groupes) {
+  const host = document.getElementById('relance-tabs');
+  if (!host) return;
+  host.innerHTML = groupes.map(g => {
+    const items = DataManager.getRelancesForGroupe(g);
+    const aAgir = items.filter(r => {
+      const c = DataManager.getStatutRelance(r).cle;
+      return c === 'depassee' || c === 'bientot';
+    }).length;
+    const actif = g === relanceGroupeActif ? ' active' : '';
+    const badge = aAgir > 0
+      ? `<span class="annu-etab-cnt relance-cnt-warn">${aAgir}</span>`
+      : `<span class="annu-etab-cnt">${items.length}</span>`;
+    return `<button class="annu-etab${actif}" onclick="ViewManager.setRelanceGroupe('${g.replace(/'/g, "\\'")}')">${g} ${badge}</button>`;
+  }).join('');
+}
+
+function _renderRelanceList() {
+  const host = document.getElementById('relance-list-host');
+  if (!host) return;
+  if (!relanceGroupeActif) {
+    host.innerHTML = '<div class="annu-empty">Aucun groupe de prestations configuré.</div>';
+    return;
+  }
+
+  const items = DataManager.getRelancesForGroupe(relanceGroupeActif)
+    .map(r => ({ r, statut: DataManager.getStatutRelance(r), date: DataManager.getDateRelance(r) }))
+    .sort((a, b) => {
+      const oa = RELANCE_ORDRE_STATUT[a.statut.cle] ?? 9;
+      const ob = RELANCE_ORDRE_STATUT[b.statut.cle] ?? 9;
+      if (oa !== ob) return oa - ob;
+      return (a.date || '9999').localeCompare(b.date || '9999');
+    });
+
+  if (!items.length) {
+    host.innerHTML = `
+      <div class="annu-empty">
+        <p>Aucune cliente suivie en <strong>${relanceGroupeActif}</strong>.</p>
+        <p class="annu-empty-sub">Clique sur « Suivre une cliente » pour en ajouter une.</p>
+      </div>`;
+    return;
+  }
+
+  host.innerHTML = `
+    <div class="table-container annu-tablewrap">
+      <table class="clients-table annu-table">
+        <thead>
+          <tr>
+            <th>Cliente</th>
+            <th>Prestations suivies</th>
+            <th>Dernier RDV</th>
+            <th>Relance prévue</th>
+            <th>Statut</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>${items.map(_relanceRow).join('')}</tbody>
+      </table>
+    </div>`;
+}
+
+function _relanceRow({ r, statut, date }) {
+  const client = DataManager.getClientById(r.clientId);
+  if (!client) return '';
+  const nom = `${client.prenom || ''} ${client.nom || ''}`.trim();
+  const dernier = DataManager.getDernierRdvRelance(r);
+  const notes = (client.notes || '').replace(/\s+/g, ' ').trim();
+  const notesCourt = notes.length > 70 ? notes.slice(0, 70) + '…' : notes;
+  const esc = s => String(s || '').replace(/"/g, '&quot;');
+
+  const dateTxt = date
+    ? DataManager.formatDate(date) + (r.dateRelanceOverride ? ' <span class="relance-manual" title="Date fixée manuellement">✎</span>' : '')
+    : '<span class="annu-tel empty">—</span>';
+  const statutTxt = statut.cle === 'rdvprevu'
+    ? `${statut.icone} ${statut.label}<div class="relance-substat">le ${DataManager.formatDate(statut.date)}</div>`
+    : `${statut.icone} ${statut.label}`;
+
+  const telClean = (client.telephone || '').replace(/[^0-9+]/g, '');
+  const btnTel = telClean
+    ? `<a class="annu-icon-btn" href="tel:${telClean}" title="Appeler ${esc(client.telephone)}">${_svgPhone()}</a>`
+    : '';
+  const btnRelancee = r.relancee
+    ? `<button class="annu-icon-btn" title="Annuler « relancée »" onclick="ViewManager.relanceAnnuler('${r.id}')">↩️</button>`
+    : `<button class="annu-icon-btn" title="Marquer comme relancée" onclick="ViewManager.relanceMarquer('${r.id}')">✅</button>`;
+
+  return `
+    <tr>
+      <td class="annu-cname-cell" onclick="ClientServices.showClientDetails('${r.clientId}')">
+        <div class="annu-cname">${nom}</div>
+        ${notesCourt ? `<div class="annu-csub" title="${esc(notes)}">${notesCourt}</div>` : ''}
+      </td>
+      <td><span class="relance-precisions">${r.precisions || '<span class="annu-tel empty">—</span>'}</span>
+          <div class="relance-interval">tous les ${r.intervalleJours} j</div></td>
+      <td>${dernier ? DataManager.formatDate(dernier) : '<span class="annu-tel empty">—</span>'}</td>
+      <td>${dateTxt}</td>
+      <td><span class="relance-statut" style="color:${statut.couleur};">${statutTxt}</span></td>
+      <td class="annu-actions">
+        ${btnTel}
+        <button class="annu-icon-btn" title="Préparer un SMS" onclick="ViewManager.showRelanceSmsModal('${r.id}')">💬</button>
+        ${btnRelancee}
+        <button class="annu-icon-btn" title="Modifier le suivi" onclick="ViewManager.showEditRelanceModal('${r.id}')">${_svgAction('edit')}</button>
+        <button class="annu-icon-btn del" title="Retirer du suivi" onclick="ViewManager.relanceRetirer('${r.id}')">${_svgAction('trash')}</button>
+      </td>
+    </tr>`;
+}
+
+function updateRelanceBadges() {
+  const n = DataManager.getNbRelancesAAgir();
+  ['nav-relance-badge', 'nav-relance-badge-m'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = n > 0 ? n : '';
+    el.style.display = n > 0 ? '' : 'none';
+  });
+}
+
+// ----- Pre-remplissage des precisions : les soins du dernier RDV du groupe -----
+function _relancePrefillPrecisions(clientId, groupe) {
+  const dernier = DataManager.getDernierRdvGroupe(clientId, groupe);
+  if (!dernier) return '';
+  const noms = DataManager.getAllPrestations()
+    .filter(p => p.clientId === clientId && p.date === dernier)
+    .filter(p => DataManager.getGroupeForSoinId(p.soinId || p.type) === groupe)
+    .map(p => DataManager.getDisplayNameForType(p.soinId || p.type) || p.type)
+    .filter(Boolean);
+  return [...new Set(noms)].join(' + ');
+}
+
+// ----- Modal : ajouter un suivi -----
+function showAddRelanceModal() {
+  const groupes = _relanceGroupes();
+  const clients = DataManager.getAllClients()
+    .slice()
+    .sort((a, b) => `${a.prenom} ${a.nom}`.localeCompare(`${b.prenom} ${b.nom}`, 'fr'));
+
+  const html = `
+    <h3 style="margin:0 0 1rem 0;">Suivre une cliente en relance</h3>
+    <div class="form-group">
+      <label>Groupe de prestations</label>
+      <select id="relance-groupe" onchange="ViewManager.onRelanceFormChange()">
+        ${groupes.map(g => `<option value="${g}"${g === relanceGroupeActif ? ' selected' : ''}>${g}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Cliente</label>
+      <select id="relance-client" onchange="ViewManager.onRelanceFormChange()">
+        <option value="">— Choisir —</option>
+        ${clients.map(c => `<option value="${c.id}">${(c.prenom || '') + ' ' + (c.nom || '')}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Prestations suivies <span style="font-weight:normal;color:var(--text-light);">(pré-rempli, modifiable)</span></label>
+      <input type="text" id="relance-precisions" placeholder="Ex : Maillot intégral + aisselles">
+    </div>
+    <div class="form-group">
+      <label>Relance tous les… (jours)</label>
+      <input type="number" id="relance-intervalle" value="28" min="1" max="365">
+    </div>
+    <div id="relance-form-info" class="relance-info"></div>
+    <div style="display:flex;gap:0.5rem;margin-top:1rem;">
+      <button class="btn-primary" onclick="ViewManager.saveNewRelance(this)">Ajouter au suivi</button>
+      <button class="btn-secondary" onclick="closeModal()">Annuler</button>
+    </div>`;
+  showModal('relance-add-modal', html);
+}
+
+function onRelanceFormChange() {
+  const clientId = document.getElementById('relance-client')?.value;
+  const groupe = document.getElementById('relance-groupe')?.value;
+  const info = document.getElementById('relance-form-info');
+  const champPrecisions = document.getElementById('relance-precisions');
+  if (!clientId || !groupe) { if (info) info.innerHTML = ''; return; }
+
+  const existante = DataManager.getRelanceForClient(clientId, groupe);
+  if (existante) {
+    if (info) info.innerHTML = `<span style="color:#c0504d;">Cette cliente est déjà suivie en ${groupe}.</span>`;
+    return;
+  }
+  const dernier = DataManager.getDernierRdvGroupe(clientId, groupe);
+  if (champPrecisions && !champPrecisions.dataset.touched) {
+    champPrecisions.value = _relancePrefillPrecisions(clientId, groupe);
+    champPrecisions.oninput = () => { champPrecisions.dataset.touched = '1'; };
+  }
+  if (info) {
+    info.innerHTML = dernier
+      ? `Dernier RDV ${groupe} : <strong>${DataManager.formatDate(dernier)}</strong>`
+      : `<span style="color:#e08a3c;">Aucune prestation ${groupe} en base — la date de relance devra être saisie à la main.</span>`;
+  }
+}
+
+async function saveNewRelance(btn) {
+  const clientId = document.getElementById('relance-client')?.value;
+  const groupe = document.getElementById('relance-groupe')?.value;
+  const precisions = document.getElementById('relance-precisions')?.value || '';
+  const intervalle = parseInt(document.getElementById('relance-intervalle')?.value) || 28;
+  if (!clientId) { alert('Choisis une cliente.'); return; }
+
+  await window.withButtonLoading(btn, async () => {
+    await DataManager.addRelance(clientId, groupe, { precisions, intervalleJours: intervalle });
+    closeModal();
+    relanceGroupeActif = groupe;
+    updateRelancesDisplay();
+  }, { loadingText: 'Ajout…' });
+}
+
+// ----- Modal : editer un suivi -----
+function showEditRelanceModal(id) {
+  const r = DataManager.getRelanceById(id);
+  if (!r) return;
+  const client = DataManager.getClientById(r.clientId);
+  const nom = client ? `${client.prenom || ''} ${client.nom || ''}`.trim() : '';
+  const auto = DataManager.getDernierRdvGroupe(r.clientId, r.groupe);
+  const esc = s => String(s || '').replace(/"/g, '&quot;');
+
+  const html = `
+    <h3 style="margin:0 0 0.25rem 0;">${nom}</h3>
+    <p style="margin:0 0 1rem 0;color:var(--text-light);font-size:0.9rem;">Suivi ${r.groupe}</p>
+    <div class="form-group">
+      <label>Prestations suivies</label>
+      <input type="text" id="relance-e-precisions" value="${esc(r.precisions)}">
+    </div>
+    <div class="form-group">
+      <label>Relance tous les… (jours)</label>
+      <input type="number" id="relance-e-intervalle" value="${r.intervalleJours}" min="1" max="365">
+    </div>
+    <div class="form-group">
+      <label>Dernier RDV — surcharge <span style="font-weight:normal;color:var(--text-light);">(vide = calculé : ${auto ? DataManager.formatDate(auto) : 'aucun'})</span></label>
+      <input type="date" id="relance-e-dernier" value="${r.dernierRdvOverride || ''}">
+    </div>
+    <div class="form-group">
+      <label>Date de relance — surcharge <span style="font-weight:normal;color:var(--text-light);">(vide = calculée)</span></label>
+      <input type="date" id="relance-e-date" value="${r.dateRelanceOverride || ''}">
+    </div>
+    <div style="display:flex;gap:0.5rem;margin-top:1rem;">
+      <button class="btn-primary" onclick="ViewManager.saveEditRelance('${id}', this)">Enregistrer</button>
+      <button class="btn-secondary" onclick="closeModal()">Annuler</button>
+    </div>`;
+  showModal('relance-edit-modal', html);
+}
+
+async function saveEditRelance(id, btn) {
+  await window.withButtonLoading(btn, async () => {
+    await DataManager.updateRelance(id, {
+      precisions: document.getElementById('relance-e-precisions')?.value || '',
+      intervalleJours: parseInt(document.getElementById('relance-e-intervalle')?.value) || 28,
+      dernierRdvOverride: document.getElementById('relance-e-dernier')?.value || '',
+      dateRelanceOverride: document.getElementById('relance-e-date')?.value || ''
+    });
+    closeModal();
+    updateRelancesDisplay();
+  }, { loadingText: 'Enregistrement…' });
+}
+
+// ----- Actions -----
+async function relanceMarquer(id) {
+  await DataManager.marquerRelancee(id);
+  updateRelancesDisplay();
+}
+async function relanceAnnuler(id) {
+  await DataManager.annulerRelancee(id);
+  updateRelancesDisplay();
+}
+async function relanceRetirer(id) {
+  const r = DataManager.getRelanceById(id);
+  const client = r ? DataManager.getClientById(r.clientId) : null;
+  const nom = client ? `${client.prenom || ''} ${client.nom || ''}`.trim() : 'cette cliente';
+  if (!confirm(`Retirer ${nom} du suivi ${r?.groupe} ?\n\nSes prestations et sa fiche ne sont pas touchées.`)) return;
+  await DataManager.deleteRelanceById(id);
+  updateRelancesDisplay();
+}
+
+// ----- Modal SMS -----
+function showRelanceSmsModal(id) {
+  const r = DataManager.getRelanceById(id);
+  if (!r) return;
+  const client = DataManager.getClientById(r.clientId);
+  const message = DataManager.buildRelanceSms(r);
+  const tel = (client?.telephone || '').replace(/[^0-9+]/g, '');
+  const nom = client ? `${client.prenom || ''} ${client.nom || ''}`.trim() : '';
+
+  const html = `
+    <h3 style="margin:0 0 0.25rem 0;">SMS pour ${nom}</h3>
+    <p style="margin:0 0 1rem 0;color:var(--text-light);font-size:0.9rem;">
+      ${tel ? client.telephone : 'Aucun téléphone renseigné'} · relis et modifie avant d'envoyer
+    </p>
+    <div class="form-group">
+      <textarea id="relance-sms-text" rows="6" style="width:100%;font-family:inherit;">${message}</textarea>
+    </div>
+    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.5rem;">
+      <button class="btn-secondary" onclick="ViewManager.copyRelanceSms(this)">📋 Copier</button>
+      ${tel ? `<a class="btn-primary" style="text-decoration:none;display:inline-flex;align-items:center;"
+          onclick="ViewManager.openRelanceSms('${tel}')">📱 Ouvrir SMS</a>` : ''}
+      <button class="btn-primary" onclick="ViewManager.relanceMarquerDepuisSms('${id}', this)">✅ Marquer relancée</button>
+      <button class="btn-secondary" onclick="closeModal()">Fermer</button>
+    </div>
+    <p style="margin:1rem 0 0 0;color:var(--text-light);font-size:0.82rem;">
+      L'application n'envoie jamais de SMS toute seule : elle prépare le message, tu l'envoies depuis ton téléphone.
+    </p>`;
+  showModal('relance-sms-modal', html);
+}
+
+function copyRelanceSms(btn) {
+  const txt = document.getElementById('relance-sms-text')?.value || '';
+  navigator.clipboard.writeText(txt).then(() => {
+    const old = btn.textContent;
+    btn.textContent = '✅ Copié !';
+    setTimeout(() => { btn.textContent = old; }, 1500);
+  }).catch(() => alert('Copie impossible — sélectionne le texte manuellement.'));
+}
+
+function openRelanceSms(tel) {
+  const txt = document.getElementById('relance-sms-text')?.value || '';
+  // iOS veut &body=, Android ?body= : le separateur ci-dessous marche sur les deux.
+  window.location.href = `sms:${tel}${/iPhone|iPad|iPod|Mac/.test(navigator.userAgent) ? '&' : '?'}body=${encodeURIComponent(txt)}`;
+}
+
+async function relanceMarquerDepuisSms(id, btn) {
+  await window.withButtonLoading(btn, async () => {
+    await DataManager.marquerRelancee(id);
+    closeModal();
+    updateRelancesDisplay();
+  }, { loadingText: '…' });
+}
+
+// ----- Modal : modeles de SMS -----
+function showRelanceSmsTemplatesModal() {
+  const templates = DataManager.getRelanceSmsTemplates();
+  const groupes = _relanceGroupes();
+  const esc = s => String(s || '').replace(/</g, '&lt;');
+
+  const html = `
+    <h3 style="margin:0 0 0.5rem 0;">Modèles de SMS</h3>
+    <p style="margin:0 0 1rem 0;color:var(--text-light);font-size:0.88rem;">
+      Variables disponibles : <code>{prenom}</code>, <code>{nom}</code>, <code>{dernierRdv}</code>, <code>{precisions}</code>
+    </p>
+    ${groupes.map((g, i) => `
+      <div class="form-group">
+        <label>${g}</label>
+        <textarea id="relance-tpl-${i}" data-groupe="${g}" rows="4" style="width:100%;font-family:inherit;">${esc(templates[g] || '')}</textarea>
+      </div>`).join('')}
+    <div style="display:flex;gap:0.5rem;margin-top:1rem;">
+      <button class="btn-primary" onclick="ViewManager.saveRelanceSmsTemplates(this)">Enregistrer</button>
+      <button class="btn-secondary" onclick="closeModal()">Annuler</button>
+    </div>`;
+  showModal('relance-tpl-modal', html);
+}
+
+async function saveRelanceSmsTemplates(btn) {
+  await window.withButtonLoading(btn, async () => {
+    const templates = {};
+    document.querySelectorAll('[id^="relance-tpl-"]').forEach(ta => {
+      templates[ta.dataset.groupe] = ta.value;
+    });
+    await DataManager.setRelanceSmsTemplates(templates);
+    closeModal();
+  }, { loadingText: 'Enregistrement…' });
+}
+
 window.ViewManager = {
   // Navigation
   showTab,
+
+  // v1.0.10.0 : relances
+  updateRelancesDisplay,
+  setRelanceGroupe,
+  updateRelanceBadges,
+  showAddRelanceModal,
+  onRelanceFormChange,
+  saveNewRelance,
+  showEditRelanceModal,
+  saveEditRelance,
+  relanceMarquer,
+  relanceAnnuler,
+  relanceRetirer,
+  showRelanceSmsModal,
+  copyRelanceSms,
+  openRelanceSms,
+  relanceMarquerDepuisSms,
+  showRelanceSmsTemplatesModal,
+  saveRelanceSmsTemplates,
 
   // Dashboard
   updateDashboard,

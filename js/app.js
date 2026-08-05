@@ -347,6 +347,15 @@ function setupFormListeners() {
         } catch (err) {
           console.warn('Fidelite check apres RDV : echec non bloquant', err);
         }
+
+        // v1.0.10.0 : le nouveau RDV redemarre le cycle de relance de ce groupe
+        // (repasse "non relancee" + purge les surcharges de date).
+        try {
+          await DataManager.syncRelanceApresRdv(formData.clientId, formData.soinId || formData.type);
+          ViewManager.updateRelanceBadges();
+        } catch (err) {
+          console.warn('Sync relance apres RDV : echec non bloquant', err);
+        }
       }).catch(() => {});
     }
 
@@ -487,6 +496,14 @@ function setupFormListeners() {
 
         if (typeof ViewManager.updateBonsCadeauxDisplay === 'function') {
           ViewManager.updateBonsCadeauxDisplay();
+        }
+
+        // v1.0.10.0 : la prestation realisee redemarre le cycle de relance du groupe
+        try {
+          await DataManager.syncRelanceApresRdv(formData.clientId, formData.soinId || formData.type);
+          ViewManager.updateRelanceBadges();
+        } catch (errRel) {
+          console.warn('Sync relance apres prestation : echec non bloquant', errRel);
         }
       } catch (err) {
         console.error('Erreur soumission prestation:', err);
