@@ -2639,9 +2639,42 @@ function plageDatesPourPeriode(period) {
 // Definition retenue avec Jordan (celle de son rapport mensuel, calibree sur
 // son fichier Excel) : un client compte s'il a eu AU MOINS UNE prestation dans
 // la periode, et seules ses prestations DE CETTE PERIODE alimentent le CA.
+// Date de demarrage la plus ancienne parmi les campagnes selectionnees.
+// Sert de borne basse a "Depuis le debut" : sans elle, on comparait le cout
+// d'UNE campagne aux revenus de TOUTES les periodes, y compris celles d'avant
+// son lancement (ere Porto-Vecchio). Les clients ne portent aucune information
+// de campagne (canalAcquisition vaut seulement "google-ads"), donc la date est
+// le seul moyen de ne pas melanger les deux.
+function debutCampagnesSelectionnees() {
+  try {
+    const params = DataManager.getParametres() || {};
+    const ids = params.googleAdsSelectedCampaigns || [];
+    let mini = null;
+    ids.forEach(id => {
+      (DataManager.getCampaignPeriods(id) || []).forEach(per => {
+        if (per.startDate && (!mini || per.startDate < mini)) mini = per.startDate;
+      });
+    });
+    return mini ? String(mini).slice(0, 10) : null;
+  } catch (e) {
+    console.warn('debutCampagnesSelectionnees:', e);
+    return null;
+  }
+}
+
 function calculerKpisGoogleAdsPeriode(period, coutPeriode) {
   const appData = DataManager.getAppData();
-  const plage = plageDatesPourPeriode(period);
+  let plage = plageDatesPourPeriode(period);
+
+  // "Depuis le debut" = depuis le demarrage de la campagne, pas depuis toujours.
+  if (!plage) {
+    const debut = debutCampagnesSelectionnees();
+    if (debut) {
+      const aujourdhui = new Date();
+      const iso = `${aujourdhui.getFullYear()}-${String(aujourdhui.getMonth() + 1).padStart(2, '0')}-${String(aujourdhui.getDate()).padStart(2, '0')}`;
+      plage = { debut, fin: iso, libelle: `depuis le ${debut.split('-').reverse().join('/')}` };
+    }
+  }
 
   const idsGoogleAds = new Set(
     (appData.clients || []).filter(c => c.canalAcquisition === 'google-ads').map(c => c.id)
