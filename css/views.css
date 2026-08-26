@@ -2771,3 +2771,88 @@
   .ana-kpis { grid-template-columns: repeat(2, 1fr); gap: 0.6rem; }
   .ana-kpi-v { font-size: 1.4rem; }
 }
+
+/* ==========================================================================
+   v1.0.17.0 — BARRES, ACCROCHES ET ENCARTS (composants de la maquette)
+   Les graphiques categoriels passent d'ApexCharts a des barres HTML :
+   meme information, sans axe ni legende, et lisibles d'un coup d'oeil.
+   ========================================================================== */
+
+.ana-panel .ana-hint {
+  margin: 0;
+  padding: 0.55rem 1.15rem 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: #9c9187;
+}
+
+.ana-panel .ana-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.2rem 0;
+}
+
+.ana-panel .ana-bar-row {
+  display: grid;
+  grid-template-columns: minmax(96px, 34%) 1fr auto;
+  gap: 0.7rem;
+  align-items: center;
+}
+
+.ana-panel .ana-bar-name {
+  font-size: 0.8rem;
+  color: #6b6259;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ana-panel .ana-bar-track {
+  height: 9px;
+  background: #f3ebe1;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.ana-panel .ana-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--beige-dore) 0%, #c2956a 100%);
+  transition: width 0.5s cubic-bezier(.22,.61,.36,1);
+}
+
+.ana-panel .ana-bar-val {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-dark);
+  font-variant-numeric: tabular-nums;
+  min-width: 46px;
+  text-align: right;
+}
+
+/* Lignes sans portee (valeur nulle, canal non renseigne) : presentes mais
+   visuellement en retrait, pour ne pas concurrencer l'information utile. */
+.ana-panel .ana-bar-row--sourdine .ana-bar-name,
+.ana-panel .ana-bar-row--sourdine .ana-bar-val { color: #b5aca3; }
+.ana-panel .ana-bar-row--sourdine .ana-bar-fill { background: #cfc5ba; }
+
+/* Encart d'analyse en pied de carte */
+.ana-panel .ana-note {
+  margin: 0.9rem 1.15rem 1.15rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 10px;
+  background: #fdfaf6;
+  border-left: 3px solid var(--beige-dore);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: #6b6259;
+}
+.ana-panel .ana-note b { color: var(--text-dark); }
+
+@media (max-width: 560px) {
+  .ana-panel .ana-bar-row { grid-template-columns: minmax(78px, 40%) 1fr auto; gap: 0.5rem; }
+  .ana-panel .ana-bar-name { font-size: 0.76rem; }
+}

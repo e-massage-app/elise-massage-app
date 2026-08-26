@@ -64,7 +64,7 @@ de faire **Ctrl+Shift+R** (le cache HTTP du navigateur est distinct du cache du 
 
 ## Versioning
 - Format : `X.Y.Z.W` ou X.Y = version PWA, Z.W = heritage version Electron
-- Version actuelle : `1.0.16.0` (Analytics : rangee de chiffres cles en tete)
+- Version actuelle : `1.0.17.0` (Analytics : barres HTML et accroches, comme la maquette)
 - **OBLIGATOIRE** : a chaque modification demandee par l'utilisateur, proposer un bump de version et attendre validation
 - Mettre a jour la version dans 3 endroits : `package.json`, `index.html` (burger menu + footer)
 - Le numero de version sert a verifier que la derniere version est deployee

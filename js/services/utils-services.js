@@ -855,6 +855,15 @@ function updatePrestationsChart(selectedYear = 'current', selectedMonth = '') {
   // Labels dans l'axe Y : "Massage Signature · 152"
   const categoriesWithValues = displayed.map(s => s.label + '  \u00b7  ' + s.value);
 
+  const totalTypes = displayed.reduce((t, x) => t + x.value, 0);
+  rendreBarresAnalytics(el, displayed, { estSourdine: it => it.value === 0 });
+  if (displayed[0] && totalTypes > 0) {
+    poserIndiceAnalytics(el, displayed[0].label + ' représente ' +
+      Math.round(displayed[0].value / totalTypes * 100) + ' % des prestations (' +
+      displayed[0].value + ' sur ' + totalTypes + ').');
+  }
+  return;
+
   prestationsChart = new ApexCharts(el, {
     chart: {
       type: 'bar',
@@ -912,6 +921,49 @@ function updatePrestationsChart(selectedYear = 'current', selectedMonth = '') {
   prestationsChart.render();
 }
 
+// ============================================================================
+// v1.0.17.0 : COMPOSANTS DE LA MAQUETTE
+// Barres HTML, phrase d'accroche sous le titre, encart d'analyse.
+// Les calculs ne sont pas touches : on ne remplace que le RENDU.
+// ============================================================================
+
+// Barres horizontales : libelle | piste | valeur.
+// Remplace ApexCharts sur les graphiques categoriels, ou il n'apportait
+// qu'un axe, une legende et une animation pour afficher quelques nombres.
+function rendreBarresAnalytics(el, items, opts) {
+  opts = opts || {};
+  const max = Math.max.apply(null, items.map(i => i.value)) || 1;
+  const fmt = opts.format || (v => String(v));
+  const echap = t => String(t == null ? '' : t)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  el.innerHTML = '<div class="ana-bars">' + items.map(it => {
+    const pct = it.value > 0 ? Math.max(2, (it.value / max) * 100) : 0;
+    const sourdine = (opts.estSourdine && opts.estSourdine(it)) ? ' ana-bar-row--sourdine' : '';
+    return '<div class="ana-bar-row' + sourdine + '">'
+         + '<span class="ana-bar-name" title="' + echap(it.label) + '">' + echap(it.label) + '</span>'
+         + '<span class="ana-bar-track"><span class="ana-bar-fill" style="width:' + pct.toFixed(1) + '%"></span></span>'
+         + '<span class="ana-bar-val">' + echap(fmt(it.value)) + '</span>'
+         + '</div>';
+  }).join('') + '</div>';
+}
+
+// Phrase d'accroche sous le titre : ce que le graphique raconte, plutot que
+// de laisser le lecteur l'interpreter seul.
+function poserIndiceAnalytics(el, texte) {
+  const carte = el.closest('.chart-container, .analytics-container, .stats-container');
+  if (!carte) return;
+  const entete = carte.querySelector('.chart-header, .analytics-header, .stats-header');
+  if (!entete) return;
+  let indice = carte.querySelector('.ana-hint');
+  if (!indice) {
+    indice = document.createElement('p');
+    indice.className = 'ana-hint';
+    entete.insertAdjacentElement('afterend', indice);
+  }
+  indice.textContent = texte;
+}
+
 function updateDureesChart(selectedYear = 'current', selectedMonth = '') {
   const el = document.getElementById('durees-chart');
   if (!el) return;
@@ -932,6 +984,14 @@ function updateDureesChart(selectedYear = 'current', selectedMonth = '') {
 
   // Labels dans l'axe Y : "60 min · 103"
   const categoriesWithValues = sorted.map(s => s.label + '  \u00b7  ' + s.value);
+
+  const totalSeances = sorted.reduce((t, x) => t + x.value, 0);
+  rendreBarresAnalytics(el, sorted);
+  if (sorted[0] && totalSeances > 0) {
+    poserIndiceAnalytics(el, 'Le ' + sorted[0].label + ' domine : ' + sorted[0].value +
+      ' séances sur ' + totalSeances + ', soit ' + Math.round(sorted[0].value / totalSeances * 100) + ' %.');
+  }
+  return;
 
   dureesChart = new ApexCharts(el, {
     chart: {
@@ -1691,6 +1751,18 @@ function updateCanalsChart(selectedYear = 'current', selectedMonth = '') {
     },
     dataLabels: { enabled: false }
   };
+
+  const nonRenseigne = sorted.find(x => /non renseign/i.test(x.label));
+  rendreBarresAnalytics(el, sorted, { estSourdine: it => /non renseign/i.test(it.label) });
+  if (sorted[0]) {
+    let phrase = sorted[0].label + ' amène ' + sorted[0].value + ' clientes sur ' + totalClients + '.';
+    if (nonRenseigne && nonRenseigne.value > 0) {
+      phrase += ' ' + nonRenseigne.value + ' fiches sans canal renseigné (' +
+                Math.round(nonRenseigne.value / totalClients * 100) + ' %).';
+    }
+    poserIndiceAnalytics(el, phrase);
+  }
+  return;
 
   window.canauxChart = new ApexCharts(el, options);
   window.canauxChart.render();
