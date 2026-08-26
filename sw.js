@@ -2,7 +2,7 @@
 // Strategie : cache assets statiques UNIQUEMENT, PAS les donnees Supabase
 // Si offline -> l'app affiche le message "reseau requis"
 
-const CACHE_NAME = 'elise-massage-v43';
+const CACHE_NAME = 'elise-massage-v44';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -33,7 +33,16 @@ const STATIC_ASSETS = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS).catch((err) => {
+      // v1.0.11.1 - CORRECTIF IMPORTANT :
+      // cache.addAll() passe par le cache HTTP du navigateur. Si l'ancien
+      // fichier y est encore, le nouveau cache est rempli avec du PERIME :
+      // nom de cache neuf, contenu vieux, et l'app reste bloquee sur
+      // l'ancienne version malgre le deploiement.
+      // { cache: 'reload' } force un aller-retour reseau reel.
+      const requetes = STATIC_ASSETS.map(
+        (url) => new Request(url, { cache: 'reload' })
+      );
+      return cache.addAll(requetes).catch((err) => {
         console.warn('SW: Certains assets non caches:', err);
       });
     })
