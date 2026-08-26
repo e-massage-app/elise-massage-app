@@ -2856,3 +2856,86 @@
   .ana-panel .ana-bar-row { grid-template-columns: minmax(78px, 40%) 1fr auto; gap: 0.5rem; }
   .ana-panel .ana-bar-name { font-size: 0.76rem; }
 }
+
+/* ==========================================================================
+   v1.0.18.0 — ANNEAUX, TABLEAUX ET CARTES GOOGLE ADS
+   Derniers composants de la maquette portes dans l'application.
+   ========================================================================== */
+
+/* --- Anneau SVG : total au centre, legende dessous --- */
+.ana-panel .ana-donut {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.4rem 0 0.2rem;
+}
+.ana-panel .ana-donut svg { width: 100%; max-width: 210px; height: auto; }
+.ana-panel .ana-donut-v {
+  font-family: 'Playfair Display', serif;
+  font-size: 27px;
+  font-weight: 600;
+  fill: var(--text-dark);
+}
+.ana-panel .ana-donut-k { font-size: 10px; fill: #9c9187; }
+
+.ana-panel .ana-legende {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem 1rem;
+}
+.ana-panel .ana-leg {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: #6b6259;
+}
+.ana-panel .ana-leg i {
+  width: 9px; height: 9px;
+  border-radius: 3px;
+  flex: none;
+}
+
+/* --- Tableau : en-tete sobre, valeur par cliente mise en avant --- */
+.ana-panel .ana-full table thead th {
+  background: #f3ebe1;
+  color: #9c9187;
+  font-size: 0.68rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  font-weight: 700;
+  padding: 0.7rem 0.9rem;
+  border-bottom: 1px solid #ece1d5;
+}
+.ana-panel .ana-full table td {
+  padding: 0.75rem 0.9rem;
+  border-bottom: 1px solid #f3ebe1;
+  font-size: 0.86rem;
+}
+.ana-panel .ana-full table tbody tr:last-child td { border-bottom: none; }
+
+.ana-panel .ana-td-nom { font-weight: 600; color: var(--text-dark); }
+.ana-panel .ana-td-num {
+  text-align: right;
+  color: #6b6259;
+  font-variant-numeric: tabular-nums;
+}
+.ana-panel .ana-td-cle {
+  text-align: right;
+  font-weight: 700;
+  color: var(--text-dark);
+  font-variant-numeric: tabular-nums;
+}
+.ana-panel .ana-td-cle.est-fort { color: #2e9e5b; }
+
+/* Ligne "non renseigne" : presente, mais en retrait */
+.ana-panel .ana-tr-sourdine td,
+.ana-panel .ana-tr-sourdine .ana-td-nom,
+.ana-panel .ana-tr-sourdine .ana-td-cle { color: #b5aca3; font-weight: 500; }
+
+/* --- Cartes KPI Google Ads : reprennent les tuiles de la vue d'ensemble --- */
+#google-ads-analytics .ana-kpis { margin-bottom: 1.25rem; }
+#google-ads-analytics .ana-kpi.is-vert::before { background: #2e9e5b; }
+#google-ads-analytics .ana-kpi-v { font-size: 1.55rem; }

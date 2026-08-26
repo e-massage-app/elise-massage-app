@@ -531,6 +531,17 @@ function updateGenreChart(selectedYear = 'current', selectedMonth = '') {
   const genreTotal = genreData.reduce((a, b) => a + b, 0);
   if (genreTotal === 0) return;
 
+  rendreAnneauAnalytics(ctx, [
+    { label: 'Hommes',      value: statsGenre.hommes.clients,     couleur: '#7d9bb5' },
+    { label: 'Femmes',      value: statsGenre.femmes.clients,     couleur: '#c98fa5' },
+    { label: 'Non précisé', value: statsGenre.nonPrecise.clients, couleur: '#c4bab0' }
+  ], { centre: genreTotal, centreLabel: 'clientes', aria: 'Répartition par genre' });
+  const partNP = Math.round(statsGenre.nonPrecise.clients / genreTotal * 100);
+  poserIndiceAnalytics(ctx, partNP > 0
+    ? partNP + " % des fiches n'ont pas de genre renseigné : la répartition reste indicative."
+    : "Genre renseigné sur l'ensemble des fiches.");
+  return;
+
   window.genreChart = new ApexCharts(ctx, {
     chart: {
       type: 'donut',
@@ -962,6 +973,43 @@ function poserIndiceAnalytics(el, texte) {
     entete.insertAdjacentElement('afterend', indice);
   }
   indice.textContent = texte;
+}
+
+// Anneau SVG : total au centre, legende dessous. Remplace les donuts
+// ApexCharts, qui embarquaient tooltips et animations pour trois secteurs.
+function rendreAnneauAnalytics(el, parts, opts) {
+  opts = opts || {};
+  const total = parts.reduce((t, x) => t + x.value, 0);
+  if (!total) { el.innerHTML = ''; return; }
+  const R = 68, C = 2 * Math.PI * R;
+  const echap = t => String(t == null ? '' : t)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const fmt = opts.format || (v => String(v));
+
+  let decalage = 0;
+  const arcs = parts.filter(x => x.value > 0).map(x => {
+    const longueur = (x.value / total) * C;
+    const arc = '<circle cx="100" cy="100" r="' + R + '" fill="none" stroke="' + x.couleur +
+      '" stroke-width="26" stroke-dasharray="' + longueur.toFixed(2) + ' ' + (C - longueur).toFixed(2) +
+      '" stroke-dashoffset="' + (-decalage).toFixed(2) + '" transform="rotate(-90 100 100)"></circle>';
+    decalage += longueur;
+    return arc;
+  }).join('');
+
+  const legende = parts.filter(x => x.value > 0).map(x =>
+    '<span class="ana-leg"><i style="background:' + x.couleur + '"></i>' +
+    echap(x.label) + ' \u00b7 ' + echap(fmt(x.value)) + '</span>').join('');
+
+  el.innerHTML =
+    '<div class="ana-donut">' +
+      '<svg viewBox="0 0 200 200" role="img" aria-label="' + echap(opts.aria || '') + '">' +
+        '<circle cx="100" cy="100" r="' + R + '" fill="none" stroke="#f3ebe1" stroke-width="26"></circle>' +
+        arcs +
+        '<text x="100" y="97" text-anchor="middle" class="ana-donut-v">' + echap(opts.centre != null ? opts.centre : total) + '</text>' +
+        '<text x="100" y="117" text-anchor="middle" class="ana-donut-k">' + echap(opts.centreLabel || '') + '</text>' +
+      '</svg>' +
+      '<div class="ana-legende">' + legende + '</div>' +
+    '</div>';
 }
 
 function updateDureesChart(selectedYear = 'current', selectedMonth = '') {
@@ -1568,6 +1616,22 @@ function updateMoyensPaiementChart(selectedYear = 'current', selectedMonth = '')
   // Labels dans l'axe Y : "Liquide · 10 621 €"
   const categoriesWithValues = sorted.map(s => s.label + '  \u00b7  ' + s.montant.toFixed(0) + ' \u20ac');
 
+  const tonsPaiement = ['#d4a574', '#b07d43', '#c2956a', '#e8c4b8', '#9c9187', '#8FA98B'];
+  rendreAnneauAnalytics(el, sorted.map((x, i) => ({
+    label: x.label, value: x.montant, couleur: tonsPaiement[i % tonsPaiement.length]
+  })), {
+    format: v => Math.round(v).toLocaleString('fr-FR') + ' €',
+    centre: totalPaiements,
+    centreLabel: 'paiements',
+    aria: 'Répartition des moyens de paiement'
+  });
+  if (sorted[0] && totalMontant > 0) {
+    poserIndiceAnalytics(el, sorted[0].label + ' représente ' +
+      Math.round(sorted[0].montant / totalMontant * 100) + ' % des encaissements (' +
+      Math.round(sorted[0].montant).toLocaleString('fr-FR') + ' €).');
+  }
+  return;
+
   window.moyensPaiementChart = new ApexCharts(el, {
     chart: {
       type: 'bar',
@@ -2036,6 +2100,10 @@ function updateCanauxRevenusTable(selectedYear = 'current', selectedMonth = '') 
     return;
   }
 
+  const totalRevenusTous = analytics.sorted.reduce((t, c) => t + (c.revenus || 0), 0);
+  const totalClientsTous = analytics.sorted.reduce((t, c) => t + (c.clients || 0), 0);
+  const moyenneGenerale = totalClientsTous > 0 ? totalRevenusTous / totalClientsTous : 0;
+
   let rows = analytics.sorted.map(canal => {
     const revenuMoyen = canal.clients > 0 ? (canal.revenus / canal.clients) : 0;
     const total = canal.clients + canal.prospects;
@@ -2043,24 +2111,45 @@ function updateCanauxRevenusTable(selectedYear = 'current', selectedMonth = '') 
     // Ne pas afficher les canaux sans clients ni prospects
     if (total === 0) return '';
 
+    // v1.0.18.0 : la valeur PAR CLIENTE est l'information decisive - c'est elle
+    // qui revele qu'un canal a peu de volume mais un panier eleve. Elle est
+    // mise en avant, et signalee en vert quand elle depasse la moyenne generale.
+    const auDessus = moyenneGenerale > 0 && revenuMoyen > moyenneGenerale * 1.15;
+    const sourdine = /non renseign/i.test(canal.label);
     return `
-      <tr>
-        <td style="font-weight: 600;">${canal.label}</td>
-        <td style="text-align: center;">
-          <span class="badge badge-primary">${canal.clients}</span>
-        </td>
-        <td style="text-align: center;">
-          <span class="badge badge-secondary">${canal.prospects}</span>
-        </td>
-        <td style="text-align: right; font-weight: 600; color: var(--beige-dore);">
-          ${canal.revenus.toFixed(2)} €
-        </td>
-        <td style="text-align: right; color: var(--text-light);">
-          ${canal.clients > 0 ? revenuMoyen.toFixed(2) + ' €' : '-'}
+      <tr class="${sourdine ? 'ana-tr-sourdine' : ''}">
+        <td class="ana-td-nom">${canal.label}</td>
+        <td class="ana-td-num">${canal.clients}</td>
+        <td class="ana-td-num">${canal.prospects}</td>
+        <td class="ana-td-num">${Math.round(canal.revenus).toLocaleString('fr-FR')} €</td>
+        <td class="ana-td-cle ${auDessus ? 'est-fort' : ''}">
+          ${canal.clients > 0 ? Math.round(revenuMoyen).toLocaleString('fr-FR') + ' €' : '—'}
         </td>
       </tr>
     `;
   }).filter(row => row !== '').join('');
+
+  // v1.0.18.0 : encart d'analyse. Le classement par volume et le classement par
+  // valeur ne donnent pas le meme gagnant - c'est le seul endroit ou on le voit.
+  (function poserNoteCanaux() {
+    const carte = document.getElementById('canaux-revenus-table');
+    if (!carte) return;
+    const avecClients = analytics.sorted.filter(c => c.clients > 0);
+    if (avecClients.length < 2) return;
+    const parVolume = avecClients.slice().sort((a, b) => b.clients - a.clients)[0];
+    const parValeur = avecClients.slice()
+      .filter(c => !/non renseign/i.test(c.label))
+      .sort((a, b) => (b.revenus / b.clients) - (a.revenus / a.clients))[0];
+    if (!parVolume || !parValeur) return;
+    const vVol = Math.round(parVolume.revenus / parVolume.clients);
+    const vVal = Math.round(parValeur.revenus / parValeur.clients);
+    let note = carte.querySelector('.ana-note');
+    if (!note) { note = document.createElement('div'); note.className = 'ana-note'; carte.appendChild(note); }
+    note.innerHTML = (parValeur.label === parVolume.label)
+      ? '<b>' + parValeur.label + ' domine sur les deux tableaux</b> : le plus de clientes ET la meilleure valeur unitaire (' + vVal + ' €).'
+      : '<b>' + parValeur.label + ' rapporte ' + vVal + ' € par cliente, ' + parVolume.label + ' ' + vVol + ' €.</b> ' +
+        parValeur.clients + " clientes contre " + parVolume.clients + " : le canal le plus volumineux n'est pas le plus rentable par cliente.";
+  })();
 
   // Ajouter la ligne Partenariats si des revenus existent
   if (headSpaStats.revenus > 0 || headSpaStats.prestations > 0) {
@@ -2199,34 +2288,32 @@ function generateGoogleAdsSection(metrics) {
       <div style="padding: 1.5rem;">
         
         <!-- 🎯 Métriques en ligne -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+        <div class="ana-kpis">
           
-          <!-- ROI Total -->
-          <div style="background: var(--beige-clair, #faf8f5); border: 1px solid var(--border-color, #e8e3d8); border-radius: var(--border-radius, 6px); padding: 1rem; text-align: center;">
-            <div style="font-size: 0.8rem; color: var(--text-light, #666); margin-bottom: 0.5rem; font-weight: 500;">ROI Total</div>
-            <div id="ga-kpi-roi-money" style="font-size: 1.4rem; font-weight: 700; color: #28a745; margin-bottom: 0.25rem;">${metrics.roi >= 0 ? '+' : ''}${metrics.roiMoney.toFixed(0)}€</div>
-            <div id="ga-kpi-roi-percent" style="font-size: 0.7rem; color: var(--text-light, #888);">(${metrics.roi >= 0 ? '+' : ''}${metrics.roi.toFixed(1)}%)</div>
+          <!-- v1.0.18.0 : memes tuiles que la vue d'ensemble - rail d'accent,
+               libelle en petites capitales, valeur en Playfair Display. -->
+          <div class="ana-kpi is-vert">
+            <div class="ana-kpi-k">Retour sur investissement</div>
+            <div id="ga-kpi-roi-money" class="ana-kpi-v">${metrics.roi >= 0 ? '+' : ''}${metrics.roiMoney.toFixed(0)}€</div>
+            <div id="ga-kpi-roi-percent" class="ana-kpi-n">(${metrics.roi >= 0 ? '+' : ''}${metrics.roi.toFixed(1)}%)</div>
           </div>
-          
-          <!-- Coût Total -->
-          <div style="background: var(--beige-clair, #faf8f5); border: 1px solid var(--border-color, #e8e3d8); border-radius: var(--border-radius, 6px); padding: 1rem; text-align: center;">
-            <div style="font-size: 0.8rem; color: var(--text-light, #666); margin-bottom: 0.5rem; font-weight: 500;">Coût Total</div>
-            <div id="ga-kpi-cost" style="font-size: 1.4rem; font-weight: 700; color: var(--beige-dore, #d4af37); margin-bottom: 0.25rem;">${metrics.totalCost.toFixed(0)}€</div>
-            <div id="ga-kpi-cost-sub" style="font-size: 0.7rem; color: var(--text-light, #888);">Depuis le début</div>
+
+          <div class="ana-kpi is-or">
+            <div class="ana-kpi-k">Investissement</div>
+            <div id="ga-kpi-cost" class="ana-kpi-v">${metrics.totalCost.toFixed(0)}€</div>
+            <div id="ga-kpi-cost-sub" class="ana-kpi-n">Depuis le début</div>
           </div>
-          
-          <!-- Revenus Générés -->
-          <div style="background: var(--beige-clair, #faf8f5); border: 1px solid var(--border-color, #e8e3d8); border-radius: var(--border-radius, 6px); padding: 1rem; text-align: center;">
-            <div style="font-size: 0.8rem; color: var(--text-light, #666); margin-bottom: 0.5rem; font-weight: 500;">Revenus Générés</div>
-            <div id="ga-kpi-revenue" style="font-size: 1.4rem; font-weight: 700; color: #4285f4; margin-bottom: 0.25rem;">${metrics.totalRevenue.toFixed(0)}€</div>
-            <div id="ga-kpi-prestations" style="font-size: 0.7rem; color: var(--text-light, #888);">${metrics.prestationsCount} prestation(s)</div>
+
+          <div class="ana-kpi">
+            <div class="ana-kpi-k">Revenus générés</div>
+            <div id="ga-kpi-revenue" class="ana-kpi-v">${metrics.totalRevenue.toFixed(0)}€</div>
+            <div id="ga-kpi-prestations" class="ana-kpi-n">${metrics.prestationsCount} prestation(s)</div>
           </div>
-          
-          <!-- Clients Acquis -->
-          <div style="background: var(--beige-clair, #faf8f5); border: 1px solid var(--border-color, #e8e3d8); border-radius: var(--border-radius, 6px); padding: 1rem; text-align: center;">
-            <div style="font-size: 0.8rem; color: var(--text-light, #666); margin-bottom: 0.5rem; font-weight: 500;">Clients</div>
-            <div id="ga-kpi-clients" style="font-size: 1.4rem; font-weight: 700; color: #6f42c1; margin-bottom: 0.25rem;">${metrics.clientsCount}</div>
-            <div id="ga-kpi-clients-sub" style="font-size: 0.7rem; color: var(--text-light, #888);">Via Google Ads</div>
+
+          <div class="ana-kpi is-brun">
+            <div class="ana-kpi-k">Clientes</div>
+            <div id="ga-kpi-clients" class="ana-kpi-v">${metrics.clientsCount}</div>
+            <div id="ga-kpi-clients-sub" class="ana-kpi-n">Via Google Ads</div>
           </div>
         </div>
 
