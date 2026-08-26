@@ -2089,7 +2089,7 @@ function generateGoogleAdsSection(metrics) {
           <div style="background: var(--beige-clair, #faf8f5); border: 1px solid var(--border-color, #e8e3d8); border-radius: var(--border-radius, 6px); padding: 1rem; text-align: center;">
             <div style="font-size: 0.8rem; color: var(--text-light, #666); margin-bottom: 0.5rem; font-weight: 500;">Coût Total</div>
             <div id="ga-kpi-cost" style="font-size: 1.4rem; font-weight: 700; color: var(--beige-dore, #d4af37); margin-bottom: 0.25rem;">${metrics.totalCost.toFixed(0)}€</div>
-            <div style="font-size: 0.7rem; color: var(--text-light, #888);">Depuis le début</div>
+            <div id="ga-kpi-cost-sub" style="font-size: 0.7rem; color: var(--text-light, #888);">Depuis le début</div>
           </div>
           
           <!-- Revenus Générés -->
@@ -2101,9 +2101,9 @@ function generateGoogleAdsSection(metrics) {
           
           <!-- Clients Acquis -->
           <div style="background: var(--beige-clair, #faf8f5); border: 1px solid var(--border-color, #e8e3d8); border-radius: var(--border-radius, 6px); padding: 1rem; text-align: center;">
-            <div style="font-size: 0.8rem; color: var(--text-light, #666); margin-bottom: 0.5rem; font-weight: 500;">Clients Acquis</div>
+            <div style="font-size: 0.8rem; color: var(--text-light, #666); margin-bottom: 0.5rem; font-weight: 500;">Clients</div>
             <div id="ga-kpi-clients" style="font-size: 1.4rem; font-weight: 700; color: #6f42c1; margin-bottom: 0.25rem;">${metrics.clientsCount}</div>
-            <div style="font-size: 0.7rem; color: var(--text-light, #888);">Via Google Ads</div>
+            <div id="ga-kpi-clients-sub" style="font-size: 0.7rem; color: var(--text-light, #888);">Via Google Ads</div>
           </div>
         </div>
 
@@ -2258,16 +2258,11 @@ async function loadAndDisplayCampaignsData() {
       performanceSection.innerHTML = tableHTML;
       // Tableau généré
       
-      // ✅ METTRE À JOUR LE NOMBRE DE CLIENTS UNIQUES
-      const uniqueClientsCount = calculateUniqueCampaignClients(selectedCampaignsData, 'all');
-      
-      // Mettre à jour le KPI
-      const kpiClientsCount = document.getElementById('google-ads-kpi-clients-count');
-      if (kpiClientsCount) {
-        kpiClientsCount.textContent = uniqueClientsCount;
-      }
-      
-      console.log(`✅ Clients uniques mis à jour (initial): ${uniqueClientsCount}`);
+      // v1.0.13.0 : ecriture partielle supprimee.
+      // Ce bloc n'ecrivait QUE la carte clients, via un identifiant qui n'existe
+      // plus depuis la v1.0.12.0 - il echouait donc en silence. C'etait la 6e
+      // ecriture partielle du fichier. Les six cartes sont desormais ecrites
+      // ensemble, plus bas, par afficherKpisGoogleAdsPourPeriode().
       
       // ✅ METTRE À JOUR LE CACHE SILENCIEUSEMENT (SANS régénérer pour éviter boucle infinie)
       const realTotalCost = selectedCampaignsData.reduce((sum, c) => sum + (c.cost || 0), 0);
@@ -2302,10 +2297,12 @@ async function loadAndDisplayCampaignsData() {
       // Le cout vient d'etre rafraichi dans le cache juste au-dessus. On delegue
       // donc le recalcul COMPLET a l'unique autorite d'affichage, qui ecrit les
       // six cartes ensemble a partir d'un seul jeu de donnees.
-      if (typeof updateAnalyticsBySelection === 'function') {
-        updateAnalyticsBySelection();
+      // v1.0.13.0 : passer par le meme moteur de periode que le selecteur,
+      // pour que le premier affichage et les suivants suivent la meme regle.
+      if (typeof afficherKpisGoogleAdsPourPeriode === 'function') {
+        afficherKpisGoogleAdsPourPeriode('all', realTotalCost);
       } else {
-        console.warn('⚠️ updateAnalyticsBySelection indisponible : cartes KPI non rafraichies');
+        console.warn('⚠️ Moteur de periode indisponible : cartes KPI non rafraichies');
       }
     } else {
       performanceSection.innerHTML = `
@@ -2597,6 +2594,107 @@ function _chargerPeriodeCampagne(debut, fin, libelle) {
   loadAndDisplayCampaignsDataWithPeriod('custom:' + debut + ':' + fin);
 }
 
+// ============================================================================
+// v1.0.13.0 : UN SEUL SELECTEUR DE TEMPS PILOTE TOUT
+// Le menu "Performance par Campagne" commande desormais les cartes KPI et la
+// liste des clients, en plus du tableau. Avant, ces trois zones suivaient des
+// sources differentes et pouvaient afficher trois periodes en meme temps.
+// ============================================================================
+
+// Traduit une valeur de periode en plage de dates concrete.
+// Retourne null pour 'all' (aucune borne).
+function plageDatesPourPeriode(period) {
+  const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const now = new Date();
+
+  if (typeof period === 'string' && period.startsWith('custom:')) {
+    const parts = period.split(':');
+    if (/^\d{4}-\d{2}-\d{2}$/.test(parts[1]) && /^\d{4}-\d{2}-\d{2}$/.test(parts[2])) {
+      return { debut: parts[1], fin: parts[2], libelle: `du ${parts[1]} au ${parts[2]}` };
+    }
+    return null;
+  }
+  if (period === 'all' || period === undefined || period === null) return null;
+
+  if (period === 'THIS_MONTH') {
+    const d = new Date(now.getFullYear(), now.getMonth(), 1);
+    return { debut: iso(d), fin: iso(now),
+             libelle: now.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) };
+  }
+  if (period === 'LAST_MONTH') {
+    const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const f = new Date(now.getFullYear(), now.getMonth(), 0);
+    return { debut: iso(d), fin: iso(f),
+             libelle: d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) };
+  }
+  const jours = parseInt(period);
+  if (!isNaN(jours) && jours > 0) {
+    const d = new Date(now); d.setDate(d.getDate() - jours);
+    return { debut: iso(d), fin: iso(now), libelle: `${jours} derniers jours` };
+  }
+  return null;
+}
+
+// Calcule les KPI Google Ads SUR UNE PERIODE.
+// Definition retenue avec Jordan (celle de son rapport mensuel, calibree sur
+// son fichier Excel) : un client compte s'il a eu AU MOINS UNE prestation dans
+// la periode, et seules ses prestations DE CETTE PERIODE alimentent le CA.
+function calculerKpisGoogleAdsPeriode(period, coutPeriode) {
+  const appData = DataManager.getAppData();
+  const plage = plageDatesPourPeriode(period);
+
+  const idsGoogleAds = new Set(
+    (appData.clients || []).filter(c => c.canalAcquisition === 'google-ads').map(c => c.id)
+  );
+
+  const prestations = (appData.prestations || []).filter(p => {
+    if (!idsGoogleAds.has(p.clientId) || !p.date) return false;
+    if (!plage) return true;
+    return p.date >= plage.debut && p.date <= plage.fin;
+  });
+
+  const totalRevenue = prestations.reduce((s, p) => s + (p.prix || 0) + (p.tips || 0), 0);
+  const parClient = {};
+  prestations.forEach(p => { (parClient[p.clientId] = parClient[p.clientId] || []).push(p); });
+
+  const clientsData = Object.entries(parClient).map(([clientId, ps]) => {
+    const client = (appData.clients || []).find(c => c.id === clientId) || { id: clientId, prenom: '?', nom: '' };
+    const revenue = ps.reduce((s, p) => s + (p.prix || 0) + (p.tips || 0), 0);
+    return {
+      client,
+      prestationsCount: ps.length,
+      revenue,
+      avgSession: ps.length > 0 ? revenue / ps.length : 0,
+      lastSession: Math.max(...ps.map(p => new Date(p.date).getTime()))
+    };
+  }).sort((a, b) => b.revenue - a.revenue);
+
+  const cout = typeof coutPeriode === 'number' ? coutPeriode : 0;
+  return {
+    clientsCount: clientsData.length,
+    prestationsCount: prestations.length,
+    totalRevenue,
+    totalCost: cout,
+    roi: cout > 0 ? ((totalRevenue - cout) / cout) * 100 : 0,
+    roiMoney: totalRevenue - cout,
+    clientsData,
+    libellePeriode: plage ? plage.libelle : 'Depuis le début'
+  };
+}
+
+// Ecrit les cartes + met a jour les sous-libelles de periode.
+function afficherKpisGoogleAdsPourPeriode(period, coutPeriode) {
+  const metrics = calculerKpisGoogleAdsPeriode(period, coutPeriode);
+  if (typeof updateGoogleAdsKPIsDisplay === 'function') {
+    updateGoogleAdsKPIsDisplay(metrics);
+  }
+  const sousCout = document.getElementById('ga-kpi-cost-sub');
+  if (sousCout) sousCout.textContent = metrics.libellePeriode;
+  const sousClients = document.getElementById('ga-kpi-clients-sub');
+  if (sousClients) sousClients.textContent = metrics.libellePeriode;
+  return metrics;
+}
+
 async function loadAndDisplayCampaignsDataWithPeriod(period = '30') {
   const performanceSection = document.getElementById('campaigns-performance-section');
   if (!performanceSection) {
@@ -2679,16 +2777,14 @@ async function loadAndDisplayCampaignsDataWithPeriod(period = '30') {
       const tableHTML = generateFinalCampaignsTableWithPeriod(selectedCampaignsData, period);
       performanceSection.innerHTML = tableHTML;
       
-      // ✅ METTRE À JOUR LE NOMBRE DE CLIENTS PAR CAMPAGNE (DÉDUPLICATION)
-      const uniqueClientsCount = calculateUniqueCampaignClients(selectedCampaignsData, period);
-      
-      // Mettre à jour le KPI
-      const kpiClientsCount = document.getElementById('google-ads-kpi-clients-count');
-      if (kpiClientsCount) {
-        kpiClientsCount.textContent = uniqueClientsCount;
-      }
-      
-      console.log(`✅ Clients uniques mis à jour: ${uniqueClientsCount}`);
+      // v1.0.13.0 : le selecteur de periode pilote MAINTENANT les six cartes KPI
+      // et la liste des clients, plus seulement le tableau.
+      // Le cout provient de l'API pour CETTE periode exactement, donc le ROI
+      // affiche compare bien des revenus et un cout de la meme fenetre de temps.
+      // (Avant, ce bloc n'ecrivait qu'une seule carte - la 5e ecriture partielle
+      // du fichier - avec un identifiant qui n'existe plus.)
+      const coutPeriode = selectedCampaignsData.reduce((t, c) => t + (c.cost || 0), 0);
+      afficherKpisGoogleAdsPourPeriode(period, coutPeriode);
     } else {
       performanceSection.innerHTML = `
         <div style="text-align: center; padding: 1.5rem; color: var(--text-light, #666);">
