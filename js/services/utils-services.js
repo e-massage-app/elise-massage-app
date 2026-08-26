@@ -2890,27 +2890,29 @@ async function getCampaignsForCustomerWithPeriod(accessToken, customerId, period
     // Récupération campagnes API
     
     // ✅ CORRECTION : Construire la clause WHERE selon la période avec support THIS_MONTH
-    let whereClause;
-    // v1.0.11.0 : plage de dates explicite "custom:AAAA-MM-JJ:AAAA-MM-JJ".
-    // Format valide strictement avant injection dans la requete GAQL.
-    const plage = (typeof period === 'string' && period.startsWith('custom:'))
-      ? period.split(':') : null;
-    if (plage && /^\d{4}-\d{2}-\d{2}$/.test(plage[1]) && /^\d{4}-\d{2}-\d{2}$/.test(plage[2])) {
-      whereClause = `WHERE segments.date BETWEEN '${plage[1]}' AND '${plage[2]}'`;
-    } else if (period === 'all') {
-      whereClause = '';
-    } else if (period === 'THIS_MONTH') {
-      // ✅ NOUVEAU : Support officiel Google Ads pour "Ce mois-ci" calendaire
-      whereClause = `WHERE segments.date DURING THIS_MONTH`;
-    } else if (period === 'LAST_MONTH') {
-      whereClause = `WHERE segments.date DURING LAST_MONTH`;
-    } else if (period === 'YESTERDAY') {
-      whereClause = `WHERE segments.date DURING YESTERDAY`;
-    } else if (period === 'TODAY') {
-      whereClause = `WHERE segments.date DURING TODAY`;
-    } else {
-      // Période numérique (7, 30, etc.)
-      whereClause = `WHERE segments.date DURING LAST_${period}_DAYS`;
+    // v1.0.13.1 : TOUTES les periodes passent par des dates explicites.
+    //
+    // Deux raisons :
+    //  1. Google Ads n'accepte qu'une liste FERMEE de constantes de date
+    //     (LAST_7_DAYS, LAST_14_DAYS, LAST_30_DAYS...). LAST_90_DAYS n'existe
+    //     pas : la requete echouait et l'ecran affichait "Campagnes
+    //     selectionnees non trouvees dans l'API".
+    //  2. Les constantes Google et notre calcul ne couvraient pas exactement
+    //     les memes jours (LAST_30_DAYS exclut aujourd'hui, pas nous), donc le
+    //     tableau et les cartes KPI pouvaient porter sur des fenetres
+    //     decalees d'un jour.
+    //
+    // En calculant les bornes nous-memes, le tableau et les cartes interrogent
+    // rigoureusement la meme periode, et aucune valeur n'est refusee.
+    let whereClause = '';
+    if (period !== 'all' && period !== undefined && period !== null) {
+      const plage = (typeof plageDatesPourPeriode === 'function')
+        ? plageDatesPourPeriode(period) : null;
+      if (plage && /^\d{4}-\d{2}-\d{2}$/.test(plage.debut) && /^\d{4}-\d{2}-\d{2}$/.test(plage.fin)) {
+        whereClause = `WHERE segments.date BETWEEN '${plage.debut}' AND '${plage.fin}'`;
+      } else {
+        console.warn(`\u26a0\ufe0f Periode "${period}" non interpretable : requete sans filtre de date`);
+      }
     }
     
     const query = `
