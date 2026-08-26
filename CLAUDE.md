@@ -64,9 +64,14 @@ de faire **Ctrl+Shift+R** (le cache HTTP du navigateur est distinct du cache du 
 
 ## Versioning
 - Format : `X.Y.Z.W` ou X.Y = version PWA, Z.W = heritage version Electron
-- Version actuelle : `1.0.18.2` (Analytics : format monetaire unifie)
+- Version actuelle : `1.0.18.3` (estampille de version sur les JS/CSS : fin du cache HTTP perime)
 - **OBLIGATOIRE** : a chaque modification demandee par l'utilisateur, proposer un bump de version et attendre validation
 - Mettre a jour la version dans 3 endroits : `package.json`, `index.html` (burger menu + footer)
+- Puis **`node scripts/estampiller-version.js`** : repose `?v=X.Y.Z.W` sur tous les
+  `<script src="js/...">` et `<link href="css/...">`. Sans cette etape, le cache HTTP
+  du navigateur peut resservir un ancien JS sous un index.html a jour (constate en
+  v1.0.18.2 : `google-ads-roi.js` perime alors que le HTML annoncait la bonne version)
+- Ne pas oublier le numero de cache du service worker dans `sw.js` (`elise-massage-vNN`)
 - Le numero de version sert a verifier que la derniere version est deployee
 
 ## Regles

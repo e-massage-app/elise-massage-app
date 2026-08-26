@@ -2,29 +2,18 @@
 // Strategie : cache assets statiques UNIQUEMENT, PAS les donnees Supabase
 // Si offline -> l'app affiche le message "reseau requis"
 
-const CACHE_NAME = 'elise-massage-v60';
+const CACHE_NAME = 'elise-massage-v61';
+// v1.0.18.3 : les JS et CSS ne figurent plus ici.
+// Depuis cette version, index.html les appelle avec une estampille de version
+// ("js/app.js?v=1.0.18.3", posee par scripts/estampiller-version.js). Les
+// precacher sans estampille revenait a telecharger a chaque installation des
+// URL que plus personne ne demande. Ils entrent dans le cache au premier
+// chargement reel, a leur URL estampillee.
 const STATIC_ASSETS = [
   './',
   './index.html',
   './login.html',
   './manifest.json',
-  './css/base.css',
-  './css/components.css',
-  './css/views.css',
-  './css/mobile.css',
-  './js/config.js',
-  './js/supabase-client.js',
-  './js/auth.js',
-  './js/app.js',
-  './js/core/data-manager.js',
-  './js/core/calculations.js',
-  './js/services/client-services.js',
-  './js/services/business-services.js',
-  './js/services/utils-services.js',
-  './js/ui/view-manager.js',
-  './js/ui/modal-manager.js',
-  './js/ui/form-manager.js',
-  './js/analytics/google-ads-roi.js',
   './assets/logo.png',
   './assets/icon.png'
 ];
@@ -111,9 +100,24 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Assets statiques locaux -> network-first (toujours la derniere version)
+  // Assets statiques locaux -> network-first (toujours la derniere version).
+  //
+  // v1.0.18.3 : fetch(event.request) passe par le cache HTTP du navigateur.
+  // GitHub Pages sert les fichiers avec un max-age de dix minutes : pendant
+  // ce delai, le navigateur repond depuis son propre cache sans meme
+  // contacter le reseau, et le service worker range ensuite cette reponse
+  // perimee dans SON cache. C'est ainsi qu'un google-ads-roi.js d'un
+  // deploiement precedent a continue de s'executer sous un index.html a jour.
+  //
+  // 'no-cache' n'empeche pas la mise en cache : il impose une requete
+  // conditionnelle. Le serveur repond 304 quand rien n'a bouge - c'est
+  // quasiment gratuit - et le contenu neuf arrive des qu'il existe.
+  const versReseau = event.request.method === 'GET'
+    ? new Request(event.request.url, { cache: 'no-cache', credentials: 'same-origin' })
+    : event.request;
+
   event.respondWith(
-    fetch(event.request).then((response) => {
+    fetch(versReseau).then((response) => {
       if (response.ok && event.request.method === 'GET') {
         const clone = response.clone();
         caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
