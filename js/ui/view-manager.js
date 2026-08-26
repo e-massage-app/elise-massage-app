@@ -118,6 +118,8 @@ function showTab(tabName) {
       break;
     case 'analytics':
       UtilsServices.updateAnalytics();
+      // v1.0.14.0 : retrouver la derniere vue consultee
+      setTimeout(restoreAnalyticsTab, 80);
       break;
     case 'depenses':
       updateDepensesDisplay();
@@ -3716,9 +3718,54 @@ async function saveRelanceSmsTemplates(btn) {
   }, { loadingText: 'Enregistrement…' });
 }
 
+// ============================================================================
+// v1.0.14.0 : ONGLETS DE LA PAGE ANALYTICS
+// La page empilait 14 sections sur 3358 px (4,1 ecrans sur mobile). Les memes
+// blocs sont repartis en 4 vues. Rien n'est recalcule : on masque et on affiche.
+// ============================================================================
+
+const ANALYTICS_ONGLET_DEFAUT = 'ov';
+
+function setAnalyticsTab(cle) {
+  const panneau = document.querySelector('[data-ana-panel="' + cle + '"]');
+  if (!panneau) {
+    console.warn('Onglet Analytics inconnu :', cle);
+    return;
+  }
+
+  document.querySelectorAll('.ana-tab').forEach(b => {
+    const actif = b.dataset.ana === cle;
+    b.classList.toggle('active', actif);
+    b.setAttribute('aria-selected', String(actif));
+  });
+  document.querySelectorAll('.ana-panel').forEach(p => {
+    p.classList.toggle('active', p.dataset.anaPanel === cle);
+  });
+
+  // ApexCharts rendu dans un panneau masque calcule une largeur de 0 : les
+  // graphiques apparaissent alors ecrases ou vides. L'evenement resize leur
+  // fait reprendre les dimensions reelles une fois le panneau visible.
+  setTimeout(() => window.dispatchEvent(new Event('resize')), 60);
+
+  // Preference d'affichage locale a l'appareil : localStorage suffit et evite
+  // un aller-retour reseau vers Supabase a chaque clic sur un onglet.
+  try { localStorage.setItem('analyticsActiveTab', cle); } catch (e) {}
+}
+
+function restoreAnalyticsTab() {
+  let cle = ANALYTICS_ONGLET_DEFAUT;
+  try {
+    const stocke = localStorage.getItem('analyticsActiveTab');
+    if (stocke && document.querySelector('[data-ana-panel="' + stocke + '"]')) cle = stocke;
+  } catch (e) {}
+  setAnalyticsTab(cle);
+}
+
 window.ViewManager = {
   // Navigation
   showTab,
+  setAnalyticsTab,
+  restoreAnalyticsTab,
 
   // v1.0.10.0 : relances
   updateRelancesDisplay,

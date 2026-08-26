@@ -2471,3 +2471,57 @@
   border-radius: 10px; color: #3a352f; line-height: 1.55; white-space: pre-wrap;
   max-height: 45vh; overflow-y: auto;
 }
+
+/* ==========================================================================
+   v1.0.14.0 — ONGLETS DE LA PAGE ANALYTICS
+   La page empilait 14 sections sur 3358 px, soit 4,1 ecrans sur mobile.
+   Meme motif que l'annuaire (.annu-etab) et le dashboard, memes variables.
+   ========================================================================== */
+.ana-tabs {
+  display: flex;
+  gap: 2px;
+  margin: 0 0 1.25rem;
+  border-bottom: 1px solid #ece1d5;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.ana-tabs::-webkit-scrollbar { display: none; }
+
+.ana-tab {
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 11px 16px;
+  white-space: nowrap;
+  cursor: pointer;
+  background: none;
+  border: none;
+  border-bottom: 2.5px solid transparent;
+  color: #9c9187;
+  transition: color 0.15s, border-color 0.15s;
+}
+.ana-tab:hover { color: var(--text-dark); }
+.ana-tab.active {
+  color: var(--text-dark);
+  border-bottom-color: var(--beige-dore);
+}
+.ana-tab:focus-visible {
+  outline: 2px solid var(--beige-dore);
+  outline-offset: -2px;
+}
+
+.ana-panel { display: none; }
+.ana-panel.active { display: block; animation: anaRise 0.25s ease both; }
+
+@keyframes anaRise {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ana-panel.active { animation: none; }
+}
+
+@media (max-width: 640px) {
+  .ana-tab { padding: 10px 13px; font-size: 0.9rem; }
+}
