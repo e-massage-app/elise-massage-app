@@ -2563,3 +2563,64 @@
     gap: 1rem;
   }
 }
+
+/* ==========================================================================
+   v1.0.14.2 — DENSITE : STATISTIQUES CLES EN TUILES, TABLEAU EN PLEINE LARGEUR
+   "Statistiques cles" s'affichait en liste verticale de 5 lignes, occupant
+   autant de hauteur que le graphique juste au-dessus pour 5 chiffres.
+   Le tableau des revenus par canal (5 colonnes) etait comprime dans une
+   colonne de 340 px : les libelles s'enroulaient sur trois lignes.
+   ========================================================================== */
+
+/* --- Statistiques cles : rangee de tuiles compactes --- */
+.ana-panel .stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(165px, 1fr));
+  gap: 0.7rem;
+  padding: 1.1rem 1.25rem 1.35rem;
+}
+.ana-panel .stat-item {
+  display: block;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid #ece1d5;
+  border-radius: 10px;
+  background: #fdfaf6;
+  transition: border-color 0.15s;
+}
+.ana-panel .stat-item:hover {
+  background: #fdfaf6;
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  border-color: var(--beige-dore);
+}
+.ana-panel .stat-label {
+  display: block;
+  font-size: 0.68rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #9c9187;
+  font-weight: 700;
+  margin-bottom: 0.3rem;
+  line-height: 1.3;
+}
+.ana-panel .stat-value {
+  display: block;
+  font-size: 1.45rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--beige-dore);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Blocs larges : un tableau a 5 colonnes ne tient pas dans 340 px --- */
+.ana-panel .ana-full {
+  grid-column: 1 / -1;
+}
+.ana-panel .ana-full table {
+  width: 100%;
+  min-width: 560px;
+}
+.ana-panel .ana-full .chart-wrapper,
+.ana-panel .ana-full > div:last-child {
+  overflow-x: auto;
+}
