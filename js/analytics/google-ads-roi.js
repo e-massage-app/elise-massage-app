@@ -559,15 +559,18 @@ function updateGoogleAdsKPIsDisplay(metrics) {
   };
 
   const signe = (v) => (v >= 0 ? '+' : '');
+  // v1.0.18.1 : meme format que le tableau des campagnes juste en dessous -
+  // separateur de milliers francais, espace insecable, pas de centimes.
+  const euro = (v) => Math.round(v).toLocaleString('fr-FR') + '\u00a0\u20ac';
   const ok = [
-    ecrire('ga-kpi-roi-money', `${signe(metrics.roiMoney)}${metrics.roiMoney.toFixed(0)}\u20ac`,
+    ecrire('ga-kpi-roi-money', `${signe(metrics.roiMoney)}${euro(metrics.roiMoney)}`,
            metrics.roiMoney >= 0 ? '#28a745' : '#e74c3c'),
     ecrire('ga-kpi-roi-percent', `(${signe(metrics.roi)}${metrics.roi.toFixed(1)}%)`),
-    ecrire('ga-kpi-cost', `${metrics.totalCost.toFixed(0)}\u20ac`),
-    ecrire('ga-kpi-revenue', `${metrics.totalRevenue.toFixed(0)}\u20ac`),
+    ecrire('ga-kpi-cost', euro(metrics.totalCost)),
+    ecrire('ga-kpi-revenue', euro(metrics.totalRevenue)),
     ecrire('ga-kpi-prestations',
            (typeof metrics.totalTips === 'number' && metrics.totalTips > 0)
-             ? `${metrics.prestationsCount} prestation(s) · dont ${metrics.totalTips.toFixed(0)}€ de pourboires`
+             ? `${metrics.prestationsCount} prestation(s) · dont ${euro(metrics.totalTips)} de pourboires`
              : `${metrics.prestationsCount} prestation(s)`),
     ecrire('ga-kpi-clients', `${metrics.clientsCount}`)
   ];

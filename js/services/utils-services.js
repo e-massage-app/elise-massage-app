@@ -1598,7 +1598,7 @@ function updateMoyensPaiementChart(selectedYear = 'current', selectedMonth = '')
   // Mettre à jour les stats avec le montant total
   const statsElement = document.querySelector('.total-paiements');
   if (statsElement) {
-    statsElement.textContent = `${totalPaiements} paiement${totalPaiements > 1 ? 's' : ''} • ${totalMontant.toFixed(2)} €`;
+    statsElement.textContent = `${totalPaiements} paiement${totalPaiements > 1 ? 's' : ''} • ${Math.round(totalMontant).toLocaleString('fr-FR')} €`;
   }
 
   const montantsParLabel = chartData.montantsParLabel;
@@ -2287,19 +2287,19 @@ function generateGoogleAdsSection(metrics) {
                libelle en petites capitales, valeur en Playfair Display. -->
           <div class="ana-kpi is-vert">
             <div class="ana-kpi-k">Retour sur investissement</div>
-            <div id="ga-kpi-roi-money" class="ana-kpi-v">${metrics.roi >= 0 ? '+' : ''}${metrics.roiMoney.toFixed(0)}€</div>
+            <div id="ga-kpi-roi-money" class="ana-kpi-v">${metrics.roi >= 0 ? '+' : ''}${Math.round(metrics.roiMoney).toLocaleString('fr-FR')} €</div>
             <div id="ga-kpi-roi-percent" class="ana-kpi-n">(${metrics.roi >= 0 ? '+' : ''}${metrics.roi.toFixed(1)}%)</div>
           </div>
 
           <div class="ana-kpi is-or">
             <div class="ana-kpi-k">Investissement</div>
-            <div id="ga-kpi-cost" class="ana-kpi-v">${metrics.totalCost.toFixed(0)}€</div>
+            <div id="ga-kpi-cost" class="ana-kpi-v">${Math.round(metrics.totalCost).toLocaleString('fr-FR')} €</div>
             <div id="ga-kpi-cost-sub" class="ana-kpi-n">Depuis le début</div>
           </div>
 
           <div class="ana-kpi">
             <div class="ana-kpi-k">Revenus générés</div>
-            <div id="ga-kpi-revenue" class="ana-kpi-v">${metrics.totalRevenue.toFixed(0)}€</div>
+            <div id="ga-kpi-revenue" class="ana-kpi-v">${Math.round(metrics.totalRevenue).toLocaleString('fr-FR')} €</div>
             <div id="ga-kpi-prestations" class="ana-kpi-n">${metrics.prestationsCount} prestation(s)</div>
           </div>
 
@@ -3022,7 +3022,7 @@ function updateGoogleAdsMetricsDisplay(metrics) {
     // Coût Total
     const costContainer = containers[1];
     const costValue = costContainer.querySelector('[style*="font-size: 1.4rem"]');
-    if (costValue) costValue.textContent = `${metrics.totalCost.toFixed(0)}€`;
+    if (costValue) costValue.textContent = `${Math.round(metrics.totalCost).toLocaleString('fr-FR')} €`;
     
     // Revenus restent identiques (données globales)
     // Clients restent identiques (données globales)
