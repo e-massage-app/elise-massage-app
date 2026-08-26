@@ -402,6 +402,16 @@ function showAllCampaignsMetrics() {
 }
 
 function updateAnalyticsBySelection() {
+  // v1.0.13.3 : ce selecteur ne pilote PLUS les cartes KPI ni la liste clients.
+  // Ces zones suivent desormais uniquement le selecteur de periode de
+  // "Performance par Campagne", conformement a la demande de Jordan.
+  // Faire cohabiter deux pilotes garantissait une course : celui qui repondait
+  // en dernier imposait SA periode, sans que rien ne l'indique a l'ecran.
+  if (typeof rafraichirEcranGoogleAds === 'function') {
+    rafraichirEcranGoogleAds();
+    return;
+  }
+
   const selector = document.getElementById('analytics-campaign-period-selector');
   if (!selector) return;
   
@@ -638,12 +648,11 @@ function initializeDefaultSelection() {
   // alors figees sur le rendu initial, et il fallait changer de campagne puis
   // revenir pour obtenir les bons chiffres.
   setTimeout(() => {
-    const selector = document.getElementById('analytics-campaign-period-selector');
-    if (!selector) {
-      console.warn('⚠️ Selecteur Google Ads absent : KPIs non recalcules');
-      return;
+    if (typeof rafraichirEcranGoogleAds === 'function') {
+      rafraichirEcranGoogleAds();
+    } else {
+      console.warn('⚠️ Point d entree Google Ads absent : KPIs non recalcules');
     }
-    updateAnalyticsBySelection();
   }, 100);
 }
 

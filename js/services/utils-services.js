@@ -2689,6 +2689,25 @@ function calculerKpisGoogleAdsPeriode(period, coutPeriode) {
   };
 }
 
+// v1.0.13.3 : POINT D'ENTREE UNIQUE de l'ecran Google Ads.
+// Lit la periode choisie dans le selecteur "Performance par Campagne" et
+// recharge tout depuis cette seule source. Avant, le chargement initial et le
+// selecteur du haut declenchaient leur propre calcul en parallele : au premier
+// affichage l'ancien chemin gagnait la course, d'ou des cartes sans la mention
+// des pourboires et une periode differente de celle affichee dans le menu.
+function rafraichirEcranGoogleAds() {
+  const sel = document.getElementById('campaign-period-selector');
+  const period = sel ? sel.value : 'all';
+  // Les deux modes calendrier attendent une saisie : ne rien recharger.
+  if (period === '__month' || period === '__range') return;
+  if (typeof loadAndDisplayCampaignsDataWithPeriod === 'function') {
+    loadAndDisplayCampaignsDataWithPeriod(period);
+  } else {
+    console.warn('\u26a0\ufe0f loadAndDisplayCampaignsDataWithPeriod indisponible');
+  }
+}
+window.rafraichirEcranGoogleAds = rafraichirEcranGoogleAds;
+
 // Ecrit les cartes + met a jour les sous-libelles de periode.
 function afficherKpisGoogleAdsPourPeriode(period, coutPeriode) {
   const metrics = calculerKpisGoogleAdsPeriode(period, coutPeriode);

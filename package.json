@@ -1,6 +1,6 @@
 {
   "name": "elise-massage-pwa",
-  "version": "1.0.13.2",
+  "version": "1.0.13.3",
   "description": "Application de gestion Elise Massage - PWA + Supabase",
   "private": true,
   "scripts": {
