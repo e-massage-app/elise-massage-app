@@ -314,6 +314,7 @@ function updateAnalytics() {
   updateCanauxRevenusTable();
   updateGenreChart();
   updateKeyStats();
+  updateAnaKpis();
   updateGoogleAdsAnalytics();
   setupGlobalAnalyticsControls();
 }
@@ -351,6 +352,7 @@ function updateAllAnalyticsCharts() {
   updateGenreChart(selectedYear, selectedMonth);
   updateCanauxRevenusTable(selectedYear, selectedMonth);
   updateKeyStats(selectedYear, selectedMonth);
+  updateAnaKpis(selectedYear, selectedMonth);
   updatePrestationsStats(selectedYear, selectedMonth);
   updateDureesStats(selectedYear, selectedMonth);
 }
@@ -969,6 +971,55 @@ function updateDureesChart(selectedYear = 'current', selectedMonth = '') {
     dataLabels: { enabled: false }
   });
   dureesChart.render();
+}
+
+// ============================================================================
+// v1.0.16.0 : RANGEE DE CHIFFRES CLES EN TETE D'ANALYTICS
+// La page s'ouvrait directement sur un graphique. On lit maintenant d'abord
+// les quatre chiffres qui resument l'activite, puis la tendance.
+// Respecte les filtres globaux annee / mois comme le reste de la page.
+// ============================================================================
+function updateAnaKpis(selectedYear = 'current', selectedMonth = '') {
+  const hote = document.getElementById('ana-kpis');
+  if (!hote) return;
+
+  const d = DataManager.getAppData();
+  const anneeCible = (selectedYear === 'current' || !selectedYear)
+    ? new Date().getFullYear()
+    : parseInt(selectedYear);
+
+  const prestations = (d.prestations || []).filter(p => {
+    if (!p.date) return false;
+    const [an, mois] = p.date.split('-');
+    if (parseInt(an) !== anneeCible) return false;
+    if (selectedMonth !== '' && selectedMonth !== null && parseInt(mois) !== parseInt(selectedMonth)) return false;
+    return true;
+  });
+
+  const prix = prestations.reduce((t, p) => t + (p.prix || 0), 0);
+  const tips = prestations.reduce((t, p) => t + (p.tips || 0), 0);
+  const ca = prix + tips;
+  const clients = new Set(prestations.map(p => p.clientId)).size;
+  const panier = prestations.length > 0 ? ca / prestations.length : 0;
+  const euro = n => Math.round(n).toLocaleString('fr-FR') + ' \u20ac';
+
+  const tuiles = [
+    { cle: "Chiffre d'affaires", val: euro(ca),
+      note: tips > 0 ? 'dont ' + euro(tips) + ' de pourboires' : 'prestations encaiss\u00e9es', ton: 'or' },
+    { cle: 'Prestations', val: String(prestations.length),
+      note: clients > 0 ? (prestations.length / clients).toFixed(1) + ' par cliente' : '\u2014', ton: '' },
+    { cle: 'Clientes venues', val: String(clients),
+      note: 'sur la p\u00e9riode', ton: 'brun' },
+    { cle: 'Panier moyen', val: euro(panier),
+      note: 'par prestation', ton: 'or' }
+  ];
+
+  hote.innerHTML = tuiles.map(t => `
+    <div class="ana-kpi ${t.ton ? 'is-' + t.ton : ''}">
+      <div class="ana-kpi-k">${t.cle}</div>
+      <div class="ana-kpi-v">${t.val}</div>
+      <div class="ana-kpi-n">${t.note}</div>
+    </div>`).join('');
 }
 
 function updateKeyStats(selectedYear = 'current', selectedMonth = '') {
