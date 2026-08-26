@@ -2525,3 +2525,41 @@
 @media (max-width: 640px) {
   .ana-tab { padding: 10px 13px; font-size: 0.9rem; }
 }
+
+/* ==========================================================================
+   v1.0.14.1 — GRILLE ANALYTICS RESPONSIVE
+   La grille etait figee : 3 colonnes x 4 LIGNES imposees, avec des positions
+   codees en dur (.analytics-container en ligne 1, .stats-container en
+   colonne 3 ligne 3). Une fois les blocs repartis en onglets, chacun restait
+   accroche a sa position d'origine : d'ou les colonnes vides sur grand ecran
+   et les blocs empiles au lieu d'etre cote a cote.
+   Ici : les cartes se placent d'elles-memes, autant par ligne que la largeur
+   le permet, et repassent en colonne unique sous 340 px de large.
+   ========================================================================== */
+.ana-panel .analytics-grid {
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  grid-template-rows: none;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+/* Le graphique d'evolution et les statistiques cles gardent toute la largeur :
+   l'un est une serie temporelle, l'autre une rangee de chiffres. */
+.ana-panel .analytics-container,
+.ana-panel .stats-container {
+  grid-column: 1 / -1;
+  grid-row: auto;
+}
+
+/* Les cartes graphiques se placent librement */
+.ana-panel .chart-container {
+  grid-column: auto;
+  grid-row: auto;
+}
+
+@media (max-width: 720px) {
+  .ana-panel .analytics-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+}
