@@ -334,11 +334,17 @@ function showAllCampaignsMetrics() {
   const appData = DataManager.getAppData();
   const parametres = appData.parametres || {};
   
-  const allClientsGoogleAds = appData.clients.filter(c => c.canalAcquisition === 'google-ads');
   const allPrestationsGoogleAds = appData.prestations.filter(p => {
     const client = appData.clients.find(c => c.id === p.clientId);
     return client && client.canalAcquisition === 'google-ads';
   });
+  // v1.0.12.0 : ne compter que les clients ayant AU MOINS une prestation.
+  // Avant, un client tague "google-ads" mais jamais venu gonflait le compteur
+  // "Clients Acquis" sans rien apporter au chiffre d'affaires affiche a cote.
+  const idsAvecPrestation = new Set(allPrestationsGoogleAds.map(p => p.clientId));
+  const allClientsGoogleAds = appData.clients.filter(
+    c => c.canalAcquisition === 'google-ads' && idsAvecPrestation.has(c.id)
+  );
   
   const totalRevenue = allPrestationsGoogleAds.reduce((sum, p) => sum + (p.prix || 0) + (p.tips || 0), 0);
   
@@ -420,11 +426,17 @@ function filterAnalyticsByCampaign(campaignId) {
   const appData = DataManager.getAppData();
   const parametres = appData.parametres || {};
   
-  const allClientsGoogleAds = appData.clients.filter(c => c.canalAcquisition === 'google-ads');
   const allPrestationsGoogleAds = appData.prestations.filter(p => {
     const client = appData.clients.find(c => c.id === p.clientId);
     return client && client.canalAcquisition === 'google-ads';
   });
+  // v1.0.12.0 : ne compter que les clients ayant AU MOINS une prestation.
+  // Avant, un client tague "google-ads" mais jamais venu gonflait le compteur
+  // "Clients Acquis" sans rien apporter au chiffre d'affaires affiche a cote.
+  const idsAvecPrestation = new Set(allPrestationsGoogleAds.map(p => p.clientId));
+  const allClientsGoogleAds = appData.clients.filter(
+    c => c.canalAcquisition === 'google-ads' && idsAvecPrestation.has(c.id)
+  );
   
   const totalRevenue = allPrestationsGoogleAds.reduce((sum, p) => sum + (p.prix || 0) + (p.tips || 0), 0);
   
@@ -485,22 +497,34 @@ function filterAnalyticsByPeriod(campaignId, periodId) {
     totalCost = cachedCosts.total || 0;
   }
   
-  // ✅ clientsData depuis roiData
-  const clientsData = roiData.clients.map(c => ({
-    client: { id: c.id, prenom: c.prenom, nom: c.nom },
-    prestationsCount: 1,
-    revenue: c.revenue,
-    avgSession: c.revenue,
-    lastSession: new Date(c.acquisitionDate).getTime()
-  })).sort((a, b) => b.revenue - a.revenue);
-  
+  // v1.0.12.0 - CORRECTIF : le nombre de prestations etait faux.
+  // Avant : prestationsCount valait 1 par client (code en dur), et le total
+  // affiche etait roiData.clients.length, c'est-a-dire le nombre de CLIENTS.
+  // Les cartes "Clients" et "Prestations" ne pouvaient donc jamais differer,
+  // alors que 27 clients Google Ads sont revenus au moins deux fois.
+  const toutesPrestations = DataManager.getAllPrestations();
+  const clientsData = roiData.clients.map(c => {
+    const ps = toutesPrestations.filter(p => p.clientId === c.id);
+    return {
+      client: { id: c.id, prenom: c.prenom, nom: c.nom },
+      prestationsCount: ps.length,
+      revenue: c.revenue,
+      avgSession: ps.length > 0 ? c.revenue / ps.length : 0,
+      lastSession: ps.length > 0
+        ? Math.max(...ps.map(p => new Date(p.date).getTime()))
+        : new Date(c.acquisitionDate).getTime()
+    };
+  }).sort((a, b) => b.revenue - a.revenue);
+
+  const prestationsReelles = clientsData.reduce((t, c) => t + c.prestationsCount, 0);
+
   // Recalculer ROI avec le bon coût
   const roi = totalCost > 0 ? ((roiData.revenue - totalCost) / totalCost) * 100 : 0;
   const profit = roiData.revenue - totalCost;
   
   updateGoogleAdsKPIsDisplay({
     clientsCount: roiData.clientsCount,
-    prestationsCount: roiData.clients.length,
+    prestationsCount: prestationsReelles,
     totalRevenue: roiData.revenue,
     totalCost: totalCost,
     roi: roi,
@@ -510,60 +534,47 @@ function filterAnalyticsByPeriod(campaignId, periodId) {
 }
 
 function updateGoogleAdsKPIsDisplay(metrics) {
-  const googleAdsSection = document.getElementById('google-ads-analytics');
-  if (!googleAdsSection) return;
-  
-  const gridContainers = googleAdsSection.querySelectorAll('[style*="grid-template-columns"]');
-  if (gridContainers.length === 0) return;
-  
-  const kpisGrid = gridContainers[0];
-  const allKpiBoxes = kpisGrid.querySelectorAll('div[style*="background: var(--beige-clair"]');
-  
-  if (allKpiBoxes.length >= 4) {
-    const roiBox = allKpiBoxes[0];
-    const roiValueDiv = roiBox.querySelector('div:nth-child(2)');
-    const roiPercentDiv = roiBox.querySelector('div:nth-child(3)');
-    
-    if (roiValueDiv) {
-      roiValueDiv.textContent = `${metrics.roiMoney >= 0 ? '+' : ''}${metrics.roiMoney.toFixed(0)}€`;
-      roiValueDiv.style.color = metrics.roiMoney >= 0 ? '#28a745' : '#e74c3c';
-    }
-    if (roiPercentDiv) {
-      roiPercentDiv.textContent = `(${metrics.roi >= 0 ? '+' : ''}${metrics.roi.toFixed(1)}%)`;
-    }
-    
-    const costBox = allKpiBoxes[1];
-    const costValueDiv = costBox.querySelector('div:nth-child(2)');
-    if (costValueDiv) {
-      costValueDiv.textContent = `${metrics.totalCost.toFixed(0)}€`;
-    }
-    
-    const revenueBox = allKpiBoxes[2];
-    const revenueValueDiv = revenueBox.querySelector('div:nth-child(2)');
-    const revenueSubDiv = revenueBox.querySelector('div:nth-child(3)');
-    if (revenueValueDiv) {
-      revenueValueDiv.textContent = `${metrics.totalRevenue.toFixed(0)}€`;
-    }
-    if (revenueSubDiv) {
-      revenueSubDiv.textContent = `${metrics.prestationsCount} prestation(s)`;
-    }
-    
-    const clientsBox = allKpiBoxes[3];
-    const clientsValueDiv = clientsBox.querySelector('div:nth-child(2)');
-    if (clientsValueDiv) {
-      clientsValueDiv.textContent = `${metrics.clientsCount}`;
-    }
+  // v1.0.12.0 : ciblage par IDENTIFIANT.
+  // Avant, les cartes etaient retrouvees en cherchant une chaine de style CSS
+  // puis une position d'enfant (div:nth-child(2)). Si le DOM n'etait pas encore
+  // rendu, la fonction sortait EN SILENCE : certaines cartes gardaient les
+  // valeurs d'un calcul precedent, d'ou des affichages incoherents
+  // (ex : un ROI de 10280 EUR affiche a cote de revenus de 6300 EUR).
+  const ecrire = (id, texte, couleur) => {
+    const el = document.getElementById(id);
+    if (!el) return false;
+    el.textContent = texte;
+    if (couleur) el.style.color = couleur;
+    return true;
+  };
+
+  const signe = (v) => (v >= 0 ? '+' : '');
+  const ok = [
+    ecrire('ga-kpi-roi-money', `${signe(metrics.roiMoney)}${metrics.roiMoney.toFixed(0)}\u20ac`,
+           metrics.roiMoney >= 0 ? '#28a745' : '#e74c3c'),
+    ecrire('ga-kpi-roi-percent', `(${signe(metrics.roi)}${metrics.roi.toFixed(1)}%)`),
+    ecrire('ga-kpi-cost', `${metrics.totalCost.toFixed(0)}\u20ac`),
+    ecrire('ga-kpi-revenue', `${metrics.totalRevenue.toFixed(0)}\u20ac`),
+    ecrire('ga-kpi-prestations', `${metrics.prestationsCount} prestation(s)`),
+    ecrire('ga-kpi-clients', `${metrics.clientsCount}`)
+  ];
+
+  // Si le DOM n'est pas pret, on le DIT au lieu d'echouer silencieusement.
+  if (ok.some(v => !v)) {
+    console.warn('\u26a0\ufe0f Cartes KPI Google Ads : DOM incomplet, affichage partiel',
+                 { ecrites: ok.filter(Boolean).length, attendues: ok.length });
   }
-  
+
   // ✅ Mettre à jour la liste des clients
   if (metrics.clientsData) {
-    // ✅ FORCE: Mettre à jour le titre IMMÉDIATEMENT
-    const allH3 = document.querySelectorAll('#google-ads-analytics h3');
-    allH3.forEach(h3 => {
-      if (h3.textContent.includes('Clients Google Ads')) {
-        h3.textContent = `👥 Clients Google Ads (${metrics.clientsCount})`;
-      }
-    });
+    // v1.0.12.0 - CORRECTIF : la recherche portait sur un <h3>, alors que le
+    // gabarit utilise un <h5 id="google-ads-clients-title">. Le titre n'etait
+    // donc JAMAIS mis a jour, et le libelle "de cette periode" restait affiche
+    // meme quand la liste montrait tous les clients, toutes periodes confondues.
+    const titre = document.getElementById('google-ads-clients-title');
+    if (titre) {
+      titre.textContent = `👥 Clients Google Ads (${metrics.clientsData.length})`;
+    }
     
     const clientsContentDiv = document.getElementById('google-ads-clients-content');
     if (clientsContentDiv) {
@@ -619,12 +630,17 @@ window.updateAnalyticsBySelection = updateAnalyticsBySelection;
 
 // ✅ Fonction d'initialisation : sélectionner automatiquement la première période active
 function initializeDefaultSelection() {
+  // v1.0.12.0 - CORRECTIF : la condition "!== 'all'" empechait tout recalcul
+  // quand le selecteur valait 'all' (le cas par defaut). Les cartes restaient
+  // alors figees sur le rendu initial, et il fallait changer de campagne puis
+  // revenir pour obtenir les bons chiffres.
   setTimeout(() => {
     const selector = document.getElementById('analytics-campaign-period-selector');
-    if (selector && selector.value !== 'all') {
-      console.log('🎯 Initialisation: Sélection automatique de la période active');
-      updateAnalyticsBySelection();
+    if (!selector) {
+      console.warn('⚠️ Selecteur Google Ads absent : KPIs non recalcules');
+      return;
     }
+    updateAnalyticsBySelection();
   }, 100);
 }
 

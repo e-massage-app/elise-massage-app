@@ -2081,28 +2081,28 @@ function generateGoogleAdsSection(metrics) {
           <!-- ROI Total -->
           <div style="background: var(--beige-clair, #faf8f5); border: 1px solid var(--border-color, #e8e3d8); border-radius: var(--border-radius, 6px); padding: 1rem; text-align: center;">
             <div style="font-size: 0.8rem; color: var(--text-light, #666); margin-bottom: 0.5rem; font-weight: 500;">ROI Total</div>
-            <div style="font-size: 1.4rem; font-weight: 700; color: #28a745; margin-bottom: 0.25rem;">${metrics.roi >= 0 ? '+' : ''}${metrics.roiMoney.toFixed(0)}€</div>
-            <div style="font-size: 0.7rem; color: var(--text-light, #888);">(${metrics.roi >= 0 ? '+' : ''}${metrics.roi.toFixed(1)}%)</div>
+            <div id="ga-kpi-roi-money" style="font-size: 1.4rem; font-weight: 700; color: #28a745; margin-bottom: 0.25rem;">${metrics.roi >= 0 ? '+' : ''}${metrics.roiMoney.toFixed(0)}€</div>
+            <div id="ga-kpi-roi-percent" style="font-size: 0.7rem; color: var(--text-light, #888);">(${metrics.roi >= 0 ? '+' : ''}${metrics.roi.toFixed(1)}%)</div>
           </div>
           
           <!-- Coût Total -->
           <div style="background: var(--beige-clair, #faf8f5); border: 1px solid var(--border-color, #e8e3d8); border-radius: var(--border-radius, 6px); padding: 1rem; text-align: center;">
             <div style="font-size: 0.8rem; color: var(--text-light, #666); margin-bottom: 0.5rem; font-weight: 500;">Coût Total</div>
-            <div style="font-size: 1.4rem; font-weight: 700; color: var(--beige-dore, #d4af37); margin-bottom: 0.25rem;">${metrics.totalCost.toFixed(0)}€</div>
+            <div id="ga-kpi-cost" style="font-size: 1.4rem; font-weight: 700; color: var(--beige-dore, #d4af37); margin-bottom: 0.25rem;">${metrics.totalCost.toFixed(0)}€</div>
             <div style="font-size: 0.7rem; color: var(--text-light, #888);">Depuis le début</div>
           </div>
           
           <!-- Revenus Générés -->
           <div style="background: var(--beige-clair, #faf8f5); border: 1px solid var(--border-color, #e8e3d8); border-radius: var(--border-radius, 6px); padding: 1rem; text-align: center;">
             <div style="font-size: 0.8rem; color: var(--text-light, #666); margin-bottom: 0.5rem; font-weight: 500;">Revenus Générés</div>
-            <div style="font-size: 1.4rem; font-weight: 700; color: #4285f4; margin-bottom: 0.25rem;">${metrics.totalRevenue.toFixed(0)}€</div>
-            <div style="font-size: 0.7rem; color: var(--text-light, #888);">${metrics.prestationsCount} prestation(s)</div>
+            <div id="ga-kpi-revenue" style="font-size: 1.4rem; font-weight: 700; color: #4285f4; margin-bottom: 0.25rem;">${metrics.totalRevenue.toFixed(0)}€</div>
+            <div id="ga-kpi-prestations" style="font-size: 0.7rem; color: var(--text-light, #888);">${metrics.prestationsCount} prestation(s)</div>
           </div>
           
           <!-- Clients Acquis -->
           <div style="background: var(--beige-clair, #faf8f5); border: 1px solid var(--border-color, #e8e3d8); border-radius: var(--border-radius, 6px); padding: 1rem; text-align: center;">
             <div style="font-size: 0.8rem; color: var(--text-light, #666); margin-bottom: 0.5rem; font-weight: 500;">Clients Acquis</div>
-            <div id="google-ads-kpi-clients-count" style="font-size: 1.4rem; font-weight: 700; color: #6f42c1; margin-bottom: 0.25rem;">${metrics.clientsCount}</div>
+            <div id="ga-kpi-clients" style="font-size: 1.4rem; font-weight: 700; color: #6f42c1; margin-bottom: 0.25rem;">${metrics.clientsCount}</div>
             <div style="font-size: 0.7rem; color: var(--text-light, #888);">Via Google Ads</div>
           </div>
         </div>
