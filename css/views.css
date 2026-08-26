@@ -2624,3 +2624,90 @@
 .ana-panel .ana-full > div:last-child {
   overflow-x: auto;
 }
+
+/* ==========================================================================
+   v1.0.15.0 — TRAITEMENT GRAPHIQUE (maquette validee)
+   Tout est confine sous .ana-panel : les memes composants utilises ailleurs
+   dans l'application (dashboard, annuaire) ne sont pas touches.
+   ========================================================================== */
+
+/* --- 1. Le bandeau brun plein devient un en-tete discret ---------------
+   Il occupait 1,5rem de haut en aplat colore pour un titre et quatre
+   boutons. Meme traitement que les autres cartes : fond creme, texte
+   sombre, et le titre passe en Playfair Display comme dans l'annuaire. */
+.ana-panel .analytics-header {
+  padding: 0.95rem 1.2rem;
+  background: linear-gradient(135deg, #faf8f5 0%, #f3ede6 100%);
+  color: var(--text-dark);
+  border-bottom: 1px solid #ede5db;
+}
+.ana-panel .analytics-header h3 {
+  color: var(--text-dark);
+  font-family: 'Playfair Display', serif;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+/* Les commandes etaient calibrees pour un fond fonce (blanc sur brun) */
+.ana-panel .period-btn {
+  border: 1px solid #ece1d5;
+  background: var(--white);
+  color: #9c9187;
+  font-weight: 600;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.ana-panel .period-btn:hover {
+  background: #fdfaf6;
+  color: var(--text-dark);
+  border-color: var(--beige-dore);
+}
+.ana-panel .period-btn.active {
+  background: var(--beige-dore);
+  color: var(--white);
+  border-color: var(--beige-dore);
+}
+.ana-panel .ana-year-select {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid #ece1d5;
+  background: var(--white);
+  color: var(--text-dark);
+  border-radius: 6px;
+  margin-right: 1rem;
+  font-size: 0.85rem;
+}
+
+/* --- 2. Densite : moins de vide, plus de contenu a l'ecran ------------- */
+.ana-panel .chart-header { padding: 0.9rem 1.15rem; }
+.ana-panel .chart-header h3 {
+  font-family: 'Playfair Display', serif;
+  font-size: 1rem;
+  font-weight: 600;
+}
+.ana-panel .chart-wrapper {
+  padding: 0.7rem 1.1rem 1.1rem;
+  min-height: 240px;          /* etait 320px : hauteur imposee inutilement */
+}
+.ana-panel .modern-filters { padding: 1rem 1.2rem 1.2rem; }
+.ana-panel .stats-header { padding: 0.9rem 1.2rem 0; }
+
+/* --- 3. Tuiles de chiffres : rail d'accent, comme sur la maquette ------ */
+.ana-panel .stat-item {
+  position: relative;
+  overflow: hidden;
+  padding-left: 1.05rem;
+}
+.ana-panel .stat-item:hover { padding-left: 1.05rem; }
+.ana-panel .stat-item::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--beige-dore);
+}
+
+/* --- 4. Tableau : la valeur par cliente est l'information utile -------- */
+.ana-panel .ana-full table td:last-child {
+  font-weight: 700;
+  color: var(--text-dark);
+}
+.ana-panel .ana-full table th:last-child { color: var(--white); }
