@@ -64,7 +64,7 @@ de faire **Ctrl+Shift+R** (le cache HTTP du navigateur est distinct du cache du 
 
 ## Versioning
 - Format : `X.Y.Z.W` ou X.Y = version PWA, Z.W = heritage version Electron
-- Version actuelle : `1.0.12.0` (Analytics Google Ads : comptages faux et affichage incoherent corriges)
+- Version actuelle : `1.0.12.1` (Analytics Google Ads : un seul ecrivain sur les cartes KPI)
 - **OBLIGATOIRE** : a chaque modification demandee par l'utilisateur, proposer un bump de version et attendre validation
 - Mettre a jour la version dans 3 endroits : `package.json`, `index.html` (burger menu + footer)
 - Le numero de version sert a verifier que la derniere version est deployee

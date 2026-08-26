@@ -2291,71 +2291,22 @@ async function loadAndDisplayCampaignsData() {
       
       console.log(`✅ Cache mis à jour : Coût ${realTotalCost.toFixed(0)}€`);
       
-      // ✅ METTRE À JOUR LES KPIS DU DOM DIRECTEMENT (sans régénérer toute la section)
-      setTimeout(() => {
-        const roi = realTotalCost > 0 ? ((totalRevenue - realTotalCost) / realTotalCost) * 100 : 0;
-        const roiMoney = totalRevenue - realTotalCost;
-        
-        console.log(`📊 Valeurs calculées : ROI ${roiMoney.toFixed(0)}€ (${roi.toFixed(1)}%), Coût ${realTotalCost.toFixed(0)}€`);
-        
-        // Trouver les KPIs dans le DOM avec un sélecteur différent
-        const googleAdsSection = document.getElementById('google-ads-analytics');
-        if (!googleAdsSection) {
-          console.error('❌ Section google-ads-analytics non trouvée');
-          return;
-        }
-        
-        // Trouver TOUS les divs avec grid
-        const gridContainers = googleAdsSection.querySelectorAll('[style*="grid-template-columns"]');
-        console.log(`🔍 Trouvé ${gridContainers.length} grid containers`);
-        
-        if (gridContainers.length > 0) {
-          // Prendre le PREMIER grid (celui des KPIs)
-          const kpisGrid = gridContainers[0];
-          const allKpiBoxes = kpisGrid.querySelectorAll('div[style*="background: var(--beige-clair"]');
-          console.log(`📦 Trouvé ${allKpiBoxes.length} KPI boxes dans le premier grid`);
-          
-          if (allKpiBoxes.length >= 2) {
-            // KPI 1: ROI Total
-            const roiBox = allKpiBoxes[0];
-            const roiLabel = roiBox.querySelector('div:first-child');
-            console.log(`🏷️ KPI 1 label:`, roiLabel ? roiLabel.textContent : 'non trouvé');
-            
-            const roiValueDiv = roiBox.querySelector('div:nth-child(2)');
-            const roiPercentDiv = roiBox.querySelector('div:nth-child(3)');
-            
-            if (roiValueDiv) {
-              console.log(`💰 Ancienne valeur ROI:`, roiValueDiv.textContent);
-              roiValueDiv.textContent = `${roiMoney >= 0 ? '+' : ''}${roiMoney.toFixed(0)}€`;
-              roiValueDiv.style.color = roiMoney >= 0 ? '#28a745' : '#e74c3c';
-              console.log(`✅ Nouvelle valeur ROI:`, roiValueDiv.textContent);
-            }
-            if (roiPercentDiv) {
-              console.log(`📈 Ancien % ROI:`, roiPercentDiv.textContent);
-              roiPercentDiv.textContent = `(${roi >= 0 ? '+' : ''}${roi.toFixed(1)}%)`;
-              console.log(`✅ Nouveau % ROI:`, roiPercentDiv.textContent);
-            }
-            
-            // KPI 2: Coût Total
-            const costBox = allKpiBoxes[1];
-            const costLabel = costBox.querySelector('div:first-child');
-            console.log(`🏷️ KPI 2 label:`, costLabel ? costLabel.textContent : 'non trouvé');
-            
-            const costValueDiv = costBox.querySelector('div:nth-child(2)');
-            if (costValueDiv) {
-              console.log(`💵 Ancienne valeur Coût:`, costValueDiv.textContent);
-              costValueDiv.textContent = `${realTotalCost.toFixed(0)}€`;
-              console.log(`✅ Nouvelle valeur Coût:`, costValueDiv.textContent);
-            }
-            
-            console.log(`✅ KPIs DOM mis à jour : ROI ${roiMoney.toFixed(0)}€, Coût ${realTotalCost.toFixed(0)}€`);
-          } else {
-            console.warn(`⚠️ Pas assez de KPI boxes : ${allKpiBoxes.length}`);
-          }
-        } else {
-          console.warn('⚠️ Aucun grid container trouvé');
-        }
-      }, 200);
+      // v1.0.12.1 - CORRECTIF DE FOND : cette fonction ecrivait DIRECTEMENT dans
+      // les cartes KPI, mais seulement DEUX d'entre elles (ROI et Cout) sur six.
+      // Etant asynchrone (elle attend l'API Google Ads), elle arrivait EN DERNIER
+      // et ecrasait le ROI calcule juste avant, tout en laissant revenus,
+      // prestations et clients issus d'un autre calcul. Un ecrivain partiel
+      // garantit l'incoherence : on voyait un ROI de 10 280 EUR affiche a cote
+      // de revenus de 6 300 EUR (alors que 6300 - 1940 = 4360).
+      //
+      // Le cout vient d'etre rafraichi dans le cache juste au-dessus. On delegue
+      // donc le recalcul COMPLET a l'unique autorite d'affichage, qui ecrit les
+      // six cartes ensemble a partir d'un seul jeu de donnees.
+      if (typeof updateAnalyticsBySelection === 'function') {
+        updateAnalyticsBySelection();
+      } else {
+        console.warn('⚠️ updateAnalyticsBySelection indisponible : cartes KPI non rafraichies');
+      }
     } else {
       performanceSection.innerHTML = `
         <div style="text-align: center; padding: 1.5rem; color: var(--text-light, #666);">
