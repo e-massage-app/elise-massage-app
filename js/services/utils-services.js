@@ -2653,7 +2653,12 @@ function calculerKpisGoogleAdsPeriode(period, coutPeriode) {
     return p.date >= plage.debut && p.date <= plage.fin;
   });
 
-  const totalRevenue = prestations.reduce((s, p) => s + (p.prix || 0) + (p.tips || 0), 0);
+  // v1.0.13.2 : les pourboires comptent dans le CA (decide avec Jordan) mais
+  // sont isoles pour rester lisibles - un mois a fort pourboire ne doit pas
+  // gonfler le CA sans explication.
+  const totalPrix = prestations.reduce((s, p) => s + (p.prix || 0), 0);
+  const totalTips = prestations.reduce((s, p) => s + (p.tips || 0), 0);
+  const totalRevenue = totalPrix + totalTips;
   const parClient = {};
   prestations.forEach(p => { (parClient[p.clientId] = parClient[p.clientId] || []).push(p); });
 
@@ -2674,6 +2679,8 @@ function calculerKpisGoogleAdsPeriode(period, coutPeriode) {
     clientsCount: clientsData.length,
     prestationsCount: prestations.length,
     totalRevenue,
+    totalPrix,
+    totalTips,
     totalCost: cout,
     roi: cout > 0 ? ((totalRevenue - cout) / cout) * 100 : 0,
     roiMoney: totalRevenue - cout,

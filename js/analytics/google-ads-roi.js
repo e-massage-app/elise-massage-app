@@ -555,7 +555,10 @@ function updateGoogleAdsKPIsDisplay(metrics) {
     ecrire('ga-kpi-roi-percent', `(${signe(metrics.roi)}${metrics.roi.toFixed(1)}%)`),
     ecrire('ga-kpi-cost', `${metrics.totalCost.toFixed(0)}\u20ac`),
     ecrire('ga-kpi-revenue', `${metrics.totalRevenue.toFixed(0)}\u20ac`),
-    ecrire('ga-kpi-prestations', `${metrics.prestationsCount} prestation(s)`),
+    ecrire('ga-kpi-prestations',
+           (typeof metrics.totalTips === 'number' && metrics.totalTips > 0)
+             ? `${metrics.prestationsCount} prestation(s) · dont ${metrics.totalTips.toFixed(0)}€ de pourboires`
+             : `${metrics.prestationsCount} prestation(s)`),
     ecrire('ga-kpi-clients', `${metrics.clientsCount}`)
   ];
 
