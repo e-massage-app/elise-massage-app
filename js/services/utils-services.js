@@ -2121,8 +2121,28 @@ function generateGoogleAdsSection(metrics) {
               <select id="campaign-period-selector" onchange="changeCampaignPeriod()" style="padding: 0.4rem 0.8rem; border: 1px solid var(--border-color, #e8e3d8); border-radius: var(--border-radius, 4px); background: white; font-size: 0.8rem; color: var(--text-dark, #333);">
                 <option value="all" selected>📅 Depuis le début</option>
                 <option value="THIS_MONTH">📅 Ce mois-ci</option>
+                <option value="LAST_MONTH">📅 Mois dernier</option>
                 <option value="7">📅 7 derniers jours</option>
+                <option value="30">📅 30 derniers jours</option>
+                <option value="90">📅 90 derniers jours</option>
+                <option value="__month">🗓️ Choisir un mois…</option>
+                <option value="__range">🗓️ Période personnalisée…</option>
               </select>
+              <!-- v1.0.11.0 : choix d'un mois calendaire precis -->
+              <span id="campaign-period-month-wrap" style="display:none; align-items:center; gap:0.4rem;">
+                <input type="month" id="campaign-period-month" onchange="applyCampaignMonth()"
+                       style="padding:0.35rem 0.5rem; border:1px solid var(--border-color,#e8e3d8); border-radius:4px; font-size:0.8rem;">
+              </span>
+              <!-- v1.0.11.0 : plage de dates libre -->
+              <span id="campaign-period-range-wrap" style="display:none; align-items:center; gap:0.4rem;">
+                <input type="date" id="campaign-period-start"
+                       style="padding:0.35rem 0.5rem; border:1px solid var(--border-color,#e8e3d8); border-radius:4px; font-size:0.8rem;">
+                <span style="color:var(--text-light,#666); font-size:0.8rem;">→</span>
+                <input type="date" id="campaign-period-end"
+                       style="padding:0.35rem 0.5rem; border:1px solid var(--border-color,#e8e3d8); border-radius:4px; font-size:0.8rem;">
+                <button onclick="applyCampaignRange()"
+                        style="padding:0.35rem 0.7rem; border:none; border-radius:4px; background:#d4a574; color:#fff; font-size:0.8rem; cursor:pointer;">OK</button>
+              </span>
             </div>
           </div>
           
@@ -2552,6 +2572,13 @@ function changeCampaignPeriod() {
   
   const selectedPeriod = selector.value;
   const periodText = selector.options[selector.selectedIndex].text;
+
+  // v1.0.11.0 : les deux modes calendrier affichent leurs champs et attendent la saisie
+  const wrapMois = document.getElementById('campaign-period-month-wrap');
+  const wrapPlage = document.getElementById('campaign-period-range-wrap');
+  if (wrapMois) wrapMois.style.display = (selectedPeriod === '__month') ? 'inline-flex' : 'none';
+  if (wrapPlage) wrapPlage.style.display = (selectedPeriod === '__range') ? 'inline-flex' : 'none';
+  if (selectedPeriod === '__month' || selectedPeriod === '__range') return;
   
   console.log('📅 Changement de période:', selectedPeriod, periodText);
   
@@ -2570,6 +2597,53 @@ function changeCampaignPeriod() {
   setTimeout(() => {
     loadAndDisplayCampaignsDataWithPeriod(selectedPeriod);
   }, 500);
+}
+
+// ============================================================
+// v1.0.11.0 : selection d'une periode calendaire precise
+// Repond a la limite historique : seuls "ce mois-ci" et "7 jours"
+// etaient accessibles, impossible de consulter un mois passe.
+// ============================================================
+
+// Mois calendaire COMPLET : du 1er au dernier jour reel.
+// new Date(annee, mois, 0) donne 28/29/30/31 correctement, annees bissextiles incluses.
+function applyCampaignMonth() {
+  const champ = document.getElementById('campaign-period-month');
+  if (!champ || !champ.value) return;
+  const parts = champ.value.split('-').map(Number);
+  const annee = parts[0], mois = parts[1];
+  const dernierJour = new Date(annee, mois, 0).getDate();
+  const debut = champ.value + '-01';
+  const fin = champ.value + '-' + String(dernierJour).padStart(2, '0');
+  const nomMois = new Date(annee, mois - 1, 1)
+    .toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  _chargerPeriodeCampagne(debut, fin, nomMois);
+}
+
+// Plage libre saisie par l'utilisateur
+function applyCampaignRange() {
+  const d = document.getElementById('campaign-period-start');
+  const f = document.getElementById('campaign-period-end');
+  if (!d || !f || !d.value || !f.value) {
+    alert('Choisis une date de début et une date de fin.');
+    return;
+  }
+  if (d.value > f.value) {
+    alert('La date de début doit être antérieure à la date de fin.');
+    return;
+  }
+  _chargerPeriodeCampagne(d.value, f.value, 'du ' + d.value + ' au ' + f.value);
+}
+
+function _chargerPeriodeCampagne(debut, fin, libelle) {
+  const section = document.getElementById('campaigns-performance-section');
+  if (section) {
+    section.innerHTML =
+      '<div style="text-align:center; padding:1.5rem; color:var(--text-light,#666);">' +
+      '<div style="font-size:1.5rem; margin-bottom:0.5rem;">📅</div>' +
+      '<p style="margin:0; font-size:0.85rem;">Chargement des données pour : ' + libelle + '</p></div>';
+  }
+  loadAndDisplayCampaignsDataWithPeriod('custom:' + debut + ':' + fin);
 }
 
 async function loadAndDisplayCampaignsDataWithPeriod(period = '30') {
@@ -2770,7 +2844,13 @@ async function getCampaignsForCustomerWithPeriod(accessToken, customerId, period
     
     // ✅ CORRECTION : Construire la clause WHERE selon la période avec support THIS_MONTH
     let whereClause;
-    if (period === 'all') {
+    // v1.0.11.0 : plage de dates explicite "custom:AAAA-MM-JJ:AAAA-MM-JJ".
+    // Format valide strictement avant injection dans la requete GAQL.
+    const plage = (typeof period === 'string' && period.startsWith('custom:'))
+      ? period.split(':') : null;
+    if (plage && /^\d{4}-\d{2}-\d{2}$/.test(plage[1]) && /^\d{4}-\d{2}-\d{2}$/.test(plage[2])) {
+      whereClause = `WHERE segments.date BETWEEN '${plage[1]}' AND '${plage[2]}'`;
+    } else if (period === 'all') {
       whereClause = '';
     } else if (period === 'THIS_MONTH') {
       // ✅ NOUVEAU : Support officiel Google Ads pour "Ce mois-ci" calendaire
@@ -3264,6 +3344,8 @@ window.reloadCampaignsNow = reloadCampaignsNow;
 window.changeCampaignPeriod = changeCampaignPeriod;
 window.loadAndDisplayCampaignsDataWithPeriod = loadAndDisplayCampaignsDataWithPeriod;
 window.getCampaignsForCustomerWithPeriod = getCampaignsForCustomerWithPeriod;
+window.applyCampaignMonth = applyCampaignMonth;
+window.applyCampaignRange = applyCampaignRange;
 window.generateFinalCampaignsTableWithPeriod = generateFinalCampaignsTableWithPeriod;
 window.syncGoogleAdsCacheOnce = syncGoogleAdsCacheOnce;
 

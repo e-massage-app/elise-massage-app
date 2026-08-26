@@ -1,3 +1,15 @@
+-- #####################################################################
+-- ##  SCRIPT PERIME - NE PAS EXECUTER                                ##
+-- #####################################################################
+--
+-- Ecrit pour l'etat de la base au moment des tests initiaux de l'onglet
+-- Relances. Plusieurs semaines ont passe depuis : Elise a utilise
+-- l'onglet, les donnees ont evolue. Rejouer ce script ECRASERAIT du
+-- travail reel en remettant les suivis dans leur etat d'import d'origine.
+--
+-- Conserve uniquement comme trace de l'import initial.
+-- #####################################################################
+
 -- =====================================================================
 -- REMISE A ZERO DES SUIVIS DE RELANCE APRES LES TESTS
 -- Ne touche QUE la table `relances`.
