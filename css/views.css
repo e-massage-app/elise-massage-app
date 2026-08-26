@@ -2705,12 +2705,11 @@
   background: var(--beige-dore);
 }
 
-/* --- 4. Tableau : la valeur par cliente est l'information utile -------- */
-.ana-panel .ana-full table td:last-child {
-  font-weight: 700;
-  color: var(--text-dark);
-}
-.ana-panel .ana-full table th:last-child { color: var(--white); }
+/* --- 4. Tableau ---------------------------------------------------------
+   Le style des cellules est porte par .ana-td-nom / -num / -cle plus bas.
+   Les deux regles :last-child qui vivaient ici ont ete retirees en v1.0.18.0 :
+   plus specifiques (0,3,2) que les classes (0,3,0), elles annulaient le vert
+   de .est-fort et peignaient le dernier en-tete en blanc sur fond creme. */
 
 /* ==========================================================================
    v1.0.16.0 — RANGEE DE CHIFFRES CLES (traitement de la maquette)
@@ -2939,3 +2938,83 @@
 #google-ads-analytics .ana-kpis { margin-bottom: 1.25rem; }
 #google-ads-analytics .ana-kpi.is-vert::before { background: #2e9e5b; }
 #google-ads-analytics .ana-kpi-v { font-size: 1.55rem; }
+
+/* Colonnes chiffrees alignees a droite, en-tete compris */
+.ana-panel .ana-full table thead th + th { text-align: right; }
+
+/* Ligne Partenariats : meme grille, distinguee par un liosere dore */
+.ana-panel .ana-tr-partenariat td {
+  background: #fdf8f2;
+  border-top: 2px solid var(--beige-dore);
+}
+.ana-panel .ana-tr-partenariat .ana-td-nom,
+.ana-panel .ana-tr-partenariat .ana-td-cle { color: #b07d43; }
+
+/* L'onglet Clients n'a que deux graphiques : sans cette regle, auto-fit ouvre
+   une troisieme colonne vide sur les grands ecrans et la rangee parait bancale.
+   Le tableau plein largeur garde son grid-column: 1 / -1. */
+@media (min-width: 1100px) {
+  .ana-panel[data-ana-panel="cl"] .analytics-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* --- Tableau des campagnes Google Ads ----------------------------------
+   Il vit hors d'un .analytics-grid : on redonne ici les memes regles que le
+   tableau des canaux, sans dependre du selecteur .ana-panel .ana-full. */
+#google-ads-analytics .ana-full { margin-top: 0.5rem; }
+#google-ads-analytics .ana-full table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--white);
+}
+#google-ads-analytics .ana-full thead th {
+  background: #f3ebe1;
+  color: #9c9187;
+  font-size: 0.68rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  font-weight: 700;
+  padding: 0.7rem 0.9rem;
+  text-align: left;
+  border-bottom: 1px solid #ece1d5;
+}
+#google-ads-analytics .ana-full thead th + th { text-align: right; }
+#google-ads-analytics .ana-full td {
+  padding: 0.75rem 0.9rem;
+  border-bottom: 1px solid #f3ebe1;
+  font-size: 0.86rem;
+}
+#google-ads-analytics .ana-full tbody tr:last-child td { border-bottom: none; }
+#google-ads-analytics .ana-full .ana-td-nom { font-weight: 600; color: var(--text-dark); }
+#google-ads-analytics .ana-full .ana-td-num {
+  text-align: right;
+  color: #6b6259;
+  font-variant-numeric: tabular-nums;
+}
+#google-ads-analytics .ana-full .ana-td-cle {
+  text-align: right;
+  font-weight: 700;
+  color: var(--text-dark);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Etat d'une campagne : pastille, pas un mot perdu au milieu des chiffres */
+.ana-etat {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 11px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  background: #efe8e0;
+  color: #8b8078;
+}
+.ana-etat.est-actif { background: #e4f3ea; color: #2e9e5b; }
+.ana-etat.est-pause { background: #fbf0dc; color: #b07d43; }
+
+/* Variante de note posee directement sous un tableau, sans carte autour.
+   Specificite alignee sur .ana-panel .ana-note, sinon les marges gagnent. */
+.ana-panel .ana-note.ana-note-plate {
+  margin: 0;
+  border-top: 1px solid #f3ebe1;
+  border-radius: 0 0 var(--border-radius) var(--border-radius);
+}

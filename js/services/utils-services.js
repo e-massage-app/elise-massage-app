@@ -1142,10 +1142,8 @@ function updateKeyStats(selectedYear = 'current', selectedMonth = '') {
     (selectedMonth !== '' ? `${getMonthName(selectedMonth)} ${selectedYear}` : selectedYear) :
     'Cette année';
   
-  // TOTAL CLIENTS DYNAMIQUE
-  const totalClientsText = isFiltered ? 
-    `${stats.filteredClientsCount} clients (période)` : // NOUVEAU : stats.filteredClientsCount
-    `${stats.totalClients} clients`;
+  // v1.0.18.0 : le libelle repetait le nombre ("180 clients" / "180").
+  const totalClientsText = isFiltered ? 'Clientes de la période' : 'Clientes au fichier';
   
   // PIC D'ACTIVITÉ CONDITIONNEL
   const picActiviteText = isFiltered && selectedMonth !== '' ? '-' : stats.picMois;
@@ -2132,7 +2130,10 @@ function updateCanauxRevenusTable(selectedYear = 'current', selectedMonth = '') 
   // v1.0.18.0 : encart d'analyse. Le classement par volume et le classement par
   // valeur ne donnent pas le meme gagnant - c'est le seul endroit ou on le voit.
   (function poserNoteCanaux() {
-    const carte = document.getElementById('canaux-revenus-table');
+    // La note se pose dans la CARTE, pas dans le <table> : un <div> enfant de
+    // <table> est du HTML invalide et le navigateur le repositionne.
+    const table = document.getElementById('canaux-revenus-table');
+    const carte = table && table.closest('.chart-container');
     if (!carte) return;
     const avecClients = analytics.sorted.filter(c => c.clients > 0);
     if (avecClients.length < 2) return;
@@ -2154,20 +2155,12 @@ function updateCanauxRevenusTable(selectedYear = 'current', selectedMonth = '') 
   // Ajouter la ligne Partenariats si des revenus existent
   if (headSpaStats.revenus > 0 || headSpaStats.prestations > 0) {
     rows += `
-      <tr style="background: linear-gradient(135deg, #faf6f2, #f5ede6); border-top: 2px solid var(--beige-dore);">
-        <td style="font-weight: 600; color: var(--beige-dore);">💆 Partenariats</td>
-        <td style="text-align: center;">
-          <span class="badge" style="background: var(--rose-poudre); color: var(--text-dark);">${headSpaStats.prestations}</span>
-        </td>
-        <td style="text-align: center;">
-          <span class="badge badge-secondary">-</span>
-        </td>
-        <td style="text-align: right; font-weight: 600; color: var(--beige-dore);">
-          ${headSpaStats.revenus.toFixed(2)} €
-        </td>
-        <td style="text-align: right; color: var(--text-light);">
-          ${headSpaStats.prestations > 0 ? (headSpaStats.revenus / headSpaStats.prestations).toFixed(2) + ' €/presta' : '-'}
-        </td>
+      <tr class="ana-tr-partenariat">
+        <td class="ana-td-nom">💆 Partenariats</td>
+        <td class="ana-td-num">${headSpaStats.prestations}</td>
+        <td class="ana-td-num">—</td>
+        <td class="ana-td-num">${Math.round(headSpaStats.revenus).toLocaleString('fr-FR')} €</td>
+        <td class="ana-td-cle">${headSpaStats.prestations > 0 ? Math.round(headSpaStats.revenus / headSpaStats.prestations).toLocaleString('fr-FR') + ' €' : '—'}</td>
       </tr>
     `;
   }
@@ -2541,78 +2534,11 @@ async function loadAndDisplayCampaignsData() {
   }
 }
 
+// Doublon historique : plus aucun appelant depuis la v1.0.11.0, mais le nom
+// reste expose. Il delegue plutot que de dupliquer un second gabarit qui
+// divergeait silencieusement du vrai (c'est ce qui s'etait produit ici).
 function generateFinalCampaignsTable(campaignsData) {
-  console.log('📋 Génération tableau final avec', campaignsData.length, 'campagnes (version par défaut)');
-  
-  if (!campaignsData || campaignsData.length === 0) {
-    return `
-      <div style="text-align: center; padding: 1.5rem; color: var(--text-light, #666);">
-        <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">📭</div>
-        <p style="margin: 0; font-size: 0.85rem;">Aucune donnée de campagne</p>
-      </div>
-    `;
-  }
-  
-  return `
-    <div style="overflow-x: auto; border: 1px solid var(--border-color, #e8e3d8); border-radius: var(--border-radius, 4px); background: white;">
-      <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
-        <thead>
-          <tr style="background: var(--beige-dore, #d4af37); color: white;">
-            <th style="padding: 0.75rem; text-align: left; font-weight: 600; font-size: 0.8rem;">Campagne</th>
-            <th style="padding: 0.75rem; text-align: center; font-weight: 600; font-size: 0.8rem;">Statut</th>
-            <th style="padding: 0.75rem; text-align: center; font-weight: 600; font-size: 0.8rem;">Coût (Depuis le début)</th>
-            <th style="padding: 0.75rem; text-align: center; font-weight: 600; font-size: 0.8rem;">Impressions</th>
-            <th style="padding: 0.75rem; text-align: center; font-weight: 600; font-size: 0.8rem;">Clics</th>
-            <th style="padding: 0.75rem; text-align: center; font-weight: 600; font-size: 0.8rem;">CTR</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${campaignsData.map((campaign, index) => {
-            const statusColor = campaign.status === 'ENABLED' ? '#28a745' : 
-                               campaign.status === 'PAUSED' ? '#ffc107' : '#6c757d';
-            const statusText = campaign.status === 'ENABLED' ? 'Active' : 
-                              campaign.status === 'PAUSED' ? 'En pause' : 
-                              campaign.status || 'Inconnu';
-            
-            return `
-              <tr style="border-bottom: 1px solid var(--border-color, #f0f0f0); ${index % 2 === 0 ? 'background: #fafafa;' : 'background: white;'}">
-                <td style="padding: 0.75rem; font-weight: 500; color: var(--text-dark, #333); max-width: 200px; overflow: hidden; text-overflow: ellipsis;" title="${campaign.name || 'Nom indisponible'}">
-                  ${campaign.name || `Campagne ${campaign.id}`}
-                </td>
-                <td style="padding: 0.75rem; text-align: center;">
-                  <span style="padding: 0.2rem 0.4rem; border-radius: 10px; font-size: 0.7rem; font-weight: 600; background: ${statusColor}20; color: ${statusColor};">
-                    ${statusText}
-                  </span>
-                </td>
-                <td style="padding: 0.75rem; text-align: center; font-weight: 600; color: var(--beige-dore, #d4af37);">
-                  ${(campaign.cost || 0).toFixed(2)}€
-                </td>
-                <td style="padding: 0.75rem; text-align: center; color: var(--text-dark, #333);">
-                  ${(campaign.impressions || 0).toLocaleString()}
-                </td>
-                <td style="padding: 0.75rem; text-align: center; color: var(--text-dark, #333);">
-                  ${(campaign.clicks || 0).toLocaleString()}
-                </td>
-                <td style="padding: 0.75rem; text-align: center; color: var(--text-dark, #333);">
-                  ${campaign.ctr ? campaign.ctr.toFixed(2) + '%' : '0.00%'}
-                </td>
-              </tr>
-            `;
-          }).join('')}
-        </tbody>
-      </table>
-      
-      <!-- Résumé en bas du tableau CORRIGÉ pour "Depuis le début" -->
-      <div style="padding: 1rem; background: #f8f9fa; border-top: 1px solid var(--border-color, #e8e3d8); display: flex; justify-content: space-between; align-items: center;">
-        <div style="font-size: 0.9rem; color: var(--text-dark, #333);">
-          <strong>${campaignsData.length} campagne(s) • Coût total: ${campaignsData.reduce((sum, c) => sum + (c.cost || 0), 0).toFixed(2)}€</strong>
-        </div>
-        <div style="font-size: 0.8rem; color: var(--text-light, #666);">
-          📅 Depuis le début
-        </div>
-      </div>
-    </div>
-  `;
+  return generateFinalCampaignsTableWithPeriod(campaignsData, 'all');
 }
 
 function calculateGoogleAdsMetrics() {
@@ -3319,62 +3245,45 @@ function generateFinalCampaignsTableWithPeriod(campaignsData, period = 'all') {
                     `${period} derniers jours`;
   
   return `
-    <div style="overflow-x: auto; border: 1px solid var(--border-color, #e8e3d8); border-radius: var(--border-radius, 4px); background: white;">
-      <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
-        <thead>
-          <tr style="background: var(--beige-dore, #d4af37); color: white;">
-            <th style="padding: 0.75rem; text-align: left; font-weight: 600; font-size: 0.8rem;">Campagne</th>
-            <th style="padding: 0.75rem; text-align: center; font-weight: 600; font-size: 0.8rem;">Statut</th>
-            <th style="padding: 0.75rem; text-align: center; font-weight: 600; font-size: 0.8rem;">Coût (${periodText})</th>
-            <th style="padding: 0.75rem; text-align: center; font-weight: 600; font-size: 0.8rem;">Impressions</th>
-            <th style="padding: 0.75rem; text-align: center; font-weight: 600; font-size: 0.8rem;">Clics</th>
-            <th style="padding: 0.75rem; text-align: center; font-weight: 600; font-size: 0.8rem;">CTR</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${campaignsData.map((campaign, index) => {
-            const statusColor = campaign.status === 'ENABLED' ? '#28a745' : 
-                               campaign.status === 'PAUSED' ? '#ffc107' : '#6c757d';
-            const statusText = campaign.status === 'ENABLED' ? 'Active' : 
-                              campaign.status === 'PAUSED' ? 'En pause' : 
-                              campaign.status || 'Inconnu';
-            
-            return `
-              <tr style="border-bottom: 1px solid var(--border-color, #f0f0f0); ${index % 2 === 0 ? 'background: #fafafa;' : 'background: white;'}">
-                <td style="padding: 0.75rem; font-weight: 500; color: var(--text-dark, #333); max-width: 200px; overflow: hidden; text-overflow: ellipsis;" title="${campaign.name || 'Nom indisponible'}">
-                  ${campaign.name || `Campagne ${campaign.id}`}
-                </td>
-                <td style="padding: 0.75rem; text-align: center;">
-                  <span style="padding: 0.2rem 0.4rem; border-radius: 10px; font-size: 0.7rem; font-weight: 600; background: ${statusColor}20; color: ${statusColor};">
-                    ${statusText}
-                  </span>
-                </td>
-                <td style="padding: 0.75rem; text-align: center; font-weight: 600; color: var(--beige-dore, #d4af37);">
-                  ${(campaign.cost || 0).toFixed(2)}€
-                </td>
-                <td style="padding: 0.75rem; text-align: center; color: var(--text-dark, #333);">
-                  ${(campaign.impressions || 0).toLocaleString()}
-                </td>
-                <td style="padding: 0.75rem; text-align: center; color: var(--text-dark, #333);">
-                  ${(campaign.clicks || 0).toLocaleString()}
-                </td>
-                <td style="padding: 0.75rem; text-align: center; color: var(--text-dark, #333);">
-                  ${campaign.ctr ? campaign.ctr.toFixed(2) + '%' : '0.00%'}
-                </td>
-              </tr>
-            `;
-          }).join('')}
-        </tbody>
-      </table>
-      
-      <!-- Résumé en bas du tableau avec période -->
-      <div style="padding: 1rem; background: #f8f9fa; border-top: 1px solid var(--border-color, #e8e3d8); display: flex; justify-content: space-between; align-items: center;">
-        <div style="font-size: 0.9rem; color: var(--text-dark, #333);">
-          <strong>${campaignsData.length} campagne(s) • Coût total: ${campaignsData.reduce((sum, c) => sum + (c.cost || 0), 0).toFixed(2)}€</strong>
-        </div>
-        <div style="font-size: 0.8rem; color: var(--text-light, #666);">
-          📅 ${periodText}
-        </div>
+    <div class="ana-full">
+      <div class="table-wrapper" style="overflow-x:auto;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Campagne</th>
+              <th>Statut</th>
+              <th>Coût (${periodText})</th>
+              <th>Impressions</th>
+              <th>Clics</th>
+              <th>CTR</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${campaignsData.map(campaign => {
+              // Trois etats seulement : active, en pause, autre.
+              const actif = campaign.status === 'ENABLED';
+              const pause = campaign.status === 'PAUSED';
+              const etat = actif ? 'Active' : pause ? 'En pause' : (campaign.status || 'Inconnu');
+              const teinte = actif ? 'est-actif' : pause ? 'est-pause' : '';
+              const nb = n => (n || 0).toLocaleString('fr-FR');
+              return `
+                <tr>
+                  <td class="ana-td-nom" title="${campaign.name || 'Nom indisponible'}">${campaign.name || ('Campagne ' + campaign.id)}</td>
+                  <td class="ana-td-num"><span class="ana-etat ${teinte}">${etat}</span></td>
+                  <td class="ana-td-cle">${nb(Math.round(campaign.cost || 0))} €</td>
+                  <td class="ana-td-num">${nb(campaign.impressions)}</td>
+                  <td class="ana-td-num">${nb(campaign.clicks)}</td>
+                  <td class="ana-td-num">${campaign.ctr ? campaign.ctr.toFixed(2).replace('.', ',') + ' %' : '—'}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div class="ana-note ana-note-plate">
+        <b>${campaignsData.length} campagne(s)</b> · coût total
+        ${campaignsData.reduce((t, c) => t + (c.cost || 0), 0).toLocaleString('fr-FR', {maximumFractionDigits: 0})} €
+        sur la période « ${periodText} ».
       </div>
     </div>
   `;
