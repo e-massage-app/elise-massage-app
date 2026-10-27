@@ -2,7 +2,7 @@ name: Supabase Keepalive
 
 on:
   schedule:
-    - cron: '0 6 * * *'  # Tous les jours a 6h UTC (8h Paris)
+    - cron: '0 6 * * *'  # Tous les jours a 6h UTC (7h Paris l'hiver, 8h l'ete)
   workflow_dispatch:       # Permet declenchement manuel
 
 jobs:
@@ -25,14 +25,21 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
-          # Endpoint /rest/v1/ : touche PostgREST + DB sans dependre de RLS.
-          # Le endpoint exige BOTH headers : apikey + Authorization Bearer
-          # (avec apikey seul, Supabase repond HTTP 401).
-          URL="${SUPABASE_URL%/}/rest/v1/"
+          # La racine /rest/v1/ est reservee a la cle service_role : avec la cle
+          # anon elle repond 401 ("Only the service_role API key can be used for
+          # this endpoint"). Ce keepalive n'a donc jamais pu reussir, et le projet
+          # a ete mis en pause le 2026-10-27 apres 7 jours sans activite.
+          # Une lecture de table touche reellement la base ; RLS renvoie 0 ligne,
+          # ce qui suffit. C'est la requete qu'utilise deja la surveillance de l'app.
+          URL="${SUPABASE_URL%/}/rest/v1/parametres?select=cle&limit=1"
+          # --retry : une micro-coupure ne fait plus echouer la journee entiere.
+          # || : si le reseau tombe, le journal affiche un code au lieu de
+          # s'interrompre sans rien dire (bash -e est actif par defaut).
           response=$(curl -s -o /dev/null -w "%{http_code}" \
+            --retry 3 --retry-delay 10 \
             "$URL" \
             -H "apikey: ${SUPABASE_ANON_KEY}" \
-            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}")
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}") || response="000"
           echo "Supabase responded with HTTP $response"
           if [ "$response" != "200" ]; then
             echo "::error::Supabase keepalive failed - HTTP $response (expected 200) on $URL"
