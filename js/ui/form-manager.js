@@ -10,6 +10,10 @@ function editRdv(rdvId) {
   // Vérifier si c'est un soin partenariat
   const isPartnership = DataManager.isPartnershipSoin(rdv.soinId || rdv.type);
 
+  // v1.2.0.0 : RDV d'un bon cadeau (« planifie ») : statut propose et garde, sinon
+  // l'enregistrement le passait en « Confirmé » (1re option)
+  const optionPlanifie = rdv.statut === 'planifie' ? '<option value="planifie" selected>Planifié (bon cadeau)</option>' : '';
+
   const modalHTML = `
     <h3>Modifier rendez-vous</h3>
     <form id="rdv-form">
@@ -67,6 +71,7 @@ function editRdv(rdvId) {
         <div class="form-group">
           <label>Statut</label>
           <select id="rdv-statut">
+            ${optionPlanifie}
             <option value="confirmé" ${rdv.statut === 'confirmé' ? 'selected' : ''}>Confirmé</option>
             <option value="en attente" ${rdv.statut === 'en attente' ? 'selected' : ''}>En attente</option>
             <option value="annulé" ${rdv.statut === 'annulé' ? 'selected' : ''}>Annulé</option>
@@ -247,8 +252,9 @@ function editPrestation(prestationId) {
       const opt = dureeSelect.querySelector(`option[value="${prestation.duree}"]`);
       if (opt) dureeSelect.value = prestation.duree;
     }
+    // v1.2.0.0 : prix enregistre remis meme a 0 € (le test « si prix » laissait le prix catalogue)
     const prixInput = document.getElementById('prestation-prix');
-    if (prixInput && prestation.prix) prixInput.value = prestation.prix;
+    if (prixInput && prestation.prix != null) prixInput.value = prestation.prix;
   }, 200);
 }
 
@@ -649,9 +655,15 @@ async function deletePrestation(prestationId) {
 }
 
 async function deleteClient(clientId) {
-  if (await showCustomConfirm('Êtes-vous sûr de vouloir supprimer ce client et tous ses RDV/prestations ?')) {
+  // v1.2.0.0 : une fiche qui a des RDV ou des prestations ne se supprime plus (orphelins)
+  const refus = ClientServices.motifRefusFiche(clientId);
+  if (refus) {
+    showCustomAlert(refus, 'warning');
+    return;
+  }
+  if (await showCustomConfirm('Êtes-vous sûr de vouloir supprimer définitivement cette fiche ?')) {
     // v1.0.7.1 : await indispensable (meme raison que deletePrestation)
-    await ClientServices.deleteClientById(clientId);
+    if (!(await ClientServices.deleteClientById(clientId))) return;
     ViewManager.updateClientsDisplay();
     ViewManager.updateCalendar();
     ViewManager.updatePrestationsTable();
@@ -663,7 +675,7 @@ async function deleteClient(clientId) {
 async function deleteProspect(prospectId) {
   if (await showCustomConfirm('Êtes-vous sûr de vouloir supprimer ce prospect ?')) {
     // v1.0.7.1 : await indispensable
-    await ClientServices.deleteProspectById(prospectId);
+    if (!(await ClientServices.deleteProspectById(prospectId))) return; // v1.2.0.0 : echec deja signale
     ViewManager.updateClientsDisplay();
     showTemporaryMessage('Prospect supprimé');
   }
@@ -845,7 +857,8 @@ function transformerEnPrestation(rdvId) {
 
 async function annulerTransformation(rdvId) {
   if (await showCustomConfirm('Annuler la transformation en prestation ? Le RDV retrouvera son état normal.')) {
-    const success = BusinessServices.annulerTransformationRdv(rdvId);
+    // v1.2.0.0 : await (la promesse, toujours « vraie », annoncait un succes meme en cas d'echec)
+    const success = await BusinessServices.annulerTransformationRdv(rdvId);
     if (success) {
       await DataManager.saveData();
       ViewManager.updateCalendar();
@@ -870,8 +883,14 @@ async function convertToClient(prospectId) {
 }
 
 async function convertToProspect(clientId) {
-  if (await showCustomConfirm('Convertir ce client en prospect ? Cela supprimera ses RDV et prestations.')) {
-    const newProspect = ClientServices.convertClientToProspect(clientId);
+  // v1.2.0.0 : refusee si la fiche a des RDV / prestations (elle les supprimait) ; await
+  const refus = ClientServices.motifRefusFiche(clientId, 'convertir en prospect');
+  if (refus) {
+    showCustomAlert(refus, 'warning');
+    return;
+  }
+  if (await showCustomConfirm('Convertir ce client en prospect ?')) {
+    const newProspect = await ClientServices.convertClientToProspect(clientId);
     if (newProspect) {
       await DataManager.saveData();
       ViewManager.updateClientsDisplay();

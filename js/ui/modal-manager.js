@@ -402,7 +402,12 @@ function createDynamicModal(modalId, content) {
 
 // ===== GESTIONNAIRE DE DUPLICATION RDV =====
 window.RdvDuplication = {
-  async saveAndDuplicate() {
+  // v1.2.0.0 : bouton bloque pendant l'enregistrement (un double appui creait deux RDV)
+  saveAndDuplicate(bouton) {
+    return window.withButtonLoading(bouton, () => this.enregistrerEtDupliquer(), { silent: true }).catch(() => {});
+  },
+
+  async enregistrerEtDupliquer() {
     try {
       console.log('🔄 RdvDuplication.saveAndDuplicate démarré');
       
@@ -425,7 +430,8 @@ window.RdvDuplication = {
       
       // 3. Sauvegarder avec vérifications
       if (typeof BusinessServices !== 'undefined' && BusinessServices.createRdv) {
-        await BusinessServices.createRdv(formData);
+        // v1.2.0.0 : null = echec deja signale ; la fenetre reste ouverte
+        if (!(await BusinessServices.createRdv(formData))) return;
       } else {
         console.warn('⚠️ BusinessServices non disponible');
       }
@@ -463,12 +469,16 @@ window.RdvDuplication = {
   },
   
   getFormData() {
+    // v1.2.0.0 : type = libelle du soin, soinId = sa valeur, comme l'enregistrement
+    // simple (app.js). Le type recevait l'identifiant et le soin etait perdu.
+    const typeSelect = document.getElementById('rdv-type');
     return {
       id: document.getElementById('rdv-id').value,
       clientId: document.getElementById('rdv-client').value,
       date: document.getElementById('rdv-date').value,
       heure: document.getElementById('rdv-heure').value,
-      type: document.getElementById('rdv-type').value,
+      type: typeSelect.options[typeSelect.selectedIndex]?.text || typeSelect.value,
+      soinId: typeSelect.value,
       duree: this.getDuree(),
       statut: document.getElementById('rdv-statut').value,
       notes: document.getElementById('rdv-notes').value,
@@ -556,7 +566,12 @@ window.RdvDuplication = {
 
 // ===== GESTIONNAIRE DE DUPLICATION PRESTATIONS =====
 window.PrestationDuplication = {
-  async saveAndDuplicate() {
+  // v1.2.0.0 : bouton bloque pendant l'enregistrement (un double appui creait deux prestations)
+  saveAndDuplicate(bouton) {
+    return window.withButtonLoading(bouton, () => this.enregistrerEtDupliquer(), { silent: true }).catch(() => {});
+  },
+
+  async enregistrerEtDupliquer() {
     try {
       console.log('🔄 PrestationDuplication.saveAndDuplicate démarré');
       
@@ -581,10 +596,12 @@ window.PrestationDuplication = {
       // 3. Sauvegarder avec vérifications
       if (typeof BusinessServices !== 'undefined' && BusinessServices.createPrestation) {
         const prestation = await BusinessServices.createPrestation(formData);
+        // v1.2.0.0 : null = echec deja signale ; la fenetre reste ouverte, carte non utilisee
+        if (!prestation) return;
         // v1.1.0.0 : meme suite que l'enregistrement simple (app.js) : la carte
         // cadeau choisie est marquee utilisee, sinon elle restait "active" et
         // pouvait etre reproposee sur la prestation dupliquee.
-        if (formData.bonCadeauId && prestation && BusinessServices.utiliserBonCadeau) {
+        if (formData.bonCadeauId && BusinessServices.utiliserBonCadeau) {
           await BusinessServices.utiliserBonCadeau(formData.bonCadeauId, prestation.id);
         }
       } else {
@@ -628,12 +645,15 @@ window.PrestationDuplication = {
   },
   
   getFormData() {
+    // v1.2.0.0 : type = libelle du soin, soinId = sa valeur (comme app.js)
+    const typeSelect = document.getElementById('prestation-type');
     return {
       id: document.getElementById('prestation-id').value,
       date: document.getElementById('prestation-date').value,
       heure: document.getElementById('prestation-heure').value,
       clientId: document.getElementById('prestation-client').value,
-      type: document.getElementById('prestation-type').value,
+      type: typeSelect.options[typeSelect.selectedIndex]?.text || typeSelect.value,
+      soinId: typeSelect.value,
       duree: this.getDuree(),
       prix: parseFloat(document.getElementById('prestation-prix').value) || 0,
       tips: parseFloat(document.getElementById('prestation-tips').value) || 0,
@@ -683,7 +703,7 @@ window.PrestationDuplication = {
 
 function showAddRdvModal(selectedDate = null) {
   console.log('🔄 showAddRdvModal appelée');
-  const dateValue = selectedDate || new Date().toISOString().split('T')[0];
+  const dateValue = selectedDate || jourLocal(new Date()); // v1.2.0.0 : jour local, pas UTC
   
   const modalHTML = `
     <h3>Nouveau RDV</h3>
@@ -762,7 +782,7 @@ function showAddRdvModal(selectedDate = null) {
         <button type="submit" class="btn-primary">Enregistrer</button>
       </div>
       <div style="display: flex; justify-content: flex-end; padding-top: 1rem;">
-        <button type="button" onclick="RdvDuplication.saveAndDuplicate()" style="background: var(--beige-dore); color: white; padding: 0.75rem 1.5rem; border-radius: var(--border-radius); border: none; cursor: pointer; font-weight: 500; transition: all 0.3s ease; min-width: 220px;">
+        <button type="button" onclick="RdvDuplication.saveAndDuplicate(this)" style="background: var(--beige-dore); color: white; padding: 0.75rem 1.5rem; border-radius: var(--border-radius); border: none; cursor: pointer; font-weight: 500; transition: all 0.3s ease; min-width: 220px;">
           Enregistrer et dupliquer
         </button>
       </div>
@@ -801,7 +821,7 @@ function showAddRdvModalWithData(data = {}) {
       <div class="form-row">
         <div class="form-group">
           <label>Date</label>
-          <input type="date" id="rdv-date" required value="${data.date || new Date().toISOString().split('T')[0]}">
+          <input type="date" id="rdv-date" required value="${data.date || jourLocal(new Date())}">
         </div>
         <div class="form-group">
           <label>Heure</label>
@@ -873,7 +893,7 @@ function showAddRdvModalWithData(data = {}) {
         <button type="submit" class="btn-primary">Enregistrer</button>
       </div>
       <div style="display: flex; justify-content: flex-end; padding-top: 1rem;">
-        <button type="button" onclick="RdvDuplication.saveAndDuplicate()" style="background: var(--beige-dore); color: white; padding: 0.75rem 1.5rem; border-radius: var(--border-radius); border: none; cursor: pointer; font-weight: 500; transition: all 0.3s ease; min-width: 220px;">
+        <button type="button" onclick="RdvDuplication.saveAndDuplicate(this)" style="background: var(--beige-dore); color: white; padding: 0.75rem 1.5rem; border-radius: var(--border-radius); border: none; cursor: pointer; font-weight: 500; transition: all 0.3s ease; min-width: 220px;">
           Enregistrer et dupliquer
         </button>
       </div>
@@ -922,7 +942,7 @@ function showAddPrestationModal() {
       <div class="form-row">
         <div class="form-group">
           <label>Date</label>
-          <input type="date" id="prestation-date" required value="${new Date().toISOString().split('T')[0]}">
+          <input type="date" id="prestation-date" required value="${jourLocal(new Date())}">
         </div>
         <div class="form-group">
           <label>Heure</label>
@@ -1035,7 +1055,7 @@ function showAddPrestationModalWithData(data = {}) {
       <div class="form-row">
         <div class="form-group">
           <label>Date</label>
-          <input type="date" id="prestation-date" required value="${data.date || new Date().toISOString().split('T')[0]}">
+          <input type="date" id="prestation-date" required value="${data.date || jourLocal(new Date())}">
         </div>
         <div class="form-group">
           <label>Heure</label>
@@ -1119,7 +1139,7 @@ function showAddPrestationModalWithData(data = {}) {
         <button type="submit" class="btn-primary">Enregistrer</button>
       </div>
       <div style="display: flex; justify-content: flex-end; padding-top: 1rem;">
-        <button type="button" onclick="PrestationDuplication.saveAndDuplicate()" style="background: var(--beige-dore); color: white; padding: 0.75rem 1.5rem; border-radius: var(--border-radius); border: none; cursor: pointer; font-weight: 500; transition: all 0.3s ease; min-width: 220px;">
+        <button type="button" onclick="PrestationDuplication.saveAndDuplicate(this)" style="background: var(--beige-dore); color: white; padding: 0.75rem 1.5rem; border-radius: var(--border-radius); border: none; cursor: pointer; font-weight: 500; transition: all 0.3s ease; min-width: 220px;">
           Enregistrer et dupliquer
         </button>
       </div>
@@ -1153,8 +1173,8 @@ function showAddPrestationModalWithData(data = {}) {
         const dureeOption = prestaDureeSelect.querySelector(`option[value="${data.duree}"]`);
         if (dureeOption) prestaDureeSelect.value = data.duree;
       }
-      // Re-appliquer le prix d'origine
-      if (data.prix) {
+      // Re-appliquer le prix d'origine (v1.2.0.0 : 0 € compris)
+      if (data.prix != null) {
         const prixInput = document.getElementById('prestation-prix');
         if (prixInput) prixInput.value = data.prix;
       }
@@ -2194,41 +2214,65 @@ async function saveAbonnement(editIndex) {
   }
 
   const appData = DataManager.getAppData();
-  if (!appData.parametres.abonnements) {
-    appData.parametres.abonnements = [];
-  }
+  const liste = (appData.parametres.abonnements || []).slice();
+  const champs = { nom, montant, jourPrelevement, categorie, fournisseur, description };
 
-  const aboData = { nom, montant, jourPrelevement, categorie, fournisseur, description, actif: true };
+  // v1.2.0.0 : identifiant stable. Une modification garde id, actif et date de reprise.
+  const ancien = editIndex >= 0 && editIndex < liste.length ? liste[editIndex] : null;
+  const abo = ancien
+    ? { ...ancien, ...champs, id: ancien.id || DataManager.generateId() }
+    : { id: DataManager.generateId(), ...champs, actif: true };
+  if (ancien) liste[editIndex] = abo; else liste.push(abo);
 
-  // Snapshot pour rollback en cas d'echec DB
-  const previous = appData.parametres.abonnements.slice();
-
-  if (editIndex >= 0 && editIndex < appData.parametres.abonnements.length) {
-    aboData.actif = appData.parametres.abonnements[editIndex].actif;
-    appData.parametres.abonnements[editIndex] = aboData;
-  } else {
-    appData.parametres.abonnements.push(aboData);
-  }
-
-  const ok = await DataManager.saveParametresToDb();
-  if (!ok) {
-    appData.parametres.abonnements = previous;
+  if (!(await enregistrerAbonnements(liste))) {
     alert('Erreur lors de la sauvegarde de l\'abonnement. Verifiez votre connexion.');
     return;
   }
+  // v1.2.0.0 : renomme (ou change de categorie) : ses depenses suivent. Sinon le
+  // generateur ne les reconnaissait plus et recreait la depense du mois.
+  if (ancien && (ancien.nom !== abo.nom || ancien.categorie !== abo.categorie)) {
+    await rattacherDepensesAbonnement(ancien, abo, liste);
+  }
   showParametresAbonnementsModal();
+}
+
+// v1.2.0.0 : la liste s'enregistre seule (saveParametresCles) : saveParametresToDb
+// reecrivait tous les reglages depuis la copie en memoire. Cache remis en etat si echec.
+async function enregistrerAbonnements(liste) {
+  const appData = DataManager.getAppData();
+  const avant = appData.parametres.abonnements;
+  appData.parametres.abonnements = liste;
+  try {
+    await DataManager.saveParametresCles(['abonnements']);
+    return true;
+  } catch (err) {
+    console.error('Erreur sauvegarde abonnements:', err);
+    appData.parametres.abonnements = avant;
+    return false;
+  }
+}
+
+// Depenses de l'abonnement tel qu'il etait (id, sinon nom) : rattachees par id, nom a jour.
+async function rattacherDepensesAbonnement(ancien, abo, abonnements) {
+  const appData = DataManager.getAppData();
+  const siennes = (appData.depenses || []).filter(d => Abonnements.estDepenseDe(d, ancien, abonnements));
+  for (const d of siennes) {
+    const maj = { ...d, abonnementId: abo.id, abonnementNom: abo.nom };
+    if (!(await BusinessServices.persist('depenses', 'update', maj, DataManager.mapDepenseToDb))) return;
+    appData.depenses = appData.depenses.map(x => (x.id === maj.id ? maj : x));
+  }
 }
 
 async function toggleAbonnement(index) {
   const appData = DataManager.getAppData();
   if (!appData.parametres.abonnements || !appData.parametres.abonnements[index]) return;
 
-  const previousValue = appData.parametres.abonnements[index].actif;
-  appData.parametres.abonnements[index].actif = !previousValue;
+  const liste = appData.parametres.abonnements.slice();
+  const abo = liste[index];
+  // v1.2.0.0 : reprise datee : les mois en pause ne sont pas rattrapes
+  liste[index] = abo.actif ? { ...abo, actif: false } : { ...abo, actif: true, repriseLe: jourLocal(new Date()) };
 
-  const ok = await DataManager.saveParametresToDb();
-  if (!ok) {
-    appData.parametres.abonnements[index].actif = previousValue;
+  if (!(await enregistrerAbonnements(liste))) {
     alert('Erreur de sauvegarde. Verifiez votre connexion.');
     return;
   }
@@ -2240,12 +2284,10 @@ async function deleteAbonnement(index) {
   const appData = DataManager.getAppData();
   if (!appData.parametres.abonnements) return;
 
-  const previous = appData.parametres.abonnements.slice();
-  appData.parametres.abonnements.splice(index, 1);
+  const liste = appData.parametres.abonnements.slice();
+  liste.splice(index, 1);
 
-  const ok = await DataManager.saveParametresToDb();
-  if (!ok) {
-    appData.parametres.abonnements = previous;
+  if (!(await enregistrerAbonnements(liste))) {
     alert('Erreur de suppression. Verifiez votre connexion.');
     return;
   }
@@ -2265,91 +2307,70 @@ function editAbonnement(index) {
 // mois futur, le mois courant seulement une fois le jour de prelevement atteint,
 // et au plus MAX_RATTRAPAGE_ABONNEMENT mois d'un coup (garde-fou : chaque
 // depense est ecrite en base).
+// v1.2.0.0 : regles dans js/core/abonnements.js (depense reconnue par l'id de
+// l'abonnement, reprise apres pause sans rattrapage). Retourne le nombre cree.
 const MAX_RATTRAPAGE_ABONNEMENT = 12;
-
-// Depense deja rattachee a l'abonnement : generee automatiquement (type +
-// abonnementNom), ou saisie a la main avant l'automatisation (sans type, meme
-// categorie, fournisseur ou abonnementNom egal au nom, casse ignoree).
-function estDepenseDeLAbonnement(d, abo) {
-  if (!d || typeof d.date !== 'string') return false;
-  if (d.type === 'abonnement-auto') return d.abonnementNom === abo.nom;
-  if (d.type) return false;
-  const nom = String(abo.nom || '').trim().toLowerCase();
-  if (!nom || d.categorie !== abo.categorie) return false;
-  const egal = v => String(v || '').trim().toLowerCase() === nom;
-  return egal(d.fournisseur) || egal(d.abonnementNom);
-}
 
 async function genererDepensesAbonnements() {
   const appData = DataManager.getAppData();
-  const abonnements = appData.parametres?.abonnements || [];
-  const actifs = abonnements.filter(a => a.actif);
-
-  if (actifs.length === 0) return;
+  if (!(appData.parametres?.abonnements || []).some(a => a.actif)) return 0;
 
   if (!appData.depenses) appData.depenses = [];
 
-  const now = new Date();
-  const jourActuel = now.getDate();
-  const moisCourant = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-
-  let count = 0;
-  const depensesToInsert = [];
-
-  actifs.forEach(abo => {
-    const jourPrelevement = abo.jourPrelevement || 1;
-
-    // Dernier mois deja couvert par une depense de cet abonnement (ou aucun)
-    const moisExistants = appData.depenses
-      .filter(d => estDepenseDeLAbonnement(d, abo))
-      .map(d => d.date.slice(0, 7))
-      .sort();
-    const dernierMois = moisExistants.length > 0 ? moisExistants[moisExistants.length - 1] : null;
-
-    // Mois a creer : du mois suivant la derniere depense jusqu'au mois courant.
-    // Sans depense existante : le mois courant seul (comportement d'origine).
-    const moisACreer = [];
-    let mois = dernierMois ? Encaissements.decalerMois(dernierMois, 1) : moisCourant;
-    while (mois <= moisCourant) {
-      // Ne generer le mois courant que si on a atteint ou depasse le jour de prelevement
-      if (mois < moisCourant || jourActuel >= jourPrelevement) moisACreer.push(mois);
-      mois = Encaissements.decalerMois(mois, 1);
+  // v1.2.0.0 : identifiant donne une fois aux abonnements d'avant. Tant qu'il
+  // n'est pas enregistre, rien n'est genere : une depense porterait un
+  // identifiant perdu au rechargement.
+  if (appData.parametres.abonnements.some(a => !a.id)) {
+    const avecIds = appData.parametres.abonnements.map(a => (a.id ? a : { ...a, id: DataManager.generateId() }));
+    if (!(await enregistrerAbonnements(avecIds))) {
+      console.warn('Abonnements : identifiants non enregistres, generation reportee');
+      return 0;
     }
+  }
+
+  const abonnements = appData.parametres.abonnements;
+  const aujourdhui = jourLocal(new Date());
+  let count = 0;
+
+  for (const abo of abonnements.filter(a => a.actif)) {
+    const jourPrelevement = abo.jourPrelevement || 1;
+    const moisACreer = Abonnements.moisAGenerer(abo, appData.depenses, abonnements, aujourdhui);
     if (moisACreer.length > MAX_RATTRAPAGE_ABONNEMENT) {
       console.warn(`Abonnement ${abo.nom} : ${moisACreer.length} mois manquants, seuls les ${MAX_RATTRAPAGE_ABONNEMENT} derniers sont crees`);
       moisACreer.splice(0, moisACreer.length - MAX_RATTRAPAGE_ABONNEMENT);
     }
 
-    moisACreer.forEach(moisDepense => {
+    for (const moisDepense of moisACreer) {
       // Jour borne a la fin du mois (jourPrelevement est limite a 28 dans le formulaire)
       const dernierJour = parseInt(Encaissements.dernierJourDuMois(moisDepense).slice(8), 10);
       const jour = String(Math.min(jourPrelevement, dernierJour)).padStart(2, '0');
-      const dateDepense = `${moisDepense}-${jour}`;
       const newDepense = {
         id: DataManager.generateId(),
-        date: dateDepense,
+        date: `${moisDepense}-${jour}`,
         montant: abo.montant,
         categorie: abo.categorie,
         fournisseur: abo.fournisseur || abo.nom,
         description: abo.description || `Abonnement ${abo.nom}`,
         notes: 'Genere automatiquement',
         type: 'abonnement-auto',
-        abonnementNom: abo.nom
+        abonnementNom: abo.nom,
+        abonnementId: abo.id
       };
-      appData.depenses.push(newDepense);
-      depensesToInsert.push(newDepense);
-      count++;
-    });
-  });
-
-  // Persister dans Supabase
-  for (const dep of depensesToInsert) {
-    try { await DataManager.insertEntity('depenses', dep, DataManager.mapDepenseToDb); } catch(e) { console.error('Erreur insert abonnement:', e); }
+      // v1.2.0.0 : base d'abord (un echec ne laisse pas de depense fantome en memoire)
+      try {
+        await DataManager.insertEntity('depenses', newDepense, DataManager.mapDepenseToDb);
+        appData.depenses.push(newDepense);
+        count++;
+      } catch (e) {
+        console.error('Erreur insert abonnement:', e);
+      }
+    }
   }
 
   if (count > 0) {
-    console.log(`${count} depense(s) d'abonnement generee(s) (jusqu'a ${moisCourant})`);
+    console.log(`${count} depense(s) d'abonnement generee(s) (jusqu'a ${aujourdhui.slice(0, 7)})`);
   }
+  return count;
 }
 
 // ===== UTILITAIRES =====
@@ -5305,7 +5326,7 @@ window.populateCanalDropdown = populateCanalDropdown;
 function showAddBonCadeauModal() {
   console.log('🎁 showAddBonCadeauModal appelée');
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = jourLocal(new Date()); // v1.2.0.0 : jour local, pas UTC
   const validiteMois = DataManager.getValiditeBonsCadeauxMois();
   const dateExpiration = DataManager.calculerDateExpiration(today);
 
@@ -5375,8 +5396,9 @@ function showAddBonCadeauModal() {
         <legend style="font-weight: 600; color: var(--beige-dore);">🎁 Bénéficiaire (optionnel)</legend>
         <div class="form-group">
           <label>Nom du bénéficiaire</label>
-          <input type="text" id="bon-cadeau-beneficiaire-nom" placeholder="Nom de la personne qui recevra le bon">
-          <small style="color: #666;">Peut être renseigné plus tard. Un client sera créé automatiquement.</small>
+          <input type="text" id="bon-cadeau-beneficiaire-nom" placeholder="Rechercher un client ou saisir un nom..." autocomplete="off">
+          <input type="hidden" id="bon-cadeau-beneficiaire-client-id">
+          <small style="color: #666;">Peut être renseigné plus tard. Choisissez une fiche existante ; sinon une fiche sera créée.</small>
         </div>
       </fieldset>
 
@@ -5397,6 +5419,9 @@ function showAddBonCadeauModal() {
   // Setup de l'autocomplete pour l'acheteur
   setTimeout(() => {
     setupBonCadeauAcheteurAutocomplete();
+    // v1.2.0.0 : beneficiaire choisi parmi les fiches (une nouvelle fiche etait creee
+    // meme pour une cliente existante)
+    createClientAutocomplete('bon-cadeau-beneficiaire-nom', 'bon-cadeau-beneficiaire-client-id');
 
     // Setup des listeners pour les dates
     const dateAchatInput = document.getElementById('bon-cadeau-date-achat');
@@ -5599,9 +5624,10 @@ function showBonCadeauDetailsModal(bonId) {
     if (beneficiaire) beneficiaireDisplay = `${beneficiaire.prenom} ${beneficiaire.nom}`;
   }
 
-  // Statut
+  // Statut (v1.2.0.0 : statut du jour, comme l'onglet Bons)
+  const statut = DataManager.statutBonCadeau(bon);
   let statutLabel = '';
-  switch(bon.statut) {
+  switch(statut) {
     case 'actif': statutLabel = '🟢 Actif'; break;
     case 'utilise': statutLabel = '✅ Utilisé'; break;
     case 'expire': statutLabel = '❌ Expiré'; break;
@@ -5635,7 +5661,7 @@ function showBonCadeauDetailsModal(bonId) {
     <div style="margin: 1.5rem 0;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
         <div style="font-size: 2rem; font-weight: 700; color: var(--beige-dore);">${bon.montant.toFixed(2)} €</div>
-        <span style="padding: 0.5rem 1rem; border-radius: 20px; font-weight: 600; background: ${bon.statut === 'actif' ? '#d4edda' : bon.statut === 'utilise' ? '#e2e3e5' : '#f8d7da'};">${statutLabel}</span>
+        <span style="padding: 0.5rem 1rem; border-radius: 20px; font-weight: 600; background: ${statut === 'actif' ? '#d4edda' : statut === 'utilise' ? '#e2e3e5' : '#f8d7da'};">${statutLabel}</span>
       </div>
 
       <div style="font-size: 1.2rem; font-weight: 500; margin-bottom: 1rem;">
@@ -5669,7 +5695,7 @@ function showBonCadeauDetailsModal(bonId) {
 
     <div class="modal-actions">
       <button type="button" class="btn-secondary" onclick="closeModal()">Fermer</button>
-      ${bon.statut === 'actif' ? `<button type="button" class="btn-primary" style="background: #28a745;" onclick="showMarquerBonUtiliseModal('${bon.id}')">✅ Marquer comme utilise</button>` : ''}
+      ${statut === 'actif' ? `<button type="button" class="btn-primary" style="background: #28a745;" onclick="showMarquerBonUtiliseModal('${bon.id}')">✅ Marquer comme utilise</button>` : ''}
     </div>
   `;
 
@@ -5682,7 +5708,7 @@ function showMarquerBonUtiliseModal(bonId) {
   if (!bon) return;
 
   const appData = DataManager.getAppData();
-  const today = new Date().toISOString().split('T')[0];
+  const today = jourLocal(new Date()); // v1.2.0.0 : jour local, pas UTC
 
   // Lister les prestations du beneficiaire (s'il est connu) pour faciliter le lien
   let prestationOptions = '<option value="">-- Aucune prestation liee --</option>';
@@ -5881,15 +5907,18 @@ async function handleBonCadeauFormSubmit(e) {
 async function _handleBonCadeauFormSubmitInner() {
   const bonId = document.getElementById('bon-cadeau-id').value;
   const isEdit = !!bonId;
+  const dateAchat = document.getElementById('bon-cadeau-date-achat').value;
+  // v1.2.0.0 : debut vide = date d'achat (l'expiration etait calculee sur une date vide)
+  const dateDebut = document.getElementById('bon-cadeau-date-debut').value || dateAchat;
 
   const formData = {
     id: bonId || DataManager.generateId(),
     description: document.getElementById('bon-cadeau-description').value,
     montant: parseFloat(document.getElementById('bon-cadeau-montant').value) || 0,
     moyenPaiement: document.getElementById('bon-cadeau-moyen-paiement').value,
-    dateAchat: document.getElementById('bon-cadeau-date-achat').value,
-    dateDebut: document.getElementById('bon-cadeau-date-debut').value,
-    dateExpiration: DataManager.calculerDateExpiration(document.getElementById('bon-cadeau-date-debut').value),
+    dateAchat: dateAchat,
+    dateDebut: dateDebut,
+    dateExpiration: DataManager.calculerDateExpiration(dateDebut),
     acheteurNom: document.getElementById('bon-cadeau-acheteur-search').value,
     acheteurClientId: document.getElementById('bon-cadeau-acheteur-client-id').value || null,
     acheteurTelephone: document.getElementById('bon-cadeau-acheteur-telephone').value,
@@ -5901,18 +5930,19 @@ async function _handleBonCadeauFormSubmitInner() {
   };
 
   // Si beneficiaire renseigne et pas de client ID, creer un client minimal
+  // v1.2.0.0 : sauf si le nom saisi est exactement celui d'UNE fiche existante
+  // (saisi sans toucher la suggestion) : on la relie au lieu d'en creer une autre.
   if (formData.beneficiaireNom && !formData.beneficiaireClientId) {
-    const newClient = await BusinessServices.createClientMinimal(formData.beneficiaireNom);
-    formData.beneficiaireClientId = newClient.id;
+    const existante = BonsCadeaux.ficheDuNom(DataManager.getAppData().clients, formData.beneficiaireNom);
+    const fiche = existante || await BusinessServices.createClientMinimal(formData.beneficiaireNom);
+    if (!fiche) return; // echec deja signale : la fenetre reste ouverte
+    formData.beneficiaireClientId = fiche.id;
   }
 
-  if (isEdit) {
-    await BusinessServices.updateBonCadeau(formData);
-    showTemporaryMessage('Bon cadeau modifie avec succes');
-  } else {
-    await BusinessServices.createBonCadeau(formData);
-    showTemporaryMessage('Bon cadeau cree avec succes');
-  }
+  // v1.2.0.0 : null = echec deja signale ; la fenetre reste ouverte
+  const bon = isEdit ? await BusinessServices.updateBonCadeau(formData) : await BusinessServices.createBonCadeau(formData);
+  if (!bon) return;
+  showTemporaryMessage(isEdit ? 'Bon cadeau modifie avec succes' : 'Bon cadeau cree avec succes');
 
   closeModal();
   ViewManager.updateBonsCadeauxDisplay();
@@ -5942,7 +5972,7 @@ function showAttribuerRdvBonCadeauModal(bonId) {
     return;
   }
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = jourLocal(new Date()); // v1.2.0.0 : jour local, pas UTC
   const appData = DataManager.getAppData();
 
   // Info bénéficiaire
@@ -6034,14 +6064,6 @@ function showAttribuerRdvBonCadeauModal(bonId) {
       </div>
 
       <div class="form-group">
-        <label>Lieu</label>
-        <select id="attribuer-rdv-lieu">
-          <option value="Salon">🏠 Au salon</option>
-          <option value="Domicile">🏡 À domicile</option>
-        </select>
-      </div>
-
-      <div class="form-group">
         <label>Notes</label>
         <textarea id="attribuer-rdv-notes" placeholder="Notes pour ce RDV...">${bon.notes ? 'Via bon cadeau : ' + bon.notes : ''}</textarea>
       </div>
@@ -6064,16 +6086,22 @@ function showAttribuerRdvBonCadeauModal(bonId) {
   }, 100);
 }
 
+// v1.2.0.0 : bouton bloque pendant l'enregistrement (un double appui creait deux RDV)
 async function handleAttribuerRdvBonSubmit(e) {
   e.preventDefault();
+  const bouton = e.target.querySelector('button[type="submit"]');
+  await window.withButtonLoading(bouton, () => enregistrerRdvDuBonCadeau()).catch(() => {});
+}
 
+// Le champ « Lieu » (salon / domicile) a ete retire en v1.2.0.0 : il n'etait
+// enregistre nulle part. L'adresse se renseigne en modifiant le RDV (frais de route).
+async function enregistrerRdvDuBonCadeau() {
   const bonId = document.getElementById('attribuer-rdv-bon-id').value;
   const clientId = document.getElementById('attribuer-rdv-client').value;
   const date = document.getElementById('attribuer-rdv-date').value;
   const heure = document.getElementById('attribuer-rdv-heure').value;
   const typeSelect = document.getElementById('attribuer-rdv-type');
   const soinId = typeSelect.value || null;
-  const type = typeSelect.options[typeSelect.selectedIndex]?.text || typeSelect.value;
   const duree = parseInt(document.getElementById('attribuer-rdv-duree').value) || 60;
   const notes = document.getElementById('attribuer-rdv-notes').value;
 
@@ -6088,6 +6116,10 @@ async function handleAttribuerRdvBonSubmit(e) {
     return;
   }
 
+  // v1.2.0.0 : libelle de l'option seulement si un soin est choisi. Sinon le type
+  // valait « -- Selon la description du bon -- » au lieu de la description.
+  const type = soinId ? typeSelect.options[typeSelect.selectedIndex].text : (bon.description || 'Massage');
+
   // Créer le RDV
   const rdvId = DataManager.generateId();
   const rdvData = {
@@ -6096,7 +6128,7 @@ async function handleAttribuerRdvBonSubmit(e) {
     date: date,
     heure: heure,
     soinId: soinId,
-    type: type || bon.description || 'Massage',
+    type: type,
     duree: duree,
     statut: 'planifie',
     bonCadeauId: bonId,
@@ -6115,14 +6147,16 @@ async function handleAttribuerRdvBonSubmit(e) {
   }
 
   // Maj du benefiaire sur le bon si necessaire
+  // v1.2.0.0 : la carte en memoire ne change qu'une fois la base a jour
   if (!bon.beneficiaireClientId) {
-    bon.beneficiaireClientId = clientId;
     const client = appData.clients.find(c => c.id === clientId);
+    const maj = { ...bon, beneficiaireClientId: clientId };
     if (client) {
-      bon.beneficiaireNom = `${client.prenom} ${client.nom}`;
+      maj.beneficiaireNom = `${client.prenom} ${client.nom}`;
     }
     try {
-      await DataManager.updateEntity('bons_cadeaux', bon.id, bon, DataManager.mapBonCadeauToDb);
+      await DataManager.updateEntity('bons_cadeaux', bon.id, maj, DataManager.mapBonCadeauToDb);
+      Object.assign(bon, maj);
     } catch (err) {
       console.error('Erreur update beneficiaire bon cadeau:', err);
       // Le RDV est OK, on continue. Le benefiaire pourra etre re-saisi.
@@ -6135,6 +6169,7 @@ async function handleAttribuerRdvBonSubmit(e) {
 
   closeModal();
   ViewManager.updateBonsCadeauxDisplay();
+  ViewManager.updateCalendar(); // v1.2.0.0 : le RDV n'apparaissait qu'au rechargement
   showTemporaryMessage(`RDV cree pour le ${DataManager.formatDate(date)} a ${heure}`);
 }
 
@@ -6190,7 +6225,8 @@ function populateBonsCadeauxSelector(selectedBonId = null) {
 
   bonsActifs.forEach(bon => {
     const joursRestants = Math.ceil((new Date(bon.dateExpiration) - new Date()) / (1000 * 60 * 60 * 24));
-    const expirationWarning = joursRestants <= 30 ? ` ⚠️ ${joursRestants}j` : '';
+    // v1.2.0.0 : une carte expiree dont l'utilisation a ete forcee est proposee aussi
+    const expirationWarning = joursRestants < 0 ? ' ⚠️ expiré (autorisé)' : (joursRestants <= 30 ? ` ⚠️ ${joursRestants}j` : '');
 
     // Infos bénéficiaire
     let beneficiaireInfo = '';

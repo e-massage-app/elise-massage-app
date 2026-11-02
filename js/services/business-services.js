@@ -33,11 +33,12 @@ async function _persist(table, action, data, mapFn) {
 }
 
 // ===== GESTION RDV =====
+// v1.2.0.0 : base d'abord, cache ensuite ; null si l'enregistrement a echoue
+// (_persist a deja alerte) : l'appelant garde la fenetre ouverte.
 async function createRdv(formData) {
   const appData = DataManager.getAppData();
 
-  const rdv = {
-    id: formData.id || DataManager.generateId(),
+  const champs = {
     clientId: formData.clientId,
     date: formData.date,
     heure: formData.heure,
@@ -55,15 +56,18 @@ async function createRdv(formData) {
   const isEdit = formData.id && DataManager.getEditingId();
   if (isEdit) {
     const index = appData.rdv.findIndex(r => r.id === DataManager.getEditingId());
-    if (index !== -1) {
-      appData.rdv[index] = rdv;
-      await _persist('rdv', 'update', rdv, DataManager.mapRdvToDb);
-    }
-  } else {
-    appData.rdv.push(rdv);
-    await _persist('rdv', 'insert', rdv, DataManager.mapRdvToDb);
+    if (index === -1) return null;
+    // v1.2.0.0 : le formulaire ne connait ni transformeEnPrestation ni bonCadeauId :
+    // reconstruire le RDV les effacait (base : false / null). On fusionne.
+    const rdv = { ...appData.rdv[index], ...champs };
+    if (!(await _persist('rdv', 'update', rdv, DataManager.mapRdvToDb))) return null;
+    appData.rdv[index] = rdv;
+    return rdv;
   }
 
+  const rdv = { id: formData.id || DataManager.generateId(), ...champs };
+  if (!(await _persist('rdv', 'insert', rdv, DataManager.mapRdvToDb))) return null;
+  appData.rdv.push(rdv);
   return rdv;
 }
 
@@ -71,34 +75,14 @@ async function deleteRdvById(rdvId) {
   const appData = DataManager.getAppData();
 
   // v1.0.7.3 : si le RDV avait ete transforme en prestation, on supprime aussi
-  // la prestation liee (meme date/heure/clientId). Sinon la prestation reste en
-  // DB et le calendrier la re-affiche au prochain F5 -> 2 clics pour "tout" supprimer.
+  // la prestation liee. Sinon la prestation reste en DB et le calendrier la
+  // re-affiche au prochain F5 -> 2 clics pour "tout" supprimer.
+  // v1.2.0.0 : prestation retrouvee par rdvId, et supprimee par deletePrestationById
+  // (depenses Transport + carte cadeau liberee ; DB-first, arret au premier echec).
   const rdv = appData.rdv.find(r => r.id === rdvId);
   if (rdv && rdv.transformeEnPrestation) {
-    const linkedPrestations = (appData.prestations || []).filter(p =>
-      p.date === rdv.date && p.heure === rdv.heure && p.clientId === rdv.clientId
-    );
-    for (const presta of linkedPrestations) {
-      // Cascade : depenses transport puis prestation, DB-first
-      if (appData.depenses) {
-        const depensesLiees = appData.depenses.filter(d => d.prestationId === presta.id);
-        for (const d of depensesLiees) {
-          const ok = await _persist('depenses', 'delete', d.id);
-          if (!ok) return false;
-        }
-        // cleanup cache depenses (seulement si persist OK)
-        if (depensesLiees.length > 0) {
-          appData.depenses = appData.depenses.filter(d => !depensesLiees.find(dl => dl.id === d.id));
-        }
-      }
-      const okP = await _persist('prestations', 'delete', presta.id);
-      if (!okP) return false;
-    }
-    // cleanup cache prestations
-    if (linkedPrestations.length > 0) {
-      appData.prestations = appData.prestations.filter(p =>
-        !linkedPrestations.find(lp => lp.id === p.id)
-      );
+    for (const presta of RdvPrestations.prestationsDuRdv(rdv, appData.prestations)) {
+      if (!(await deletePrestationById(presta.id))) return false;
     }
   }
 
@@ -109,81 +93,59 @@ async function deleteRdvById(rdvId) {
   return true;
 }
 
-async function transformRdvToPrestation(rdvId) {
+// v1.2.0.0 : appele APRES l'enregistrement de la prestation (prestationId) : si
+// l'insertion echoue, le RDV n'est pas marque transforme. Les autres prestations
+// du RDV (essai precedent, saisie a la main sur le creneau) sont remplacees par
+// celle-ci, via deletePrestationById (carte cadeau liberee, depense Transport retiree).
+async function transformRdvToPrestation(rdvId, prestationId) {
   const appData = DataManager.getAppData();
-  const rdvIndex = appData.rdv.findIndex(r => r.id === rdvId);
-  if (rdvIndex !== -1) {
-    const rdv = appData.rdv[rdvIndex];
+  const rdv = appData.rdv.find(r => r.id === rdvId);
+  if (!rdv) return false;
 
-    // Supprimer prestations existantes sur ce creneau
-    const prestsToRemove = appData.prestations.filter(p =>
-      p.date === rdv.date && p.heure === rdv.heure && p.clientId === rdv.clientId
-    );
-    appData.prestations = appData.prestations.filter(p =>
-      !(p.date === rdv.date && p.heure === rdv.heure && p.clientId === rdv.clientId)
-    );
-    for (const p of prestsToRemove) {
-      await _persist('prestations', 'delete', p.id);
-    }
-
-    // Marquer le RDV comme transforme
-    appData.rdv[rdvIndex].transformeEnPrestation = true;
-    await _persist('rdv', 'update', appData.rdv[rdvIndex], DataManager.mapRdvToDb);
+  const anciennes = RdvPrestations.prestationsDuRdv(rdv, appData.prestations).filter(p => p.id !== prestationId);
+  for (const p of anciennes) {
+    if (!(await deletePrestationById(p.id))) return false;
   }
+
+  if (!(await _persist('rdv', 'update', { ...rdv, transformeEnPrestation: true }, DataManager.mapRdvToDb))) return false;
+  rdv.transformeEnPrestation = true;
+  return true;
 }
 
 async function annulerTransformationRdv(rdvId) {
   const appData = DataManager.getAppData();
-  const rdvIndex = appData.rdv.findIndex(r => r.id === rdvId);
-  if (rdvIndex !== -1) {
-    const rdv = appData.rdv[rdvIndex];
+  const rdv = appData.rdv.find(r => r.id === rdvId);
+  if (!rdv) return false;
 
-    delete appData.rdv[rdvIndex].transformeEnPrestation;
-    appData.rdv[rdvIndex].transformeEnPrestation = false;
-    await _persist('rdv', 'update', appData.rdv[rdvIndex], DataManager.mapRdvToDb);
-
-    // Supprimer depenses liees aux prestations
-    const prestationsASupprimer = appData.prestations.filter(p => {
-      const isSameSlot = p.date === rdv.date && p.heure === rdv.heure && p.clientId === rdv.clientId;
-      return isSameSlot || (p.isTransformed && isSameSlot);
-    });
-
-    if (appData.depenses) {
-      for (const prestation of prestationsASupprimer) {
-        const depensesToRemove = appData.depenses.filter(d => d.prestationId === prestation.id);
-        appData.depenses = appData.depenses.filter(d => d.prestationId !== prestation.id);
-        for (const d of depensesToRemove) {
-          await _persist('depenses', 'delete', d.id);
-        }
-      }
-    }
-
-    // Supprimer les prestations
-    appData.prestations = appData.prestations.filter(p => {
-      const isSameSlot = p.date === rdv.date && p.heure === rdv.heure && p.clientId === rdv.clientId;
-      return !(isSameSlot || (p.isTransformed && isSameSlot));
-    });
-    for (const p of prestationsASupprimer) {
-      await _persist('prestations', 'delete', p.id);
-    }
-
-    if (window.ViewManager) {
-      if (typeof window.ViewManager.updateCalendar === 'function') window.ViewManager.updateCalendar();
-      if (typeof window.ViewManager.updateDashboard === 'function') window.ViewManager.updateDashboard();
-      if (typeof window.ViewManager.updateDepensesDisplay === 'function') window.ViewManager.updateDepensesDisplay();
-      if (typeof window.ViewManager.updatePrestationsTable === 'function') window.ViewManager.updatePrestationsTable();
-    }
-
-    return true;
+  // v1.2.0.0 : prestations du RDV (rdvId, sinon meme creneau) supprimees d'abord par
+  // deletePrestationById : la carte cadeau redevient active et la depense Transport
+  // part avec. Le RDV ne retrouve son etat normal que si tout a ete supprime.
+  for (const p of RdvPrestations.prestationsDuRdv(rdv, appData.prestations)) {
+    if (!(await deletePrestationById(p.id))) return false;
   }
-  return false;
+
+  if (!(await _persist('rdv', 'update', { ...rdv, transformeEnPrestation: false }, DataManager.mapRdvToDb))) return false;
+  rdv.transformeEnPrestation = false;
+
+  if (window.ViewManager) {
+    if (typeof window.ViewManager.updateCalendar === 'function') window.ViewManager.updateCalendar();
+    if (typeof window.ViewManager.updateDashboard === 'function') window.ViewManager.updateDashboard();
+    if (typeof window.ViewManager.updateDepensesDisplay === 'function') window.ViewManager.updateDepensesDisplay();
+    if (typeof window.ViewManager.updatePrestationsTable === 'function') window.ViewManager.updatePrestationsTable();
+  }
+
+  return true;
 }
 
 // ===== GESTION PRESTATIONS =====
+// v1.2.0.0 : base d'abord, cache ensuite. Retourne null si l'enregistrement a
+// echoue (_persist a deja alerte) : la validation d'un RDV s'arrete alors sans
+// marquer le RDV transforme ni la carte cadeau utilisee.
 async function createPrestation(formData) {
   const appData = DataManager.getAppData();
 
   const isEdit = formData.id && DataManager.getEditingId();
+  const existante = isEdit ? appData.prestations.find(p => p.id === DataManager.getEditingId()) : null;
 
   // v1.1.0.0 : la carte cadeau suit la prestation (elle etait perdue : la
   // prestation creee n'avait pas de bon_cadeau_id, et une modification
@@ -192,7 +154,6 @@ async function createPrestation(formData) {
   // carte cadeau ; si le moyen de paiement change, le lien est retire.
   let bonCadeauId = formData.bonCadeauId || null;
   if (!bonCadeauId && isEdit && formData.moyenPaiement === 'Bon cadeau') {
-    const existante = appData.prestations.find(p => p.id === DataManager.getEditingId());
     bonCadeauId = (existante && existante.bonCadeauId) || null;
   }
 
@@ -207,7 +168,10 @@ async function createPrestation(formData) {
     prix: formData.prix,
     tips: formData.tips || 0,
     notes: formData.notes,
-    isTransformed: formData.isTransformed || false,
+    // v1.2.0.0 : le formulaire de modification ne connait ni le RDV d'origine ni
+    // la transformation : on les garde (sinon une modification les effacait).
+    isTransformed: formData.isTransformed || (existante ? !!existante.isTransformed : false),
+    rdvId: formData.rdvId || (existante ? existante.rdvId : null) || null,
     adresseMassage: formData.adresseMassage || '',
     distanceKm: formData.distanceKm || 0,
     fraisDeplacement: formData.fraisDeplacement || 0,
@@ -217,25 +181,21 @@ async function createPrestation(formData) {
 
   if (isEdit) {
     const index = appData.prestations.findIndex(p => p.id === DataManager.getEditingId());
-    if (index !== -1) {
-      const avant = appData.prestations[index];
-      appData.prestations[index] = prestation;
-      await _persist('prestations', 'update', prestation, DataManager.mapPrestationToDb);
-      // v1.1.0.0 : la prestation n'est plus reglee par carte cadeau (erreur de
-      // saisie corrigee) : la cliente n'est pas venue avec cette carte.
-      if (Encaissements.estPayeeParBonCadeau(avant) && !Encaissements.estPayeeParBonCadeau(prestation)) {
-        await libererBonsCadeauxDe(avant);
-      }
+    if (index === -1) return null;
+    const avant = appData.prestations[index];
+    if (!(await _persist('prestations', 'update', prestation, DataManager.mapPrestationToDb))) return null;
+    appData.prestations[index] = prestation;
+    // v1.1.0.0 : la prestation n'est plus reglee par carte cadeau (erreur de
+    // saisie corrigee) : la cliente n'est pas venue avec cette carte.
+    if (Encaissements.estPayeeParBonCadeau(avant) && !Encaissements.estPayeeParBonCadeau(prestation)) {
+      await libererBonsCadeauxDe(avant);
     }
   } else {
+    if (!(await _persist('prestations', 'insert', prestation, DataManager.mapPrestationToDb))) return null;
     appData.prestations.push(prestation);
-    await _persist('prestations', 'insert', prestation, DataManager.mapPrestationToDb);
   }
 
-  // Creer automatiquement une depense Transport si frais de deplacement
-  if (formData.fraisDeplacement > 0) {
-    await createAutomaticTransportDepense(prestation);
-  }
+  await synchroniserDepenseTransport(prestation);
 
   if (window.ViewManager) {
     if (typeof window.ViewManager.updateCalendar === 'function') window.ViewManager.updateCalendar();
@@ -245,26 +205,38 @@ async function createPrestation(formData) {
   return prestation;
 }
 
-async function createAutomaticTransportDepense(prestation) {
+// v1.2.0.0 : UNE depense Transport par prestation. Avant, chaque enregistrement
+// (modification comprise) en creait une de plus. On retrouve celle(s) de la
+// prestation par prestationId : mise a jour (date, montant, description), retiree
+// si les frais tombent a 0, creee seulement s'il n'y en a pas. Les doublons deja
+// en base partent a la premiere modification de la prestation.
+async function synchroniserDepenseTransport(prestation) {
   const appData = DataManager.getAppData();
   if (!appData.depenses) appData.depenses = [];
 
   const client = appData.clients.find(c => c.id === prestation.clientId);
-  const clientNom = client ? `${client.prenom} ${client.nom}` : 'Client';
+  const attendue = RdvPrestations.depenseTransportDe(prestation, client ? `${client.prenom} ${client.nom}` : 'Client');
+  const existantes = appData.depenses.filter(d => d.prestationId === prestation.id);
+  const [gardee, ...enTrop] = attendue ? existantes : [null, ...existantes];
 
-  const depenseTransport = {
-    id: DataManager.generateId(),
-    date: prestation.date,
-    montant: prestation.fraisDeplacement,
-    categorie: 'Transport',
-    fournisseur: 'Frais kilometriques',
-    description: `Deplacement ${prestation.type} - ${clientNom} (${prestation.distanceKm}km A/R)`,
-    notes: `Genere automatiquement depuis prestation ${prestation.id}`,
-    prestationId: prestation.id
-  };
+  for (const d of enTrop) {
+    if (await _persist('depenses', 'delete', d.id)) {
+      appData.depenses = appData.depenses.filter(x => x.id !== d.id);
+    }
+  }
+  if (!attendue) return;
 
-  appData.depenses.push(depenseTransport);
-  await _persist('depenses', 'insert', depenseTransport, DataManager.mapDepenseToDb);
+  if (gardee) {
+    const maj = { ...gardee, date: attendue.date, montant: attendue.montant, description: attendue.description };
+    if (await _persist('depenses', 'update', maj, DataManager.mapDepenseToDb)) {
+      appData.depenses = appData.depenses.map(d => (d.id === maj.id ? maj : d));
+    }
+  } else {
+    const nouvelle = { id: DataManager.generateId(), ...attendue };
+    if (await _persist('depenses', 'insert', nouvelle, DataManager.mapDepenseToDb)) {
+      appData.depenses.push(nouvelle);
+    }
+  }
 }
 
 async function deletePrestationById(prestationId) {
@@ -373,9 +345,10 @@ async function createDepense(formData) {
   // effacait : une depense d'abonnement perdait type/abonnementNom (et le
   // generateur la recreait au chargement suivant = doublon), une depense
   // Transport perdait sa prestation. On les reprend de la depense existante.
+  // v1.2.0.0 : abonnementId aussi.
   if (isEdit) {
     const existante = appData.depenses.find(d => d.id === DataManager.getEditingId());
-    ['type', 'abonnementNom', 'prestationId'].forEach(cle => {
+    ['type', 'abonnementNom', 'abonnementId', 'prestationId'].forEach(cle => {
       const valeur = formData[cle] !== undefined ? formData[cle] : (existante ? existante[cle] : undefined);
       if (valeur !== undefined && valeur !== null) depense[cle] = valeur;
     });
@@ -475,39 +448,11 @@ function setupAutoCalculateAddress(inputId, distanceId, fraisId) {
 }
 
 // ===== CALENDAR UTILITIES =====
+// v1.2.0.0 : RdvPrestations.calendrierIcs : statut 'confirmé' reconnu (seul
+// 'confirme' l'etait), RDV annules exclus, notes echappees, fins de ligne CRLF.
 function generateICSCalendar() {
   const appData = DataManager.getAppData();
-  const rdvFuturs = appData.rdv.filter(rdv => new Date(`${rdv.date}T${rdv.heure}`) >= new Date());
-
-  let icsContent = [
-    'BEGIN:VCALENDAR',
-    'VERSION:2.0',
-    'PRODID:-//Elise Massage//Agenda//FR',
-    'CALSCALE:GREGORIAN'
-  ];
-
-  rdvFuturs.forEach(rdv => {
-    const client = appData.clients.find(c => c.id === rdv.clientId);
-    const clientNom = client ? `${client.prenom} ${client.nom}` : 'Client';
-    const startDate = new Date(`${rdv.date}T${rdv.heure}`);
-    const endDate = new Date(startDate.getTime() + (rdv.duree || 60) * 60 * 1000);
-    const formatIcsDate = (date) => date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-
-    icsContent.push(
-      'BEGIN:VEVENT',
-      `UID:${rdv.id}@elisemassage.local`,
-      `DTSTAMP:${formatIcsDate(new Date())}`,
-      `DTSTART:${formatIcsDate(startDate)}`,
-      `DTEND:${formatIcsDate(endDate)}`,
-      `SUMMARY:${rdv.type} - ${clientNom}`,
-      `DESCRIPTION:Type: ${rdv.type}\\nDuree: ${rdv.duree || 60}min\\nStatut: ${rdv.statut}${rdv.notes ? '\\nNotes: ' + rdv.notes : ''}`,
-      `STATUS:${rdv.statut === 'confirme' ? 'CONFIRMED' : 'TENTATIVE'}`,
-      'END:VEVENT'
-    );
-  });
-
-  icsContent.push('END:VCALENDAR');
-  return icsContent.join('\n');
+  return RdvPrestations.calendrierIcs(appData.rdv, appData.clients, new Date());
 }
 
 // ===== BONS CADEAUX =====
@@ -538,8 +483,9 @@ async function createBonCadeau(bonData) {
     createdAt: new Date().toISOString()
   };
 
+  // v1.2.0.0 : base d'abord ; null si echec (_persist a alerte, la fenetre reste ouverte)
+  if (!(await _persist('bons_cadeaux', 'insert', newBon, DataManager.mapBonCadeauToDb))) return null;
   appData.bonsCadeaux.push(newBon);
-  await _persist('bons_cadeaux', 'insert', newBon, DataManager.mapBonCadeauToDb);
   return newBon;
 }
 
@@ -549,7 +495,7 @@ async function updateBonCadeau(bonData) {
   if (index === -1) return null;
 
   const existingBon = appData.bonsCadeaux[index];
-  appData.bonsCadeaux[index] = {
+  const maj = {
     ...existingBon,
     dateAchat: bonData.dateAchat,
     dateDebut: bonData.dateDebut || bonData.dateAchat,
@@ -566,9 +512,13 @@ async function updateBonCadeau(bonData) {
     notes: bonData.notes,
     updatedAt: new Date().toISOString()
   };
+  // v1.2.0.0 : statut recalcule depuis la nouvelle date de fin : prolonger une
+  // carte expiree la rend de nouveau active (utilisee / remboursee : inchange).
+  maj.statut = BonsCadeaux.statutEffectif(maj, jourLocal(new Date()));
 
-  await _persist('bons_cadeaux', 'update', appData.bonsCadeaux[index], DataManager.mapBonCadeauToDb);
-  return appData.bonsCadeaux[index];
+  if (!(await _persist('bons_cadeaux', 'update', maj, DataManager.mapBonCadeauToDb))) return null;
+  appData.bonsCadeaux[index] = maj;
+  return maj;
 }
 
 async function deleteBonCadeau(bonId) {
@@ -588,7 +538,7 @@ async function rembourserBonCadeau(bonId) {
   if (!bon) return false;
 
   bon.statut = 'rembourse';
-  bon.dateRemboursement = new Date().toISOString().split('T')[0];
+  bon.dateRemboursement = jourLocal(new Date()); // v1.2.0.0 : jour local, pas UTC
   await _persist('bons_cadeaux', 'update', bon, DataManager.mapBonCadeauToDb);
   return true;
 }
@@ -632,7 +582,7 @@ async function utiliserBonCadeau(bonId, prestationId) {
 
   bon.statut = 'utilise';
   bon.prestationId = prestationId;
-  bon.dateUtilisation = new Date().toISOString().split('T')[0];
+  bon.dateUtilisation = jourLocal(new Date()); // v1.2.0.0 : jour local, pas UTC
   await _persist('bons_cadeaux', 'update', bon, DataManager.mapBonCadeauToDb);
   return true;
 }
@@ -689,18 +639,18 @@ async function createClientMinimal(nomComplet) {
     createdAt: new Date().toISOString()
   };
 
+  // v1.2.0.0 : base d'abord ; null si echec (_persist a alerte)
+  if (!(await _persist('clients', 'insert', newClient, DataManager.mapClientToDb))) return null;
   appData.clients.push(newClient);
-  await _persist('clients', 'insert', newClient, DataManager.mapClientToDb);
   return newClient;
 }
 
 function getBonsCadeauxUtilisablesPourClient(clientId) {
   const appData = DataManager.getAppData();
-  const today = new Date().toISOString().split('T')[0];
+  // v1.2.0.0 : statut reel du jour (expiration, utilisation forcee comprises)
   return appData.bonsCadeaux.filter(bon => {
-    if (bon.statut !== 'actif') return false;
+    if (DataManager.statutBonCadeau(bon) !== 'actif') return false;
     if (bon.beneficiaireClientId && bon.beneficiaireClientId !== clientId) return false;
-    if (bon.dateExpiration < today && !bon.forceUtilise) return false;
     return true;
   });
 }
@@ -727,7 +677,9 @@ window.BusinessServices = {
   utiliserBonCadeau,
   marquerBonCadeauUtiliseManuel,
   createClientMinimal,
-  getBonsCadeauxUtilisablesPourClient
+  getBonsCadeauxUtilisablesPourClient,
+  // v1.2.0.0 : meme enregistrement + alerte pour les fiches et les abonnements
+  persist: _persist
 };
 
 console.log('Business Services PWA charge');

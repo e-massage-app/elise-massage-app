@@ -36,8 +36,23 @@ function getClientStats(clientId) {
   };
 }
 
+// v1.2.0.0 : base d'abord, cache ensuite. Une erreur remonte (throw) : le
+// formulaire est dans withButtonLoading, qui l'affiche et garde la fenetre
+// ouverte. Avant, le cache etait modifie puis l'erreur avalee : fiche visible,
+// jamais enregistree.
 async function createClient(formData, type = 'client') {
   const appData = DataManager.getAppData();
+  const collection = type === 'client' ? 'clients' : 'prospects';
+  const mapFn = type === 'client' ? DataManager.mapClientToDb : DataManager.mapProspectToDb;
+
+  if (formData.id && DataManager.getEditingId()) {
+    const index = appData[collection].findIndex(c => c.id === DataManager.getEditingId());
+    if (index === -1) return null;
+    const maj = fusionnerFiche(appData[collection][index], formData);
+    await DataManager.updateEntity(collection, maj.id, maj, mapFn);
+    appData[collection][index] = maj;
+    return maj;
+  }
 
   const client = {
     id: formData.id || DataManager.generateId(),
@@ -51,8 +66,10 @@ async function createClient(formData, type = 'client') {
     notes: formData.notes,
     parrain: formData.parrain || null,
     canalAcquisition: formData.canalAcquisition || 'non-renseigne',
-    dateAcquisition: formData.dateAcquisition || new Date().toISOString().split('T')[0],
+    dateAcquisition: formData.dateAcquisition || jourLocal(new Date()),
     sexe: formData.sexe || '',
+    // v1.2.0.0 : etiquettes recopiees (I13) ; sans elles le filtre par etiquette plantait
+    tags: Array.isArray(formData.tags) ? formData.tags : [],
     createdAt: formData.createdAt || new Date().toISOString()
   };
 
@@ -61,56 +78,61 @@ async function createClient(formData, type = 'client') {
     client.zones = formData.zones;
     client.allergies = formData.allergies;
     client.pression = formData.pression;
-
-    if (formData.id && DataManager.getEditingId()) {
-      const index = appData.clients.findIndex(c => c.id === DataManager.getEditingId());
-      if (index !== -1) {
-        appData.clients[index] = client;
-        try { await DataManager.updateEntity('clients', client.id, client, DataManager.mapClientToDb); } catch(e) { console.error('Erreur update client:', e); }
-      }
-    } else {
-      appData.clients.push(client);
-      try { await DataManager.insertEntity('clients', client, DataManager.mapClientToDb); } catch(e) { console.error('Erreur insert client:', e); }
-    }
+    // v1.2.0.0 : choix « sans fidelite » recopie (I13)
+    client.sansFidelite = formData.sansFidelite === true;
+    client.fideliteAtteinte = [];
   } else {
     client.statut = formData.statut;
     client.actions = formData.actions;
-
-    if (formData.id && DataManager.getEditingId()) {
-      const index = appData.prospects.findIndex(p => p.id === DataManager.getEditingId());
-      if (index !== -1) {
-        appData.prospects[index] = client;
-        try { await DataManager.updateEntity('prospects', client.id, client, DataManager.mapProspectToDb); } catch(e) { console.error('Erreur update prospect:', e); }
-      }
-    } else {
-      appData.prospects.push(client);
-      try { await DataManager.insertEntity('prospects', client, DataManager.mapProspectToDb); } catch(e) { console.error('Erreur insert prospect:', e); }
-    }
   }
 
+  await DataManager.insertEntity(collection, client, mapFn);
+  appData[collection].push(client);
   return client;
 }
 
+// v1.2.0.0 : modification d'une fiche = la fiche + les champs RENSEIGNES du
+// formulaire. Les champs absents (undefined) gardent leur valeur : Object.assign
+// les recopiait tels quels et effacait la date d'acquisition en base a chaque
+// modification. Les etiquettes se gerent a part (selecteur d'etiquettes).
+function fusionnerFiche(fiche, formData) {
+  const maj = { ...fiche };
+  Object.entries(formData).forEach(([cle, valeur]) => {
+    if (valeur !== undefined && cle !== 'tags') maj[cle] = valeur;
+  });
+  return maj;
+}
+
+// v1.2.0.0 : une fiche qui a encore des RDV ou des prestations ne se supprime
+// plus (ni ne se convertit en prospect) : on laissait des RDV/prestations
+// orphelins, ou on effacait l'historique et le chiffre d'affaires. Message en
+// clair (combien de RDV, de prestations), null si la fiche est libre.
+function motifRefusFiche(clientId, action = 'supprimer') {
+  const appData = DataManager.getAppData();
+  const client = appData.clients.find(c => c.id === clientId);
+  const nom = client ? `${client.prenom || ''} ${client.nom || ''}`.trim() : 'cette fiche';
+  return RdvPrestations.messageFicheLiee(nom, RdvPrestations.liensDeLaFiche(appData, clientId), action);
+}
+
+// Retourne true si la fiche est supprimee (base puis cache), false sinon (deja alerte).
 async function deleteClientById(clientId) {
   const appData = DataManager.getAppData();
-  // Supprimer les RDV et prestations associes d'abord
-  const rdvsToDelete = appData.rdv.filter(r => r.clientId === clientId);
-  const prestationsToDelete = appData.prestations.filter(p => p.clientId === clientId);
+  const refus = motifRefusFiche(clientId);
+  if (refus) {
+    alert(refus);
+    return false;
+  }
+  if (!(await BusinessServices.persist('clients', 'delete', clientId))) return false;
   appData.clients = appData.clients.filter(c => c.id !== clientId);
-  appData.rdv = appData.rdv.filter(r => r.clientId !== clientId);
-  appData.prestations = appData.prestations.filter(p => p.clientId !== clientId);
-
-  try {
-    for (const r of rdvsToDelete) await DataManager.deleteEntity('rdv', r.id);
-    for (const p of prestationsToDelete) await DataManager.deleteEntity('prestations', p.id);
-    await DataManager.deleteEntity('clients', clientId);
-  } catch(e) { console.error('Erreur delete client:', e); }
+  return true;
 }
 
 async function deleteProspectById(prospectId) {
   const appData = DataManager.getAppData();
+  // v1.2.0.0 : base d'abord, echec signale
+  if (!(await BusinessServices.persist('prospects', 'delete', prospectId))) return false;
   appData.prospects = appData.prospects.filter(p => p.id !== prospectId);
-  try { await DataManager.deleteEntity('prospects', prospectId); } catch(e) { console.error('Erreur delete prospect:', e); }
+  return true;
 }
 
 async function convertProspectToClient(prospectId) {
@@ -134,13 +156,12 @@ async function convertProspectToClient(prospectId) {
     pression: 'moyenne'
   };
 
+  // v1.2.0.0 : base d'abord ; le cache suit chaque ecriture reussie
+  if (!(await BusinessServices.persist('clients', 'insert', newClient, DataManager.mapClientToDb))) return null;
   appData.clients.push(newClient);
-  appData.prospects = appData.prospects.filter(p => p.id !== prospectId);
-
-  try {
-    await DataManager.insertEntity('clients', newClient, DataManager.mapClientToDb);
-    await DataManager.deleteEntity('prospects', prospectId);
-  } catch(e) { console.error('Erreur conversion prospect->client:', e); }
+  if (await BusinessServices.persist('prospects', 'delete', prospectId)) {
+    appData.prospects = appData.prospects.filter(p => p.id !== prospectId);
+  }
 
   return newClient;
 }
@@ -149,6 +170,14 @@ async function convertClientToProspect(clientId) {
   const appData = DataManager.getAppData();
   const client = appData.clients.find(c => c.id === clientId);
   if (!client) return null;
+
+  // v1.2.0.0 : la conversion supprimait les RDV et prestations de la fiche (chiffre
+  // d'affaires efface) : refusee tant qu'il en reste, comme la suppression.
+  const refus = motifRefusFiche(clientId, 'convertir en prospect');
+  if (refus) {
+    alert(refus);
+    return null;
+  }
 
   const newProspect = {
     id: DataManager.generateId(),
@@ -164,20 +193,11 @@ async function convertClientToProspect(clientId) {
     actions: { email: false, emailDate: '', telephone: false, telephoneDate: '', relance: false, relanceDate: '' }
   };
 
-  const rdvsToDelete = appData.rdv.filter(r => r.clientId === clientId);
-  const prestationsToDelete = appData.prestations.filter(p => p.clientId === clientId);
-
+  if (!(await BusinessServices.persist('prospects', 'insert', newProspect, DataManager.mapProspectToDb))) return null;
   appData.prospects.push(newProspect);
-  appData.clients = appData.clients.filter(c => c.id !== clientId);
-  appData.rdv = appData.rdv.filter(r => r.clientId !== clientId);
-  appData.prestations = appData.prestations.filter(p => p.clientId !== clientId);
-
-  try {
-    await DataManager.insertEntity('prospects', newProspect, DataManager.mapProspectToDb);
-    for (const r of rdvsToDelete) await DataManager.deleteEntity('rdv', r.id);
-    for (const p of prestationsToDelete) await DataManager.deleteEntity('prestations', p.id);
-    await DataManager.deleteEntity('clients', clientId);
-  } catch(e) { console.error('Erreur conversion client->prospect:', e); }
+  if (await BusinessServices.persist('clients', 'delete', clientId)) {
+    appData.clients = appData.clients.filter(c => c.id !== clientId);
+  }
 
   return newProspect;
 }
@@ -1302,8 +1322,14 @@ async function deleteClient(clientId) {
   const client = appData.clients.find(c => c.id === clientId);
   if (!client) return;
 
-  if (confirm(`Supprimer definitivement le client "${client.prenom} ${client.nom}" ?\n\nCela supprimera aussi tous ses RDV et prestations.`)) {
-    await deleteClientById(clientId);
+  // v1.2.0.0 : refus explique AVANT la confirmation si la fiche a des RDV / prestations
+  const refus = motifRefusFiche(clientId);
+  if (refus) {
+    alert(refus);
+    return;
+  }
+  if (confirm(`Supprimer definitivement le client "${client.prenom} ${client.nom}" ?`)) {
+    if (!(await deleteClientById(clientId))) return;
     ViewManager.updateClientsDisplay();
     ViewManager.updateDashboard();
   }
@@ -1335,7 +1361,13 @@ async function convertToProspect(clientId) {
   const client = appData.clients.find(c => c.id === clientId);
   if (!client) return;
 
-  if (confirm(`Convertir "${client.prenom} ${client.nom}" en prospect ?\n\nCela supprimera tous ses RDV et prestations.`)) {
+  // v1.2.0.0 : refus explique AVANT la confirmation si la fiche a des RDV / prestations
+  const refus = motifRefusFiche(clientId, 'convertir en prospect');
+  if (refus) {
+    alert(refus);
+    return;
+  }
+  if (confirm(`Convertir "${client.prenom} ${client.nom}" en prospect ?`)) {
     const newProspect = await convertClientToProspect(clientId);
     if (newProspect) {
       ViewManager.updateClientsDisplay();
@@ -2455,6 +2487,7 @@ window.ClientServices = {
   deleteProspectById,
   convertProspectToClient,
   convertClientToProspect,
+  motifRefusFiche, // v1.2.0.0
   getTopClients,
   getStatsParSexe,
   
