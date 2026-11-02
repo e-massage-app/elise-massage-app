@@ -1,4 +1,4 @@
-// ===== ANALYTICS : EVOLUTION, CALCULS (v1.1.2.0) =====
+// ===== ANALYTICS : EVOLUTION, CALCULS (v1.1.3.0) =====
 // Graphique « Évolution » de la vue d'ensemble Analytics. Fonctions pures :
 // ni DOM, ni DataManager, ni date du jour implicite (on la passe).
 // Testees sous Node : tests/evolution-calculs.test.js.
@@ -142,6 +142,33 @@ function evolution(appData, periode, { groupeDe, activites = [], aujourdhui }) {
   };
 }
 
+const JOURS_SEMAINE = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+
+/** Jour de la semaine d'une date 'YYYY-MM-DD' : 1 = lundi … 7 = dimanche. */
+function jourSemaine(jour) {
+  const d = new Date(Number(jour.slice(0, 4)), Number(jour.slice(5, 7)) - 1, Number(jour.slice(8, 10)));
+  return d.getDay() || 7;
+}
+
+/**
+ * v1.1.3.0 : bloc « Jour de la semaine ». Prestations faites et encaisse de ces prestations, du
+ * lundi au dimanche. Les ventes de cartes cadeaux n'y sont pas : elles ne disent rien du jour de
+ * travail. Une prestation reglee par carte cadeau compte comme prestation, ses seuls pourboires
+ * comme encaisse (regle Encaissements).
+ */
+function parJourSemaine(appData, debut, fin) {
+  const jours = JOURS_SEMAINE.map((nom, i) => ({ jour: i + 1, nom, prestations: 0, encaisse: 0 }));
+  (appData.prestations || []).forEach(p => {
+    const jour = Enc.jourDe(p.date);
+    if (jour && jour >= debut && jour <= fin) jours[jourSemaine(jour) - 1].prestations += 1;
+  });
+  Enc.encaissementsEntre(appData, debut, fin, { avecBons: false }).forEach(l => {
+    jours[jourSemaine(l.date) - 1].encaisse += l.montant;
+  });
+  jours.forEach(j => { j.encaisse = arrondi(j.encaisse); });
+  return jours;
+}
+
 /** Nom lisible d'une periode : « 2026 » ou « novembre 2026 ». */
 function nomPeriode({ annee, mois }) {
   return mois ? `${MOIS_LONGS[mois - 1]} ${annee}` : String(annee);
@@ -157,7 +184,10 @@ const EvolutionCalculs = {
   comparer,
   evolution,
   decalerAnnee,
-  nomPeriode
+  nomPeriode,
+  JOURS_SEMAINE,
+  jourSemaine,
+  parJourSemaine
 };
 
 racine.EvolutionCalculs = EvolutionCalculs;

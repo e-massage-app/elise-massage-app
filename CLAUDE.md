@@ -70,6 +70,9 @@ de faire **Ctrl+Shift+R** (le cache HTTP du navigateur est distinct du cache du 
   `tasks/todo-google-ads.md`. Ne JAMAIS remettre une cle Google dans le code (depot public)
 - `js/analytics/evolution-*.js` : graphique « Évolution » d'Analytics (calculs purs + ecran) ; les filtres
   du haut d'Analytics (Annee, Mois, « Ce mois-ci ») pilotent toute la page. Plan : `tasks/todo-analytics.md`
+- `js/ui/calendrier-reglages.js` : picto ⚙ du calendrier (jours fermes, vacances / fermetures exceptionnelles,
+  couleur / opacite / hachures). Cle `calendrier` de `parametres`, ecrite seule (dans CLES_PARAMETRES_A_PART).
+  Un jour ferme est seulement colore : un RDV y reste possible. Apercu : `tests/apercu-calendrier.html`
 - ApexCharts est charge SANS version (`cdn.jsdelivr.net/npm/apexcharts` = la derniere, 8.x en nov. 2026) :
   tout apercu doit charger la meme URL, sinon on teste une autre bibliotheque que celle du logiciel
 - `tests/` : `npm test` (Node, sans dependance) ; `tests/apercu-gestion.html` et `tests/apercu-analytics.html`
@@ -79,7 +82,7 @@ de faire **Ctrl+Shift+R** (le cache HTTP du navigateur est distinct du cache du 
 
 ## Versioning
 - Format : `X.Y.Z.W` ou X.Y = version PWA, Z.W = heritage version Electron
-- Version actuelle : `1.1.2.2` (Gestion : la liste des categories flotte au-dessus de la fenetre, plus d'ascenseur force ni de liste coupee)
+- Version actuelle : `1.1.3.0` (Calendrier : reglages ⚙ avec jours fermes, vacances et apparence ; Analytics : bloc « Jour de la semaine »)
 - **OBLIGATOIRE** : a chaque modification demandee par l'utilisateur, proposer un bump de version et attendre validation
 - Mettre a jour la version dans 3 endroits : `package.json`, `index.html` (burger menu + footer)
 - Puis **`node scripts/estampiller-version.js`** : repose `?v=X.Y.Z.W` sur tous les

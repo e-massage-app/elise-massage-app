@@ -1304,15 +1304,14 @@ function updateCalendar() {
   // Génération du calendrier
   const calendarData = Calculations.getCalendarData(year, month);
   
+  // v1.1.3.0 : jours fermes (picto ⚙ du calendrier). Seulement colores : un RDV reste possible.
+  const reglagesCal = window.CalendrierReglages ? CalendrierReglages.reglages() : null;
+  const fermeLeJour = j => (reglagesCal ? CalendrierReglages.fermetureDu(reglagesCal, j) : null);
+
   let calendarHTML = `
     <div class="calendar-header-row">
-      <div class="calendar-header-cell">Lun</div>
-      <div class="calendar-header-cell">Mar</div>
-      <div class="calendar-header-cell">Mer</div>
-      <div class="calendar-header-cell">Jeu</div>
-      <div class="calendar-header-cell">Ven</div>
-      <div class="calendar-header-cell">Sam</div>
-      <div class="calendar-header-cell">Dim</div>
+      ${['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map((nom, i) =>
+        `<div class="calendar-header-cell${reglagesCal && reglagesCal.joursFermes.includes(i + 1) ? ' entete-ferme' : ''}"><span>${nom}</span></div>`).join('')}
     </div>
     <div class="calendar-body">
   `;
@@ -1344,6 +1343,7 @@ function updateCalendar() {
     
     const hasEvents = rdvDuJour.length > 0 || prestationsDirectes.length > 0;
     const isToday = dateStr === new Date().toISOString().split('T')[0];
+    const fermeture = fermeLeJour(dateStr);
     
     // Construire le contenu du jour
     let dayContent = `<div class="calendar-day-number">${day}</div>`;
@@ -1427,7 +1427,7 @@ function updateCalendar() {
     `;
     
     calendarHTML += `
-      <div class="calendar-day ${hasEvents ? 'has-rdv' : ''} ${isInstitut ? 'jour-institut' : ''} ${isToday ? 'today' : ''}" onclick="FormManager.selectCalendarDay('${dateStr}')">
+      <div class="calendar-day ${hasEvents ? 'has-rdv' : ''} ${isInstitut ? 'jour-institut' : ''} ${isToday ? 'today' : ''} ${fermeture ? 'jour-ferme' : ''}" ${fermeture ? `title="${fermeture.libelle.replace(/"/g, '&quot;')}"` : ''} onclick="FormManager.selectCalendarDay('${dateStr}')">
         ${dayContent}
       </div>
     `;
@@ -1440,8 +1440,10 @@ function updateCalendar() {
   }
   
   calendarHTML += '</div>';
-  
-  document.getElementById('calendar-grid').innerHTML = calendarHTML;
+
+  const grille = document.getElementById('calendar-grid');
+  grille.innerHTML = calendarHTML;
+  if (reglagesCal) grille.setAttribute('style', CalendrierReglages.variablesGrille(reglagesCal));
 }
 
 // v1.1.0.0 : jour ramene au 1er avant setMonth. Le 31, setMonth(mois + 1)

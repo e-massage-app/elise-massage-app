@@ -102,3 +102,24 @@ test('29 fevrier : un an plus tot = 28 fevrier', () => {
   assert.equal(V.decalerAnnee('2028-02-29', -1), '2027-02-28');
   assert.equal(V.decalerAnnee('2026-03-10', -1), '2025-03-10');
 });
+
+test('jour de la semaine : 1 = lundi, 7 = dimanche', () => {
+  assert.equal(V.jourSemaine('2026-11-02'), 1); // lundi
+  assert.equal(V.jourSemaine('2026-11-04'), 3); // mercredi
+  assert.equal(V.jourSemaine('2026-11-08'), 7); // dimanche
+});
+
+test('par jour de la semaine : prestations et encaisse, sans les ventes de cartes cadeaux', () => {
+  // Du 1er janvier au 10 mars 2026 (donnees fictives du haut)
+  const j = V.parJourSemaine(appData, '2026-01-01', '2026-03-10');
+  const parNom = Object.fromEntries(j.map(x => [x.nom, x]));
+  // 10/01 samedi, 12/01 lundi, 20/01 mardi (carte cadeau : tips seuls), 02/03 lundi, 05/03 jeudi
+  assert.deepEqual(parNom.samedi, { jour: 6, nom: 'samedi', prestations: 1, encaisse: 110 });
+  assert.deepEqual(parNom.lundi, { jour: 1, nom: 'lundi', prestations: 2, encaisse: 140 });
+  assert.equal(parNom.mardi.prestations, 1);
+  assert.equal(parNom.mardi.encaisse, 5);
+  assert.equal(parNom.jeudi.encaisse, 30);
+  // La vente de carte du 05/01 (lundi) et le remboursement du 01/03 (dimanche) ne comptent pas
+  assert.equal(parNom.dimanche.encaisse, 0);
+  assert.equal(j.reduce((t, x) => t + x.prestations, 0), 5);
+});

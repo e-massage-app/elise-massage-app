@@ -300,6 +300,7 @@ function updateAllAnalyticsCharts() {
   updatePrestationsChart(selectedYear, selectedMonth);
   updateDureesChart(selectedYear, selectedMonth);
   updateMoyensPaiementChart(selectedYear, selectedMonth);
+  updateJoursSemaineChart(selectedYear, selectedMonth);
   updateCanalsChart(selectedYear, selectedMonth);
   updateGenreChart(selectedYear, selectedMonth);
   updateCanauxRevenusTable(selectedYear, selectedMonth);
@@ -611,7 +612,7 @@ function rendreBarresAnalytics(el, items, opts) {
     return '<div class="ana-bar-row' + sourdine + '">'
          + '<span class="ana-bar-name" title="' + echap(it.label) + '">' + echap(it.label) + '</span>'
          + '<span class="ana-bar-track"><span class="ana-bar-fill" style="width:' + pct.toFixed(1) + '%"></span></span>'
-         + '<span class="ana-bar-val">' + echap(fmt(it.value)) + '</span>'
+         + '<span class="ana-bar-val">' + echap(it.texte != null ? it.texte : fmt(it.value)) + '</span>'
          + '</div>';
   }).join('') + '</div>';
 }
@@ -667,6 +668,46 @@ function rendreAnneauAnalytics(el, parts, opts) {
       '</svg>' +
       '<div class="ana-legende">' + legende + '</div>' +
     '</div>';
+}
+
+// v1.1.3.0 : prestations et encaisse par jour de la semaine, pour suivre l'ouverture d'un jour
+// de plus. Lundi -> dimanche dans l'ordre du calendrier ; les jours fermes (reglages du
+// calendrier) restent visibles, en retrait : un RDV pris un jour ferme compte aussi.
+function updateJoursSemaineChart(selectedYear = 'current', selectedMonth = '') {
+  const el = document.getElementById('jours-semaine-chart');
+  if (!el || !window.EvolutionCalculs) return;
+  const { debut, fin } = Calculations.bornesAnalytics(selectedYear, selectedMonth);
+  const jours = EvolutionCalculs.parJourSemaine(DataManager.getAppData(), debut, fin);
+  const fermes = window.CalendrierReglages ? CalendrierReglages.reglages().joursFermes : [];
+  const euro = n => Math.round(n).toLocaleString('fr-FR') + ' \u20ac';
+  const majuscule = t => t.charAt(0).toUpperCase() + t.slice(1);
+  const total = jours.reduce((t, j) => t + j.prestations, 0);
+
+  const chip = document.querySelector('.jours-semaine-calme');
+  if (!total) {
+    el.innerHTML = '';
+    if (chip) chip.textContent = '\u2014';
+    poserIndiceAnalytics(el, 'Aucune prestation sur la p\u00e9riode.');
+    return;
+  }
+
+  rendreBarresAnalytics(el, jours.map(j => ({
+    label: majuscule(j.nom) + (fermes.includes(j.jour) ? ' \u00b7 ferm\u00e9' : ''),
+    value: j.prestations,
+    texte: j.prestations + ' \u00b7 ' + euro(j.encaisse),
+    ferme: fermes.includes(j.jour)
+  })), { estSourdine: it => it.ferme });
+
+  // Le plus calme et le plus fort parmi les jours ouverts (tous si aucun n'est marque ferme)
+  const ouverts = jours.filter(j => !fermes.includes(j.jour));
+  const parmi = ouverts.length ? ouverts : jours;
+  const calme = parmi.reduce((a, b) => (b.prestations < a.prestations ? b : a));
+  const fort = parmi.reduce((a, b) => (b.prestations > a.prestations ? b : a));
+  if (chip) chip.textContent = 'Plus calme : ' + calme.nom;
+  poserIndiceAnalytics(el, majuscule(calme.nom) + ' est le jour ouvert le plus calme : ' + calme.prestations +
+    ' prestation' + (calme.prestations > 1 ? 's' : '') + ' (' + euro(calme.encaisse) + '), contre ' + fort.prestations +
+    ' le ' + fort.nom + '.' +
+    (selectedMonth !== '' ? ' Un mois peut compter 4 ou 5 fois le m\u00eame jour.' : ''));
 }
 
 function updateDureesChart(selectedYear = 'current', selectedMonth = '') {

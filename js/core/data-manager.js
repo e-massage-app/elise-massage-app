@@ -452,7 +452,7 @@ async function saveData() {
 // saveParametresToDb envoie TOUTES les cles chargees au demarrage : un onglet ou un
 // telephone ouvert depuis longtemps ecrasait les jetons Google Ads tout juste
 // renouveles (et les reglages de la Gestion) avec sa vieille copie.
-const CLES_PARAMETRES_A_PART = ['googleAdsTokens', 'googleAdsConnected', 'googleAdsConnectedAt', 'gestion'];
+const CLES_PARAMETRES_A_PART = ['googleAdsTokens', 'googleAdsConnected', 'googleAdsConnectedAt', 'gestion', 'calendrier'];
 
 async function saveParametresToDb() {
   try {

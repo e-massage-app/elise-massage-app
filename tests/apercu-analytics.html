@@ -44,6 +44,18 @@
             </div>
           </div>
         </div>
+        <!-- Bloc « Jour de la semaine » (onglet Prestations), rendu par utils-services.js -->
+        <div class="ana-panel active" data-ana-panel="pr" style="margin-top:1.25rem">
+          <div class="analytics-grid">
+            <div class="chart-container modern-chart">
+              <div class="chart-header">
+                <h3>Jour de la semaine</h3>
+                <div class="chart-stats"><span class="jours-semaine-calme">—</span></div>
+              </div>
+              <div class="chart-wrapper"><div id="jours-semaine-chart"></div></div>
+            </div>
+          </div>
+        </div>
       </div>
     </main>
   </div>
@@ -89,9 +101,21 @@
     getYearsFromData: () => [auj.getFullYear(), auj.getFullYear() - 1]
   };
   window.Calculations = { getGroupeNameForPrestation: p => p.groupe };
+  DataManager.getParametres = () => ({ calendrier: { joursFermes: [7, 1] } });
   </script>
   <script src="../js/analytics/evolution-calculs.js"></script>
   <script src="../js/analytics/evolution-vue.js"></script>
+  <script src="../js/ui/calendrier-reglages.js"></script>
+  <script>
+  // Le bloc « Jour de la semaine » vit dans utils-services.js : on lui prete ce qu'il lit
+  window.Calculations.bornesAnalytics = (a, m) => {
+    const an = a === 'current' ? new Date().getFullYear() : Number(a);
+    if (m === '') return { debut: `${an}-01-01`, fin: `${an}-12-31` };
+    const mm = String(m).padStart(2, '0');
+    return { debut: `${an}-${mm}-01`, fin: Encaissements.dernierJourDuMois(`${an}-${mm}`) };
+  };
+  </script>
+  <script src="../js/services/utils-services.js"></script>
   <script>
   // Meme cablage que setupGlobalAnalyticsControls / basculerCeMoisAnalytics (utils-services.js)
   const annee = document.getElementById('global-year-selector');
@@ -102,6 +126,7 @@
     ceMois.classList.toggle('active', estCeMois());
     ceMois.setAttribute('aria-pressed', String(estCeMois()));
     EvolutionVue.afficher();
+    if (window.UtilsServices) updateJoursSemaineChart(annee.value, mois.value);
   }
   annee.addEventListener('change', tout);
   mois.addEventListener('change', tout);

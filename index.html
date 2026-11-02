@@ -14,18 +14,18 @@
     <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
 
     <!-- Styles CSS modulaires -->
-    <link rel="stylesheet" href="css/base.css?v=1.1.2.2">
-    <link rel="stylesheet" href="css/components.css?v=1.1.2.2">
-    <link rel="stylesheet" href="css/views.css?v=1.1.2.2">
-    <link rel="stylesheet" href="css/mobile.css?v=1.1.2.2">
-    <link rel="stylesheet" href="css/gestion.css?v=1.1.2.2">
+    <link rel="stylesheet" href="css/base.css?v=1.1.3.0">
+    <link rel="stylesheet" href="css/components.css?v=1.1.3.0">
+    <link rel="stylesheet" href="css/views.css?v=1.1.3.0">
+    <link rel="stylesheet" href="css/mobile.css?v=1.1.3.0">
+    <link rel="stylesheet" href="css/gestion.css?v=1.1.3.0">
 
     <!-- Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="js/config.js?v=1.1.2.2"></script>
-    <script src="js/supabase-client.js?v=1.1.2.2"></script>
-    <script src="js/core/google-ads.js?v=1.1.2.2"></script>
-    <script src="js/auth.js?v=1.1.2.2"></script>
+    <script src="js/config.js?v=1.1.3.0"></script>
+    <script src="js/supabase-client.js?v=1.1.3.0"></script>
+    <script src="js/core/google-ads.js?v=1.1.3.0"></script>
+    <script src="js/auth.js?v=1.1.3.0"></script>
 
     <!-- Libraries externes -->
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
@@ -72,7 +72,7 @@
         <div id="mobile-menu" class="mobile-menu">
             <div class="mobile-menu-header">
                 <span>Menu</span>
-                <div class="mobile-menu-version">v1.1.2.2</div>
+                <div class="mobile-menu-version">v1.1.3.0</div>
                 <button class="mobile-menu-close" onclick="closeMobileMenu()">&#10005;</button>
             </div>
             <div class="mobile-menu-nav">
@@ -158,6 +158,13 @@
                     <button onclick="nextMonth()">&gt;</button>
                     <button class="btn-primary" onclick="showAddRdvModal()">Nouveau RDV</button>
                     <button class="btn-secondary" onclick="exportCalendar()">Export .ics</button>
+                    <!-- v1.1.3.0 : reglages du calendrier (jours fermes, vacances, apparence) -->
+                    <button class="cal-picto" onclick="CalendrierReglages.ouvrir()" title="Réglages du calendrier" aria-label="Réglages du calendrier">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                            <line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/>
+                            <circle cx="9" cy="6" r="2.2" fill="var(--white)"/><circle cx="15" cy="12" r="2.2" fill="var(--white)"/><circle cx="8" cy="18" r="2.2" fill="var(--white)"/>
+                        </svg>
+                    </button>
                 </div>
             </div>
             <div id="calendar-grid" class="calendar-grid">
@@ -436,6 +443,19 @@
                 <div id="moyens-paiement-chart"></div>
             </div>
         </div>
+
+        <!-- v1.1.3.0 : pour suivre l'ouverture d'un jour de plus (lundi) -->
+        <div class="chart-container modern-chart">
+            <div class="chart-header">
+                <h3>Jour de la semaine</h3>
+                <div class="chart-stats">
+                    <span class="jours-semaine-calme">—</span>
+                </div>
+            </div>
+            <div class="chart-wrapper">
+                <div id="jours-semaine-chart"></div>
+            </div>
+        </div>
       </div>
     </div>
 
@@ -593,7 +613,7 @@
 
     <!-- Footer version -->
     <footer class="app-footer">
-        <span>Elise Massage &mdash; v1.1.2.2</span>
+        <span>Elise Massage &mdash; v1.1.3.0</span>
     </footer>
 
     <!-- Modal Overlay -->
@@ -623,29 +643,30 @@
 
     <!-- Scripts JavaScript modulaires -->
     <!-- Core : Données et calculs -->
-    <script src="js/core/data-manager.js?v=1.1.2.2"></script>
-    <script src="js/core/encaissements.js?v=1.1.2.2"></script>
-    <script src="js/core/calculations.js?v=1.1.2.2"></script>
+    <script src="js/core/data-manager.js?v=1.1.3.0"></script>
+    <script src="js/core/encaissements.js?v=1.1.3.0"></script>
+    <script src="js/core/calculations.js?v=1.1.3.0"></script>
     
     <!-- Services : Logique métier -->
-    <script src="js/services/business-services.js?v=1.1.2.2"></script>
-    <script src="js/services/client-services.js?v=1.1.2.2"></script>
-    <script src="js/services/utils-services.js?v=1.1.2.2"></script>
+    <script src="js/services/business-services.js?v=1.1.3.0"></script>
+    <script src="js/services/client-services.js?v=1.1.3.0"></script>
+    <script src="js/services/utils-services.js?v=1.1.3.0"></script>
     
     <!-- UI : Interface utilisateur -->
-    <script src="js/ui/modal-manager.js?v=1.1.2.2"></script>
-    <script src="js/ui/view-manager.js?v=1.1.2.2"></script>
-    <script src="js/ui/form-manager.js?v=1.1.2.2"></script>
+    <script src="js/ui/modal-manager.js?v=1.1.3.0"></script>
+    <script src="js/ui/view-manager.js?v=1.1.3.0"></script>
+    <script src="js/ui/form-manager.js?v=1.1.3.0"></script>
+    <script src="js/ui/calendrier-reglages.js?v=1.1.3.0"></script>
     
     <!-- Analytics : ROI et statistiques -->
-    <script src="js/analytics/google-ads-roi.js?v=1.1.2.2"></script>
-    <script src="js/analytics/evolution-calculs.js?v=1.1.2.2"></script>
-    <script src="js/analytics/evolution-vue.js?v=1.1.2.2"></script>
-    <script src="js/gestion/gestion-calculs.js?v=1.1.2.2"></script>
-    <script src="js/gestion/gestion-donnees.js?v=1.1.2.2"></script>
-    <script src="js/gestion/gestion-vue.js?v=1.1.2.2"></script>
+    <script src="js/analytics/google-ads-roi.js?v=1.1.3.0"></script>
+    <script src="js/analytics/evolution-calculs.js?v=1.1.3.0"></script>
+    <script src="js/analytics/evolution-vue.js?v=1.1.3.0"></script>
+    <script src="js/gestion/gestion-calculs.js?v=1.1.3.0"></script>
+    <script src="js/gestion/gestion-donnees.js?v=1.1.3.0"></script>
+    <script src="js/gestion/gestion-vue.js?v=1.1.3.0"></script>
     
     <!-- Point d'entrée principal -->
-    <script src="js/app.js?v=1.1.2.2"></script>
+    <script src="js/app.js?v=1.1.3.0"></script>
 </body>
 </html>
