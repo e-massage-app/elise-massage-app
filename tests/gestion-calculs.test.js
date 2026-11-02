@@ -408,3 +408,48 @@ test('Google Ads : la taxe d environ 2 % s ajoute a la depense lue chez Google, 
   d.gestion.mois['2026-10'] = { corrections: { ads: 62.5 } };
   assert.equal(G.totauxPro(ctx(d), '2026-10').ads, 62.5);
 });
+
+// Carte des soins fictive : memes regles que celle d'Elise (prix par duree, part d'Elise en partenariat)
+const CARTE = {
+  categories: [{ id: 'c-mas', nom: 'Massages' }, { id: 'c-hs', nom: 'HeadSpa' }, { id: 'c-epi', nom: 'Épilation' }],
+  soins: [
+    { id: 's-mas', nom: 'Massage Signature', categorieId: 'c-mas', variantes: [{ duree: 60, prix: 80 }, { duree: 120, prix: 150 }] },
+    { id: 's-hs', nom: 'HeadSpa', categorieId: 'c-hs', variantes: [{ duree: 30, prixTotal: 75, maPartFixe: 20 }, { duree: 60, prixTotal: 115, maPartFixe: 40 }] },
+    { id: 's-rit', nom: 'Rituel douceur', categorieId: 'c-hs', variantes: [{ duree: 105, prixTotal: 125, maPartFixe: 70 }] },
+    { id: 's-sou', nom: 'Sourcils entretien', categorieId: 'c-epi', variantes: [{ duree: 10, prix: 10 }] }
+  ]
+};
+
+test('projection : rendez-vous du calendrier a leur prix moins l URSSAF, loyer une fois par jour de massage en cabine', () => {
+  const d = base();
+  d.appData.parametres = { carteSoins: CARTE, joursInstitut: ['2026-11-08'] };
+  const rdv = (date, soinId, duree, plus = {}) => ({ date, soinId, duree, statut: 'confirmé', transformeEnPrestation: false, ...plus });
+  d.appData.rdv = [
+    rdv('2026-11-03', 's-sou', 10),                                   // epilation : pas de loyer
+    rdv('2026-11-04', 's-mas', 120), rdv('2026-11-04', 's-mas', 60),  // deux massages : un seul loyer
+    rdv('2026-11-05', 's-mas', 60, { adresseMassage: '12 rue X' }),   // a domicile : pas de loyer
+    rdv('2026-11-06', 's-rit', 105),                                  // rituel : sa part, pas de loyer
+    rdv('2026-11-07', 's-hs', 30), rdv('2026-11-07', 's-hs', 60),     // HeadSpa : sa part (20 + 40)
+    rdv('2026-11-08', 's-mas', 60),                                   // jour deja coche « institut »
+    rdv('2026-11-09', 's-mas', 60, { statut: 'annulé' }),             // annule : ignore
+    rdv('2026-11-10', 's-mas', 60, { transformeEnPrestation: true }), // deja une prestation : ignore
+    rdv('2026-11-11', 's-mas', 60, { bonCadeauId: 'b1' })             // carte cadeau : 0 €, mais le loyer
+  ];
+  const p = G.projectionDuMois(ctx(d), '2026-11', '2026-11-02');
+  assert.equal(p.nombre, 9);
+  assert.equal(p.prevu, 530);
+  assert.equal(p.loyers, 2);
+  assert.equal(p.valeurs[0], null);
+  assert.equal(p.valeurs[1], -10);     // aujourd'hui : la courbe reelle (banque 10 le 1er)
+  assert.equal(p.valeurs[2], -2.14);   // + 10 - 21,4 %
+  assert.equal(p.valeurs[3], 148.64);  // + 230 - 21,4 % - 30 de loyer
+  assert.equal(p.valeurs[4], 211.52);  // + 80 - 21,4 %
+  assert.equal(p.valeurs[5], 266.54);  // + 70 - 21,4 %
+  assert.equal(p.valeurs[6], 313.7);   // + 60 - 21,4 %
+  assert.equal(p.valeurs[7], 376.58);  // + 80 - 21,4 %, sans loyer
+  assert.equal(p.valeurs[10], 346.58); // carte cadeau : - 30 de loyer
+  assert.equal(p.valeurs[29], 346.58);
+  assert.equal(G.projectionDuMois(ctx(d), '2026-10', '2026-11-02'), null, 'mois passe : pas de projection');
+  d.appData.rdv = [];
+  assert.equal(G.projectionDuMois(ctx(d), '2026-11', '2026-11-02'), null, 'aucun rendez-vous');
+});

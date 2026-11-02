@@ -2,7 +2,7 @@
 // Strategie : cache assets statiques UNIQUEMENT, PAS les donnees Supabase
 // Si offline -> l'app affiche le message "reseau requis"
 
-const CACHE_NAME = 'elise-massage-v69';
+const CACHE_NAME = 'elise-massage-v70';
 // v1.0.18.3 : les JS et CSS ne figurent plus ici.
 // Depuis cette version, index.html les appelle avec une estampille de version
 // ("js/app.js?v=1.0.18.3", posee par scripts/estampiller-version.js). Les

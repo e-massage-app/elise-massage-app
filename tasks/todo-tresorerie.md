@@ -208,3 +208,16 @@ le jour du prelevement le compte baisse, la reserve ne bouge pas.
 - Releves du 31/10 corriges en base : le depot de 500 € note dans l'Excel n'etait pas fait
   (compte pro -500, caisse +500, total inchange). Un depot se saisit le jour ou il est fait :
   Ma reserve > « Deposer en banque ».
+
+## v1.1.0.8 (2026-11-02) : projection avec les rendez-vous du calendrier
+
+- Courbe du mois en cours : pointilles a partir d'aujourd'hui, « si tous les rendez-vous ont lieu ».
+  Rendez-vous ni annules ni transformes en prestation (confirmes et en attente).
+- Prix : la carte des soins, variante de meme duree (sinon la plus proche) ; soin en partenariat
+  (HeadSpa, Rituels) : la part d'Elise (`maPartFixe`) ; carte cadeau : 0 €. Moins l'URSSAF.
+- Loyer de la cabine (30 €) : une seule fois par jour, seulement pour un massage en cabine (groupe
+  « Massages », pas a domicile) ; pas pour HeadSpa, Rituels, epilation ; pas si le jour est deja coche
+  « institut ». Sans Google Ads ni commission carte (choix de Jordan), precise sous la courbe.
+- Mise a jour des donnees le 02/11 (accord de Jordan) : depot de 500 € d'especes, releves corriges
+  (l'Excel etait faux au 31/10), Google Ads d'octobre deja passe, test de 100 € supprime.
+- `npm test` : 36 tests.

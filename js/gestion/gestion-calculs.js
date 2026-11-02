@@ -1,4 +1,4 @@
-// ===== GESTION : CALCULS (v1.1.0.7) =====
+// ===== GESTION : CALCULS (v1.1.0.8) =====
 // Fonctions pures : ni DOM, ni Supabase, ni date du jour implicite (on la passe).
 // Testees sous Node : tests/gestion-calculs.test.js.
 //
@@ -646,6 +646,89 @@ function courbeDuMois(ctx, mois, aujourdhui) {
   return { mois, jours: liste, valeurs, dernier };
 }
 
+// ----- Projection : les rendez-vous deja au calendrier -----
+
+const LOYER_INSTITUT = 30; // meme montant que la journee en institut du calendrier (view-manager.js)
+
+/** Le soin d'un rendez-vous dans la carte des soins : par son id, sinon par le type (id ou nom). */
+function soinDuRdv(carte, rdv) {
+  const soins = carte?.soins || [];
+  const nom = s => String(s || '').trim().toLowerCase();
+  return soins.find(s => s.id === rdv.soinId) || soins.find(s => s.id === rdv.type)
+    || soins.find(s => nom(s.nom) && nom(s.nom) === nom(rdv.type)) || null;
+}
+
+/**
+ * Ce que le rendez-vous rapportera a Elise : la variante de meme duree (sinon la plus proche).
+ * Soin en partenariat (HeadSpa, Rituels : Jenny encaisse puis paie Elise) : sa part, pas le prix total.
+ */
+function prixDuRdv(carte, rdv) {
+  if (rdv.bonCadeauId) return 0; // la carte cadeau a deja ete comptee le jour de sa vente
+  const variantes = soinDuRdv(carte, rdv)?.variantes || [];
+  if (!variantes.length) return 0;
+  const duree = Number(rdv.duree) || 0;
+  const v = variantes.reduce((m, x) => Math.abs((Number(x.duree) || 0) - duree) < Math.abs((Number(m.duree) || 0) - duree) ? x : m, variantes[0]);
+  return Number(v.prix ?? v.maPartFixe ?? 0) || 0;
+}
+
+/** Massage en cabine : groupe « Massages » et pas a domicile. HeadSpa, Rituels, epilation : pas de loyer. */
+function rdvPaieLeLoyer(carte, rdv) {
+  const soin = soinDuRdv(carte, rdv);
+  const cat = (carte?.categories || []).find(c => c.id === soin?.categorieId);
+  const groupe = cat ? (String(cat.groupe || '').trim() || cat.nom) : '';
+  return /massage/i.test(groupe) && !String(rdv.adresseMassage || '').trim();
+}
+
+/**
+ * Projection du mois en cours (Jordan, 2026-11-02) : la courbe « ce qu'il me reste » prolongee avec
+ * les rendez-vous du calendrier pas encore faits (ni annules, ni transformes en prestation). Chacun
+ * compte son prix le jour prevu, moins l'URSSAF ; le loyer de la cabine (30 €) une seule fois par jour
+ * de massage en cabine, sauf jour deja coche « institut ». Sans Google Ads ni commission carte.
+ * Retourne { valeurs: [null avant aujourd'hui, puis la projection], nombre, prevu, loyers } ou null.
+ */
+function projectionDuMois(ctx, mois, aujourdhui) {
+  if (mois !== aujourdhui.slice(0, 7)) return null;
+  const carte = ctx.appData.parametres?.carteSoins;
+  const fin = _Enc.dernierJourDuMois(mois);
+  const rdvs = (ctx.appData.rdv || []).filter(r => {
+    const d = _Enc.jourDe(r.date);
+    return d >= aujourdhui && d <= fin && r.statut !== 'annulé' && !r.transformeEnPrestation;
+  });
+  if (!rdvs.length) return null;
+
+  const R = ctx.reglages;
+  const dejaLoyer = new Set([
+    ...(ctx.appData.parametres?.joursInstitut || []).map(_Enc.jourDe),
+    ...(ctx.appData.depenses || []).filter(d => d.type === 'loyer-institut' || d.categorie === 'Loyer').map(d => _Enc.jourDe(d.date))
+  ]);
+  const parJour = {};
+  const loyers = new Set();
+  let prevu = 0;
+  rdvs.forEach(r => {
+    const d = _Enc.jourDe(r.date);
+    const prix = prixDuRdv(carte, r);
+    prevu += prix;
+    parJour[d] = (parJour[d] || 0) + prix * (1 - R.tauxUrssaf / 100);
+    if (rdvPaieLeLoyer(carte, r) && !dejaLoyer.has(d) && !loyers.has(d)) {
+      loyers.add(d);
+      parJour[d] -= LOYER_INSTITUT;
+    }
+  });
+
+  // Part du point d'aujourd'hui sur la courbe reelle ; les rendez-vous du jour arrivent au point suivant
+  const reel = courbeDuMois(ctx, mois, aujourdhui);
+  const indexAujourdhui = Number(aujourdhui.slice(8, 10)) - 1;
+  const valeurs = reel.jours.map(() => null);
+  let cumul = reel.valeurs[indexAujourdhui] ?? 0;
+  valeurs[indexAujourdhui] = arrondi(cumul);
+  cumul += parJour[aujourdhui] || 0;
+  for (let i = indexAujourdhui + 1; i < reel.jours.length; i++) {
+    cumul += parJour[reel.jours[i]] || 0;
+    valeurs[i] = arrondi(cumul);
+  }
+  return { valeurs, nombre: rdvs.length, prevu: arrondi(prevu), loyers: loyers.size };
+}
+
 // ----- Libelles -----
 
 const NOMS_MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
@@ -714,6 +797,8 @@ const GestionCalculs = {
   aDeclarer,
   moisPerso,
   courbeDuMois,
+  projectionDuMois,
+  prixDuRdv,
   nomMois,
   deMois,
   queMois,

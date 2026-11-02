@@ -1,4 +1,4 @@
-// ===== GESTION : ECRAN (v1.1.0.7) =====
+// ===== GESTION : ECRAN (v1.1.0.8) =====
 // Onglet « Gestion » : Pro (4 chiffres, detail au clic, courbe), Perso, Reglages.
 // Mots d'Elise, pas de jargon comptable (ni « resultat », ni « provision »).
 // Evenements par delegation (data-ge="action") : aucun onclick global ajoute.
@@ -230,6 +230,7 @@ function vuePro() {
       <div id="ge-courbe" class="ge-courbe"></div>
       <p class="ge-aide">Ce que mes clientes m'ont payé, moins les frais (les charges fixes dès le 1er, Google Ads au jour le jour, l'URSSAF avec chaque paiement)
         et moins ce que je me suis versé. En rouge sous zéro : les frais ne sont pas encore couverts, ou je me suis versé plus que le mois n'a rapporté.</p>
+      <p class="ge-aide" id="ge-courbe-projection" hidden></p>
     </section>`;
 }
 
@@ -484,23 +485,38 @@ function pasRond(ecart) {
 function dessinerCourbe() {
   const zone = document.getElementById('ge-courbe');
   if (!zone || typeof ApexCharts === 'undefined') return;
-  const cm = C().courbeDuMois(ctx(), vue.mois, aujourdhui());
+  const c = ctx();
+  const cm = C().courbeDuMois(c, vue.mois, aujourdhui());
+  // Pointilles : les rendez-vous deja au calendrier, s'ils ont tous lieu (mois en cours seulement)
+  const pr = C().projectionDuMois(c, vue.mois, aujourdhui());
   if (vue.courbe) { try { vue.courbe.destroy(); } catch (e) { /* rien */ } vue.courbe = null; }
 
   const connues = cm.valeurs.filter(v => v !== null);
-  const haut = Math.max(0, ...connues);
-  const bas = Math.min(0, ...connues);
+  const avecProjection = connues.concat(pr ? pr.valeurs.filter(v => v !== null) : []);
+  const haut = Math.max(0, ...avecProjection);
+  const bas = Math.min(0, ...avecProjection);
   const pas = pasRond(haut - bas);
   const yMax = Math.max(pas, Math.ceil(haut / pas) * pas);
   const yMin = Math.floor(bas / pas) * pas;
-  // Dore au-dessus de zero, rouge en dessous : le degrade de l'aire change de couleur au zero
-  const zero = haut === bas ? 100 : Math.round(haut / (haut - bas) * 100);
+  // Dore au-dessus de zero, rouge en dessous : le degrade de l'aire (courbe reelle) change de couleur au zero
+  const hautReel = Math.max(0, ...connues);
+  const basReel = Math.min(0, ...connues);
+  const zero = hautReel === basReel ? 100 : Math.round(hautReel / (hautReel - basReel) * 100);
   const dore = '#b07a4f';
   const rouge = '#c0504d';
 
+  const note = document.getElementById('ge-courbe-projection');
+  if (note) {
+    note.hidden = !pr;
+    if (pr) note.textContent = `Pointillés : projection si les ${pr.nombre} rendez-vous prévus ont lieu (${euros(pr.prevu)}, une prestation peut s'annuler), URSSAF et loyer de la cabine compris, sans Google Ads ni commission carte.`;
+  }
+
+  const series = [{ name: 'Ce qu\'il me reste', type: 'area', data: cm.valeurs }];
+  if (pr) series.push({ name: 'Si tous les rendez-vous ont lieu', type: 'line', data: pr.valeurs });
+
   vue.courbe = new ApexCharts(zone, {
-    chart: { type: 'area', height: 240, toolbar: { show: false }, zoom: { enabled: false }, animations: { enabled: false }, fontFamily: 'Inter, sans-serif' },
-    series: [{ name: 'Ce qu\'il me reste', data: cm.valeurs }],
+    chart: { type: 'line', height: 240, toolbar: { show: false }, zoom: { enabled: false }, animations: { enabled: false }, fontFamily: 'Inter, sans-serif' },
+    series,
     plotOptions: { area: { fillTo: 'origin' } },
     xaxis: {
       categories: cm.jours.map(j => String(Number(j.slice(8, 10)))),
@@ -509,9 +525,9 @@ function dessinerCourbe() {
       tooltip: { enabled: false }
     },
     yaxis: { min: yMin, max: yMax, tickAmount: Math.round((yMax - yMin) / pas), forceNiceScale: false, labels: { formatter: v => `${Math.round(v)} €` } },
-    stroke: { width: 2.5, curve: 'straight', colors: ['#7a5236'] },
+    stroke: { width: [2.5, 2], curve: 'straight', dashArray: [0, 6], colors: ['#7a5236', dore] },
     fill: {
-      type: 'gradient',
+      type: ['gradient', 'solid'],
       gradient: {
         type: 'vertical',
         colorStops: [
@@ -522,7 +538,7 @@ function dessinerCourbe() {
         ]
       }
     },
-    colors: [dore],
+    colors: [dore, dore],
     markers: { size: 0 },
     dataLabels: { enabled: false },
     legend: { show: false },
