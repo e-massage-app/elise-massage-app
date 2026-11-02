@@ -162,18 +162,29 @@ async function importDataUI() {
   
   try {
     const result = await DataManager.importData();
-    if (result.success) {
-      // Mettre à jour toutes les vues
+    if (result.annule) return;
+    // v1.2.0.0 : vues redessinees meme apres un echec : l'app montre ce que la base contient
+    // (message affiche en texte : il peut citer une erreur de la base)
+    const texte = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    try {
       ViewManager.updateDashboard();
       ViewManager.updateCalendar();
       ViewManager.updatePrestationsTable();
       ViewManager.updateClientsDisplay();
       updateAnalytics();
       ViewManager.updateDepensesDisplay();
-      
-      showCustomAlert('✅ Données importées avec succès !', 'success');
+      ViewManager.updateRelanceBadges();
+    } catch (errVues) {
+      console.error('Vues apres import :', errVues);
+    }
+
+    if (result.success) {
+      const gardees = result.absentes.length ? `\n\nAbsentes du fichier, gardées telles quelles : ${result.absentes.join(', ')}.` : '';
+      const ignorees = result.relancesIgnorees ? `\n${result.relancesIgnorees} relance(s) sans fiche cliente ignorée(s).` : '';
+      const recharger = result.recharge ? '' : '\n\nRecharge la page pour voir tes données.';
+      showCustomAlert(texte(`Données importées avec succès !\n\nTes données d'avant l'import sont dans le fichier « ${result.nomAvant} ».${gardees}${ignorees}${recharger}`), 'success');
     } else {
-      showCustomAlert('❌ Erreur lors de l\'importation', 'error');
+      showCustomAlert(texte(result.error || 'Erreur lors de l\'importation'), 'error');
     }
   } catch (error) {
     showCustomAlert('❌ Erreur: ' + error.message, 'error');

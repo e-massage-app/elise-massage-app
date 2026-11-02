@@ -3453,7 +3453,8 @@ async function handleParametresFormSubmit(e) {
   try {
     if (typeof DataManager !== 'undefined') {
       if (DataManager.saveParametres) {
-        await DataManager.saveParametres(formData);
+        // v1.2.0.0 : false = rien d'enregistre (avant : « sauvegardes » quoi qu'il arrive)
+        if (await DataManager.saveParametres(formData) === false) throw new Error('Enregistrement refuse');
       }
     }
 
