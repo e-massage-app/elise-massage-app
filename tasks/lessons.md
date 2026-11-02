@@ -146,3 +146,25 @@ entiere, et toute la tresorerie etait surestimee.
 
 **Regle** — avant de dater un prelevement (URSSAF, Google Ads, abonnement), demander la vraie date
 sur le releve bancaire et la rendre reglable. Une echeance legale ne dit pas quand l'argent part.
+
+---
+
+## 10. Une maquette se montre dans le style du logiciel, et s'essaie avec ses bibliotheques
+
+**Declencheur** — Analytics (2026-11-02) : la maquette du nouveau graphique, faite dans un style
+generique, a ete jugee « pas du tout esthetique ». Puis l'apercu chargeait ApexCharts 3.54 alors que
+le logiciel charge la derniere version (8.7) : la colonne survolee devenait noire seulement en 8.7.
+
+**Regle** — une maquette pour Elise reprend d'emblee le style du logiciel (Playfair Display / Inter,
+dore #d4a574, fonds creme, cartes arrondies). Un apercu charge les memes URL de bibliotheques que
+`index.html` ; verifier la version reellement servie avant de conclure qu'un rendu est bon.
+
+---
+
+## 11. Pas de <datalist> pour un choix a faire au toucher
+
+**Declencheur** — Gestion (2026-11-02) : le champ « Categorie » en `<datalist>` ne s'ouvrait pas au
+clic et ne proposait rien sur le telephone de Jordan.
+
+**Regle** — pour une liste a choisir (avec ou sans saisie libre), une vraie liste qui s'ouvre au toucher
+(`.ge-choix` dans Gestion), posee PAR-DESSUS le formulaire pour que la fenetre ne se recentre pas.

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aperçu Évolution (données fictives)</title>
+  <!-- Outil de developpement : la carte « Évolution » d'Analytics et ses filtres du haut,
+       avec des donnees FICTIVES en memoire. Aucune connexion a Supabase. Ouvrir via le
+       serveur local (elise-pwa-fichiers). -->
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/components.css">
+  <link rel="stylesheet" href="../css/views.css">
+  <link rel="stylesheet" href="../css/mobile.css">
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+  <style>.app-container { opacity: 1; } .bandeau { background: #333; color: #fff; padding: .4rem 1rem; font: 12px Inter, sans-serif; }</style>
+</head>
+<body class="loaded">
+  <div class="bandeau">Aperçu avec des données fictives — rien n'est enregistré</div>
+  <div class="app-container">
+    <main class="main-content">
+      <div id="analytics" class="tab-content active">
+        <h2>Analyses et statistiques</h2>
+        <div class="ana-periode" role="group" aria-label="Période analysée">
+          <span class="ana-periode-titre">Période</span>
+          <div class="ana-periode-champs">
+            <select id="global-year-selector" aria-label="Année"><option value="current">Année actuelle</option><option value="2026">2026</option><option value="2025">2025</option></select>
+            <select id="global-month-selector" aria-label="Mois">
+              <option value="">Toute l'année</option><option value="1">Janvier</option><option value="2">Février</option><option value="3">Mars</option><option value="4">Avril</option><option value="5">Mai</option><option value="6">Juin</option><option value="7">Juillet</option><option value="8">Août</option><option value="9">Septembre</option><option value="10">Octobre</option><option value="11">Novembre</option><option value="12">Décembre</option>
+            </select>
+            <button type="button" class="ana-periode-mois" id="ana-ce-mois" aria-pressed="false">Ce mois-ci</button>
+          </div>
+        </div>
+        <div class="ana-panel active" data-ana-panel="ov">
+          <div class="analytics-grid">
+            <div class="analytics-container evo" id="evo">
+              <div class="evo-tete">
+                <h3 id="evo-titre">Mon année</h3>
+                <p id="evo-sous-titre">Ce que mes clientes m'ont payé, mois par mois</p>
+              </div>
+              <div class="evo-chiffres" id="evo-chiffres"></div>
+              <div class="evo-legende" id="evo-legende"></div>
+              <div class="evo-graphique" id="revenue-chart"></div>
+              <div class="evo-detail" id="evo-detail" hidden></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="../js/core/encaissements.js"></script>
+  <script>
+  // ----- Donnees fictives : deux annees, saison marquee en ete -----
+  const auj = new Date();
+  const jourAuj = `${auj.getFullYear()}-${String(auj.getMonth() + 1).padStart(2, '0')}-${String(auj.getDate()).padStart(2, '0')}`;
+  const saison = [0.6, 0.7, 0.8, 1, 1.1, 1.3, 2.4, 1.9, 1.1, 1, 0.8, 1.2];
+  const soins = [
+    { groupe: 'Massages', prix: 80 }, { groupe: 'Massages', prix: 95 }, { groupe: 'HeadSpa', prix: 60 },
+    { groupe: 'Épilation', prix: 30 }, { groupe: 'Massages', prix: 70 }, { groupe: 'Épilation', prix: 15 }
+  ];
+  const prestations = [], depenses = [], bonsCadeaux = [];
+  [auj.getFullYear() - 1, auj.getFullYear()].forEach((annee, a) => {
+    for (let m = 1; m <= 12; m++) {
+      const mois = `${annee}-${String(m).padStart(2, '0')}`;
+      const nb = Math.round((a ? 16 : 11) * saison[m - 1]);
+      for (let i = 0; i < nb; i++) {
+        const jour = `${mois}-${String(1 + (i * 7 + m) % 28).padStart(2, '0')}`;
+        if (jour > jourAuj) continue;
+        const s = soins[(i + m) % soins.length];
+        prestations.push({ id: `p${annee}${m}_${i}`, date: jour, prix: s.prix, tips: i % 5 === 0 ? 5 : 0, moyenPaiement: i % 17 === 0 ? 'Bon cadeau' : ['Liquide', 'Carte bleue', 'Virement'][i % 3], groupe: s.groupe });
+      }
+      const frais = [['Loyer', 30 * Math.round(6 * saison[m - 1])], ['Huiles', 25 + m], ['Transport', 12 * (m % 3)], ['Marketing', m % 4 === 0 ? 40 : 0]];
+      frais.forEach(([categorie, montant], k) => {
+        const jour = `${mois}-${String(3 + k * 6).padStart(2, '0')}`;
+        if (montant > 0 && jour <= jourAuj) depenses.push({ id: `d${annee}${m}${k}`, date: jour, categorie, montant });
+      });
+      if (m % 3 === 0 || m === 12) {
+        const jour = `${mois}-15`;
+        if (jour <= jourAuj) bonsCadeaux.push({ id: `b${annee}${m}`, montant: m === 12 ? 240 : 90, dateAchat: jour, moyenPaiement: 'Virement', statut: 'actif' });
+      }
+    }
+  });
+  const appData = { prestations, depenses, bonsCadeaux, clients: [] };
+
+  // ----- Ce que la carte lit dans le logiciel -----
+  window.DataManager = {
+    getAppData: () => appData,
+    getGroupesCategories: () => [{ nom: 'Massages' }, { nom: 'HeadSpa' }, { nom: 'Épilation' }],
+    getYearsFromData: () => [auj.getFullYear(), auj.getFullYear() - 1]
+  };
+  window.Calculations = { getGroupeNameForPrestation: p => p.groupe };
+  </script>
+  <script src="../js/analytics/evolution-calculs.js"></script>
+  <script src="../js/analytics/evolution-vue.js"></script>
+  <script>
+  // Meme cablage que setupGlobalAnalyticsControls / basculerCeMoisAnalytics (utils-services.js)
+  const annee = document.getElementById('global-year-selector');
+  const mois = document.getElementById('global-month-selector');
+  const ceMois = document.getElementById('ana-ce-mois');
+  const estCeMois = () => (annee.value === 'current' || Number(annee.value) === auj.getFullYear()) && Number(mois.value) === auj.getMonth() + 1;
+  function tout() {
+    ceMois.classList.toggle('active', estCeMois());
+    ceMois.setAttribute('aria-pressed', String(estCeMois()));
+    EvolutionVue.afficher();
+  }
+  annee.addEventListener('change', tout);
+  mois.addEventListener('change', tout);
+  ceMois.addEventListener('click', () => {
+    if (estCeMois()) mois.value = ''; else { annee.value = 'current'; mois.value = String(auj.getMonth() + 1); }
+    tout();
+  });
+  tout();
+  </script>
+</body>
+</html>

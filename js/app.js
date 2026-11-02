@@ -792,8 +792,9 @@ document.addEventListener('click', function(e) {
 function collapseAnalyticsOnMobile() {
   if (window.innerWidth <= 768) {
     document.querySelectorAll('.chart-container, .modern-chart, .stats-container, .modern-stats').forEach(el => {
-      // Ne pas fermer le graphique principal (evolution annuelle)
-      if (!el.closest('.analytics-container')) {
+      // Ne fermer ni le graphique principal (evolution) ni les statistiques cles
+      // (v1.1.2.0 : elles etaient rangees dans la carte du graphique)
+      if (!el.closest('.analytics-container') && !el.querySelector('#key-stats')) {
         el.classList.add('collapsed');
       }
     });

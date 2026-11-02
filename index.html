@@ -14,18 +14,18 @@
     <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
 
     <!-- Styles CSS modulaires -->
-    <link rel="stylesheet" href="css/base.css?v=1.1.1.0">
-    <link rel="stylesheet" href="css/components.css?v=1.1.1.0">
-    <link rel="stylesheet" href="css/views.css?v=1.1.1.0">
-    <link rel="stylesheet" href="css/mobile.css?v=1.1.1.0">
-    <link rel="stylesheet" href="css/gestion.css?v=1.1.1.0">
+    <link rel="stylesheet" href="css/base.css?v=1.1.2.0">
+    <link rel="stylesheet" href="css/components.css?v=1.1.2.0">
+    <link rel="stylesheet" href="css/views.css?v=1.1.2.0">
+    <link rel="stylesheet" href="css/mobile.css?v=1.1.2.0">
+    <link rel="stylesheet" href="css/gestion.css?v=1.1.2.0">
 
     <!-- Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="js/config.js?v=1.1.1.0"></script>
-    <script src="js/supabase-client.js?v=1.1.1.0"></script>
-    <script src="js/core/google-ads.js?v=1.1.1.0"></script>
-    <script src="js/auth.js?v=1.1.1.0"></script>
+    <script src="js/config.js?v=1.1.2.0"></script>
+    <script src="js/supabase-client.js?v=1.1.2.0"></script>
+    <script src="js/core/google-ads.js?v=1.1.2.0"></script>
+    <script src="js/auth.js?v=1.1.2.0"></script>
 
     <!-- Libraries externes -->
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
@@ -72,7 +72,7 @@
         <div id="mobile-menu" class="mobile-menu">
             <div class="mobile-menu-header">
                 <span>Menu</span>
-                <div class="mobile-menu-version">v1.1.1.0</div>
+                <div class="mobile-menu-version">v1.1.2.0</div>
                 <button class="mobile-menu-close" onclick="closeMobileMenu()">&#10005;</button>
             </div>
             <div class="mobile-menu-nav">
@@ -332,36 +332,31 @@
 <div id="analytics" class="tab-content">
     <h2>Analyses et statistiques</h2>
     
-    <div class="global-analytics-controls" style="grid-column: 1 / -1; background: white; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; border: 1px solid #e8e3d8; display: flex; align-items: center; gap: 2rem; justify-content: center;">
-        <h3 style="margin: 0; color: #8B4513;">Filtres globaux Analytics</h3>
-        <div style="display: flex; gap: 1rem; align-items: center;">
-            <div>
-                <label for="global-year-selector" style="margin-right: 0.5rem;">Année :</label>
-                <select id="global-year-selector" style="padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
-                    <option value="current">Année actuelle</option>
-                </select>
-            </div>
-            <div>
-                <label for="global-month-selector" style="margin-right: 0.5rem;">Mois :</label>
-                <select id="global-month-selector" style="padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
-                    <option value="">Toute l'année</option>
-                    <option value="1">Janvier</option>
-                    <option value="2">Février</option>
-                    <option value="3">Mars</option>
-                    <option value="4">Avril</option>
-                    <option value="5">Mai</option>
-                    <option value="6">Juin</option>
-                    <option value="7">Juillet</option>
-                    <option value="8">Août</option>
-                    <option value="9">Septembre</option>
-                    <option value="10">Octobre</option>
-                    <option value="11">Novembre</option>
-                    <option value="12">Décembre</option>
-                </select>
-            </div>
+    <!-- v1.1.2.0 : ces filtres pilotent toute la page, graphique « Évolution » compris -->
+    <div class="ana-periode" role="group" aria-label="Période analysée">
+        <span class="ana-periode-titre">Période</span>
+        <div class="ana-periode-champs">
+            <select id="global-year-selector" aria-label="Année">
+                <option value="current">Année actuelle</option>
+            </select>
+            <select id="global-month-selector" aria-label="Mois">
+                <option value="">Toute l'année</option>
+                <option value="1">Janvier</option>
+                <option value="2">Février</option>
+                <option value="3">Mars</option>
+                <option value="4">Avril</option>
+                <option value="5">Mai</option>
+                <option value="6">Juin</option>
+                <option value="7">Juillet</option>
+                <option value="8">Août</option>
+                <option value="9">Septembre</option>
+                <option value="10">Octobre</option>
+                <option value="11">Novembre</option>
+                <option value="12">Décembre</option>
+            </select>
+            <button type="button" class="ana-periode-mois" id="ana-ce-mois" aria-pressed="false">Ce mois-ci</button>
         </div>
     </div>
-    
 
     <!-- v1.0.14.0 : la page etait une colonne unique de 3358 px (4,1 ecrans mobile).
          Les memes blocs sont desormais repartis en 4 vues. Aucun calcul modifie :
@@ -379,89 +374,20 @@
       <div class="ana-kpis" id="ana-kpis"></div>
 
       <div class="analytics-grid">
-        <div class="analytics-container">
-            <div class="analytics-header">
-                <h3>Évolution annuelle</h3>
-                <div class="analytics-period-selector">
-                    <select id="year-selector" class="ana-year-select">
-                        <!-- Années générées dynamiquement -->
-                    </select>
-                    <button class="period-btn active" data-period="12">12 mois</button>
-                    <button class="period-btn" data-period="6">6 mois</button>
-                    <button class="period-btn" data-period="3">3 mois</button>
-                    <button class="period-btn" data-period="current-month">Ce mois-ci</button>
-                </div>
+        <!-- v1.1.2.0 : graphique refait (js/analytics/evolution-*.js) ; la periode vient des filtres du haut -->
+        <div class="analytics-container evo" id="evo">
+            <div class="evo-tete">
+                <h3 id="evo-titre">Mon année</h3>
+                <p id="evo-sous-titre">Ce que mes clientes m'ont payé, mois par mois</p>
             </div>
-            
-            <div class="chart-wrapper">
-                <div id="revenue-chart"></div>
-            </div>
-            
-            <div class="modern-filters">
-                <h4>Filtrer les données</h4>
-                <div class="filter-pills">
-                    <!-- v1.0.7.0 : pills par groupe de categories injectees dynamiquement (Massages, HeadSpa, Epilation, ...) -->
-                    <div id="filter-pills-groupes" style="display: contents;">
-                        <label class="filter-pill active">
-                            <input type="checkbox" id="filter-massages" checked>
-                            <span class="pill-content">💆 Massages</span>
-                            <span class="pill-amount" id="massages-amount">0€</span>
-                        </label>
-                        <label class="filter-pill active">
-                            <input type="checkbox" id="filter-headspa" checked>
-                            <span class="pill-content">💆‍♀️ HeadSpa</span>
-                            <span class="pill-amount" id="headspa-amount">0€</span>
-                        </label>
-                    </div>
-                    <label class="filter-pill active">
-                        <input type="checkbox" id="filter-bons-cadeaux" checked>
-                        <span class="pill-content">🎁 Bons Cadeaux</span>
-                        <span class="pill-amount" id="bons-cadeaux-amount">0€</span>
-                    </label>
-                    <label class="filter-pill active">
-                        <input type="checkbox" id="filter-tips" checked>
-                        <span class="pill-content">💸 Tips</span>
-                        <span class="pill-amount" id="tips-amount">0€</span>
-                    </label>
-                    <label class="filter-pill active">
-                        <input type="checkbox" id="filter-depenses-huiles" checked>
-                        <span class="pill-content">🫒 Huiles</span>
-                        <span class="pill-amount" id="huiles-amount">0€</span>
-                    </label>
-                    <label class="filter-pill active">
-                        <input type="checkbox" id="filter-depenses-materiel" checked>
-                        <span class="pill-content">🛠️ Matériel</span>
-                        <span class="pill-amount" id="materiel-amount">0€</span>
-                    </label>
-                    <label class="filter-pill active">
-                        <input type="checkbox" id="filter-depenses-formation" checked>
-                        <span class="pill-content">📚 Formation</span>
-                        <span class="pill-amount" id="formation-amount">0€</span>
-                    </label>
-                    <label class="filter-pill active">
-                        <input type="checkbox" id="filter-depenses-transport" checked>
-                        <span class="pill-content">🚗 Transport</span>
-                        <span class="pill-amount" id="transport-amount">0€</span>
-                    </label>
-                    <label class="filter-pill active">
-                        <input type="checkbox" id="filter-depenses-marketing" checked>
-                        <span class="pill-content">📢 Marketing</span>
-                        <span class="pill-amount" id="marketing-amount">0€</span>
-                    </label>
-                    <label class="filter-pill active">
-                        <input type="checkbox" id="filter-depenses-loyer" checked>
-                        <span class="pill-content">🏠 Loyer</span>
-                        <span class="pill-amount" id="loyer-amount">0€</span>
-                    </label>
-                    <label class="filter-pill active">
-                        <input type="checkbox" id="filter-depenses-autre" checked>
-                        <span class="pill-content">📦 Autres</span>
-                        <span class="pill-amount" id="autre-amount">0€</span>
-                    </label>
-                </div>
-            </div>
+            <div class="evo-chiffres" id="evo-chiffres"></div>
+            <div class="evo-legende" id="evo-legende"></div>
+            <div class="evo-graphique" id="revenue-chart"></div>
+            <div class="evo-detail" id="evo-detail" hidden></div>
+        </div>
 
-<div class="stats-container modern-stats">
+        <!-- v1.1.2.0 : etait range DANS la carte du graphique ; devient une carte a part -->
+        <div class="stats-container modern-stats">
             <div class="stats-header">
                 <h3>Statistiques clés</h3>
                 <div class="stats-period">Cette année</div>
@@ -470,7 +396,6 @@
                 <!-- Stats générées dynamiquement -->
             </div>
         </div>
-</div>
       </div>
     </div>
 
@@ -668,7 +593,7 @@
 
     <!-- Footer version -->
     <footer class="app-footer">
-        <span>Elise Massage &mdash; v1.1.1.0</span>
+        <span>Elise Massage &mdash; v1.1.2.0</span>
     </footer>
 
     <!-- Modal Overlay -->
@@ -698,27 +623,29 @@
 
     <!-- Scripts JavaScript modulaires -->
     <!-- Core : Données et calculs -->
-    <script src="js/core/data-manager.js?v=1.1.1.0"></script>
-    <script src="js/core/encaissements.js?v=1.1.1.0"></script>
-    <script src="js/core/calculations.js?v=1.1.1.0"></script>
+    <script src="js/core/data-manager.js?v=1.1.2.0"></script>
+    <script src="js/core/encaissements.js?v=1.1.2.0"></script>
+    <script src="js/core/calculations.js?v=1.1.2.0"></script>
     
     <!-- Services : Logique métier -->
-    <script src="js/services/business-services.js?v=1.1.1.0"></script>
-    <script src="js/services/client-services.js?v=1.1.1.0"></script>
-    <script src="js/services/utils-services.js?v=1.1.1.0"></script>
+    <script src="js/services/business-services.js?v=1.1.2.0"></script>
+    <script src="js/services/client-services.js?v=1.1.2.0"></script>
+    <script src="js/services/utils-services.js?v=1.1.2.0"></script>
     
     <!-- UI : Interface utilisateur -->
-    <script src="js/ui/modal-manager.js?v=1.1.1.0"></script>
-    <script src="js/ui/view-manager.js?v=1.1.1.0"></script>
-    <script src="js/ui/form-manager.js?v=1.1.1.0"></script>
+    <script src="js/ui/modal-manager.js?v=1.1.2.0"></script>
+    <script src="js/ui/view-manager.js?v=1.1.2.0"></script>
+    <script src="js/ui/form-manager.js?v=1.1.2.0"></script>
     
     <!-- Analytics : ROI et statistiques -->
-    <script src="js/analytics/google-ads-roi.js?v=1.1.1.0"></script>
-    <script src="js/gestion/gestion-calculs.js?v=1.1.1.0"></script>
-    <script src="js/gestion/gestion-donnees.js?v=1.1.1.0"></script>
-    <script src="js/gestion/gestion-vue.js?v=1.1.1.0"></script>
+    <script src="js/analytics/google-ads-roi.js?v=1.1.2.0"></script>
+    <script src="js/analytics/evolution-calculs.js?v=1.1.2.0"></script>
+    <script src="js/analytics/evolution-vue.js?v=1.1.2.0"></script>
+    <script src="js/gestion/gestion-calculs.js?v=1.1.2.0"></script>
+    <script src="js/gestion/gestion-donnees.js?v=1.1.2.0"></script>
+    <script src="js/gestion/gestion-vue.js?v=1.1.2.0"></script>
     
     <!-- Point d'entrée principal -->
-    <script src="js/app.js?v=1.1.1.0"></script>
+    <script src="js/app.js?v=1.1.2.0"></script>
 </body>
 </html>

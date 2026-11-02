@@ -230,121 +230,73 @@ async function executerMigration() {
 
 // ===== ANALYTICS CHART.JS INTERACTIFS =====
 
-let revenueChart = null;
 let prestationsChart = null;
 let dureesChart = null;
 
-// v1.0.7.0 : slugify pour generer des IDs HTML stables
-function slugifyGroupe(name) {
-  return (name || '').toString()
-    .toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
-}
-
-// v1.0.7.0 : icone par defaut selon le nom de groupe (heuristique)
-function getGroupeIcon(name) {
-  const n = (name || '').toLowerCase();
-  if (n.includes('headspa') || n.includes('head spa')) return '💆‍♀️';
-  if (n.includes('massage') || n.includes('rituel') || n.includes('soins du monde')) return '💆';
-  if (n.includes('épil') || n.includes('epil')) return '✨';
-  if (n.includes('soin')) return '🌸';
-  return '🌿';
-}
-
-// v1.0.7.0 : genere les filter-pills par groupe (Massages, HeadSpa, + custom).
-// Idempotent : sait rebuilder si appele plusieurs fois.
-function renderGroupesPills() {
-  const container = document.getElementById('filter-pills-groupes');
-  if (!container || typeof DataManager === 'undefined' || !DataManager.getGroupesCategories) return;
-
-  const groupes = DataManager.getGroupesCategories();
-  // Ordre : Massages d'abord, HeadSpa ensuite, puis les autres par ordre alpha
-  const ordered = [];
-  const massages = groupes.find(g => g.nom === 'Massages');
-  const headspa = groupes.find(g => g.nom === 'HeadSpa');
-  if (massages) ordered.push(massages);
-  else ordered.push({ nom: 'Massages', couleur: null });
-  if (headspa) ordered.push(headspa);
-  else ordered.push({ nom: 'HeadSpa', couleur: null });
-  groupes
-    .filter(g => g.nom !== 'Massages' && g.nom !== 'HeadSpa')
-    .sort((a, b) => a.nom.localeCompare(b.nom))
-    .forEach(g => ordered.push(g));
-
-  // Memoriser les etats actuels (pour rester sur "checked" si l'utilisateur a coche)
-  const previousStates = {};
-  container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-    previousStates[cb.id] = cb.checked;
-  });
-
-  container.innerHTML = ordered.map(g => {
-    const isMassages = g.nom === 'Massages';
-    const isHeadspa = g.nom === 'HeadSpa';
-    const inputId = isMassages ? 'filter-massages' : (isHeadspa ? 'filter-headspa' : `filter-groupe-${slugifyGroupe(g.nom)}`);
-    const amountId = isMassages ? 'massages-amount' : (isHeadspa ? 'headspa-amount' : `amount-groupe-${slugifyGroupe(g.nom)}`);
-    const checked = previousStates[inputId] !== undefined ? previousStates[inputId] : true;
-    const icon = getGroupeIcon(g.nom);
-    // v1.0.7.1 : retire la bordure coloree, jugee disgracieuse - on garde juste le pill standard
-    return `
-      <label class="filter-pill ${checked ? 'active' : ''}" data-groupe="${g.nom.replace(/"/g, '&quot;')}">
-        <input type="checkbox" id="${inputId}" ${checked ? 'checked' : ''}>
-        <span class="pill-content">${icon} ${g.nom}</span>
-        <span class="pill-amount" id="${amountId}">0€</span>
-      </label>
-    `;
-  }).join('');
-
-  // Recabler les events change (re-run setupDynamicFilters re-listera tout)
-  setupDynamicFilters();
-}
-
+// v1.1.2.0 : les filtres du haut (Annee, Mois, « Ce mois-ci ») pilotent toute la
+// page. Avant : updateAnalytics redessinait tout sur « Annee actuelle » quel que
+// soit le choix affiche, le graphique d'evolution avait son propre choix d'annee
+// (ignore), et chaque ouverture d'Analytics ajoutait un ecouteur de plus.
 function updateAnalytics() {
-  // v1.0.7.0 : (re)generer les pills par groupe avant de tout calculer
-  renderGroupesPills();
-  updateFilterAmountsDisplay();
-  setupYearSelector();
-  setupDynamicFilters();
-  updateRevenueChart();
-  updatePrestationsChart();
-  updateDureesChart();
-  updateMoyensPaiementChart();
-  updateCanalsChart();
-  updateCanauxRevenusTable();
-  updateGenreChart();
-  updateKeyStats();
-  updateAnaKpis();
-  updateGoogleAdsAnalytics();
   setupGlobalAnalyticsControls();
+  updateAllAnalyticsCharts();
+  updateGoogleAdsAnalytics();
 }
+
+let filtresAnalyticsBranches = false;
 
 function setupGlobalAnalyticsControls() {
   const globalYearSelector = document.getElementById('global-year-selector');
   const globalMonthSelector = document.getElementById('global-month-selector');
-  
   if (!globalYearSelector) return;
-  
-  globalYearSelector.innerHTML = '<option value="current">Année actuelle</option>';
-  
-  const years = DataManager.getYearsFromData();
-  years.forEach(year => {
-    const option = document.createElement('option');
-    option.value = year;
-    option.textContent = year;
-    globalYearSelector.appendChild(option);
-  });
-  
+
+  // Les annees suivent les donnees ; le choix en cours est garde
+  const choix = globalYearSelector.value || 'current';
+  globalYearSelector.innerHTML = '<option value="current">Année actuelle</option>' +
+    DataManager.getYearsFromData().map(y => `<option value="${y}">${y}</option>`).join('');
+  globalYearSelector.value = [...globalYearSelector.options].some(o => o.value === choix) ? choix : 'current';
+
+  if (filtresAnalyticsBranches) return;
+  filtresAnalyticsBranches = true;
   globalYearSelector.addEventListener('change', updateAllAnalyticsCharts);
-  if (globalMonthSelector) {
-    globalMonthSelector.addEventListener('change', updateAllAnalyticsCharts);
+  if (globalMonthSelector) globalMonthSelector.addEventListener('change', updateAllAnalyticsCharts);
+  const ceMois = document.getElementById('ana-ce-mois');
+  if (ceMois) ceMois.addEventListener('click', basculerCeMoisAnalytics);
+}
+
+function estCeMoisAnalytics() {
+  const annee = document.getElementById('global-year-selector')?.value;
+  const mois = document.getElementById('global-month-selector')?.value;
+  const now = new Date();
+  return (annee === 'current' || Number(annee) === now.getFullYear()) && Number(mois) === now.getMonth() + 1;
+}
+
+// « Ce mois-ci » : annee et mois en cours ; un second appui revient a toute l'annee
+function basculerCeMoisAnalytics() {
+  const annee = document.getElementById('global-year-selector');
+  const mois = document.getElementById('global-month-selector');
+  if (!annee || !mois) return;
+  if (estCeMoisAnalytics()) {
+    mois.value = '';
+  } else {
+    annee.value = 'current';
+    mois.value = String(new Date().getMonth() + 1);
   }
+  updateAllAnalyticsCharts();
 }
 
 function updateAllAnalyticsCharts() {
   const selectedYear = document.getElementById('global-year-selector')?.value || 'current';
   const selectedMonth = document.getElementById('global-month-selector')?.value || '';
-  
+
+  const ceMois = document.getElementById('ana-ce-mois');
+  if (ceMois) {
+    const actif = estCeMoisAnalytics();
+    ceMois.classList.toggle('active', actif);
+    ceMois.setAttribute('aria-pressed', String(actif));
+  }
+
+  if (window.EvolutionVue) EvolutionVue.afficher();
   updatePrestationsChart(selectedYear, selectedMonth);
   updateDureesChart(selectedYear, selectedMonth);
   updateMoyensPaiementChart(selectedYear, selectedMonth);
@@ -434,63 +386,6 @@ function updateGenreStats(selectedYear = 'current', selectedMonth = '') {
   }
 }
 
-function updateFilterAmountsDisplay() {
-  // Récupérer la période et l'année actuelle
-  const activePeriodBtn = document.querySelector('.period-btn.active');
-  const period = activePeriodBtn ? (activePeriodBtn.dataset.period === 'current-month' ? 'current-month' : parseInt(activePeriodBtn.dataset.period)) : 12;
-  const selectedYear = document.getElementById('year-selector') ? document.getElementById('year-selector').value : 'current';
-  
-  // Utiliser la fonction qui calcule selon la période
-  const data = Calculations.calculateFilterAmountsForPeriod(period, selectedYear);
-  
-  // Mettre à jour les montants dans les pills
-  const elements = {
-    'massages-amount': data.amounts.massages,
-    'headspa-amount': data.amounts.headspa,
-    'bons-cadeaux-amount': data.amounts.bonsCadeaux,
-    'tips-amount': data.amounts.tips,
-    'huiles-amount': data.amounts.huiles,
-    'materiel-amount': data.amounts.materiel,
-    'formation-amount': data.amounts.formation,
-    'transport-amount': data.amounts.transport,
-    'marketing-amount': data.amounts.marketing,
-    'loyer-amount': data.amounts.loyer,
-    'autre-amount': data.amounts.autre
-  };
-
-  Object.entries(elements).forEach(([id, value]) => {
-    const element = document.getElementById(id);
-    if (element) {
-      element.textContent = `${value.toFixed(0)}€`;
-    }
-  });
-
-  // v1.0.7.0 : mettre a jour les montants des pills custom groupes (Epilation et autres)
-  if (data.amounts.groupes) {
-    Object.entries(data.amounts.groupes).forEach(([nom, montant]) => {
-      if (nom === 'Massages' || nom === 'HeadSpa') return; // deja gere ci-dessus
-      const id = `amount-groupe-${slugifyGroupe(nom)}`;
-      const el = document.getElementById(id);
-      if (el) el.textContent = `${(montant || 0).toFixed(0)}€`;
-    });
-  }
-  
-  // Mettre à jour les stats des autres graphiques
-  const totalPrestations = period === 'current-month' ? 
-    calculatePrestationsForPeriod(period, selectedYear) : 
-    Calculations.calculateFilterAmounts().totalPrestations;
-  
-  const totalElement = document.querySelector('.total-prestations');
-  const avgElement = document.querySelector('.avg-duration');
-  
-  if (totalElement) {
-    totalElement.textContent = `${totalPrestations} prestations`;
-  }
-  if (avgElement) {
-    avgElement.textContent = `${Calculations.calculateFilterAmounts().avgDuration.toFixed(0)} min moyenne`;
-  }
-}
-
 function updateGenreChart(selectedYear = 'current', selectedMonth = '') {
   const ctx = document.getElementById('genre-chart');
   if (!ctx) return;
@@ -577,136 +472,6 @@ function updateGenreChart(selectedYear = 'current', selectedMonth = '') {
   window.genreChart.render();
 }
 
-function calculatePrestationsForPeriod(period, selectedYear) {
-  const appData = DataManager.getAppData();
-  
-  if (period === 'current-month') {
-    const today = new Date();
-    const currentYear = today.getFullYear();
-    const currentMonth = today.getMonth();
-    const todayDate = today.getDate();
-    
-    let count = 0;
-    for (let day = 1; day <= todayDate; day++) {
-      const dateString = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      const prestationsJour = appData.prestations.filter(p => p.date === dateString);
-      count += prestationsJour.length;
-    }
-    return count;
-  } else {
-    let count = 0;
-
-    // v1.1.0.0 : mois calcules sur les chaines (fin du debordement de setMonth)
-    Calculations.moisDeLaPeriodeAnalytics(period, selectedYear).forEach(monthStr => {
-      const prestationsMois = appData.prestations.filter(p => p.date && p.date.startsWith(monthStr));
-      count += prestationsMois.length;
-    });
-    return count;
-  }
-}
-
-function setupDynamicFilters() {
-  // Event listeners pour les filtres
-  document.querySelectorAll('.filter-pill input[type="checkbox"]').forEach(checkbox => {
-    checkbox.removeEventListener('change', handleFilterChange);
-    checkbox.addEventListener('change', handleFilterChange);
-  });
-  
-  // Setup period selector
-  document.querySelectorAll('.period-btn').forEach(btn => {
-    btn.removeEventListener('click', handlePeriodChange);
-    btn.addEventListener('click', handlePeriodChange);
-  });
-}
-
-function setupYearSelector() {
-  const yearSelector = document.getElementById('year-selector');
-  if (!yearSelector) return;
-  
-  const years = DataManager.getYearsFromData();
-  const currentSelection = yearSelector.value || 'current';
-  
-  // Vider et reconstruire
-  yearSelector.innerHTML = '<option value="current">Année actuelle</option>';
-  
-  // Ajouter toutes les années trouvées
-  years.forEach(year => {
-    const option = document.createElement('option');
-    option.value = year;
-    option.textContent = year;
-    yearSelector.appendChild(option);
-  });
-  
-  // Restaurer sélection
-  yearSelector.value = currentSelection;
-  
-  // Event listener
-  yearSelector.removeEventListener('change', handleYearChange);
-  yearSelector.addEventListener('change', handleYearChange);
-}
-
-function handleYearChange() {
-  updateFilteredAnalytics();
-}
-
-function handleFilterChange(event) {
-  const pill = event.target.closest('.filter-pill');
-  if (event.target.checked) {
-    pill.classList.add('active');
-  } else {
-    pill.classList.remove('active');
-  }
-  
-  // Mise à jour immédiate du graphique
-  updateFilteredAnalytics();
-}
-
-function handlePeriodChange(event) {
-  document.querySelectorAll('.period-btn').forEach(btn => btn.classList.remove('active'));
-  event.target.classList.add('active');
-  
-  // Actualiser les filtres ET le graphique
-  updateFilterAmountsDisplay();
-  updateFilteredAnalytics();
-}
-
-function updateFilteredAnalytics() {
-  // v1.0.7.0 : lecture dynamique des filtres par groupe (Massages/HeadSpa + custom)
-  const groupesFilters = {};
-  document.querySelectorAll('#filter-pills-groupes input[type="checkbox"]').forEach(cb => {
-    const label = cb.closest('label');
-    const groupeName = label && label.dataset.groupe ? label.dataset.groupe : null;
-    if (groupeName) groupesFilters[groupeName] = cb.checked;
-  });
-
-  const filters = {
-    massages: document.getElementById('filter-massages')?.checked || false,
-    headspa: document.getElementById('filter-headspa')?.checked || false,
-    groupes: groupesFilters,
-    bonsCadeaux: document.getElementById('filter-bons-cadeaux')?.checked || false,
-    tips: document.getElementById('filter-tips')?.checked || false,
-    depensesHuiles: document.getElementById('filter-depenses-huiles')?.checked || false,
-    depensesMateriel: document.getElementById('filter-depenses-materiel')?.checked || false,
-    depensesFormation: document.getElementById('filter-depenses-formation')?.checked || false,
-    depensesTransport: document.getElementById('filter-depenses-transport')?.checked || false,
-    depensesMarketing: document.getElementById('filter-depenses-marketing')?.checked || false,
-    depensesLoyer: document.getElementById('filter-depenses-loyer')?.checked || false,
-    depensesAutre: document.getElementById('filter-depenses-autre')?.checked || false
-  };
-  
-  const activePeriodBtn = document.querySelector('.period-btn.active');
-  const period = activePeriodBtn ? 
-    (activePeriodBtn.dataset.period === 'current-month' ? 'current-month' : parseInt(activePeriodBtn.dataset.period)) : 
-    12;
-  const selectedYear = document.getElementById('year-selector')?.value || 'current';
-  
-  // NOUVEAU : Utiliser aussi les filtres globaux
-  const globalSelectedYear = document.getElementById('global-year-selector')?.value || selectedYear;
-  const globalSelectedMonth = document.getElementById('global-month-selector')?.value || '';
-
-  updateRevenueChart(filters, period, globalSelectedYear, globalSelectedMonth);
-}
-
 // === PALETTE HARMONISÉE ===
 const CHART_PALETTE = {
   primary: '#c9956b',     // beige doré principal
@@ -729,92 +494,6 @@ const CHART_DEFAULTS = {
   animSpeed: 800,
   height: 320
 };
-
-function updateRevenueChart(filters = null, period = 12, selectedYear = 'current', selectedMonth = '') {
-  const el = document.getElementById('revenue-chart');
-  if (!el) return;
-
-  if (revenueChart && typeof revenueChart.destroy === 'function') {
-    revenueChart.destroy();
-  }
-  el.innerHTML = '';
-
-  const chartData = Calculations.getRevenueChartData(filters, period, selectedYear, selectedMonth);
-
-  // v1.0.7.0 : injection des series par groupe (Massages + HeadSpa restent les principaux,
-  // chaque autre groupe genere automatiquement sa propre serie avec sa couleur).
-  const baseSeries = [
-    { name: 'Massages', data: chartData.revenues, color: CHART_PALETTE.primary },
-    { name: 'HeadSpa', data: chartData.headSpaRevenues, color: CHART_PALETTE.purple }
-  ];
-  const extraGroupesPalette = [CHART_PALETTE.pink, CHART_PALETTE.blue, CHART_PALETTE.accent3, CHART_PALETTE.accent2, CHART_PALETTE.grey];
-  const extraSeries = [];
-  if (chartData.groupesRevenues && typeof window.DataManager !== 'undefined') {
-    const groupes = (DataManager.getGroupesCategories ? DataManager.getGroupesCategories() : []);
-    let paletteIdx = 0;
-    Object.keys(chartData.groupesRevenues).forEach(name => {
-      if (name === 'Massages' || name === 'HeadSpa') return;
-      const meta = groupes.find(g => g.nom === name);
-      const couleur = (meta && meta.couleur) ? meta.couleur : extraGroupesPalette[paletteIdx % extraGroupesPalette.length];
-      paletteIdx++;
-      extraSeries.push({ name: name, data: chartData.groupesRevenues[name], color: couleur });
-    });
-  }
-  const trailingSeries = [
-    { name: 'Bons Cadeaux', data: chartData.bonsCadeauxRevenues, color: CHART_PALETTE.orange },
-    { name: 'Tips', data: chartData.tips, color: CHART_PALETTE.green },
-    { name: 'Coûts', data: chartData.costs, color: CHART_PALETTE.red }
-  ];
-  const allSeries = baseSeries.concat(extraSeries).concat(trailingSeries);
-
-  const options = {
-    chart: {
-      type: 'area',
-      height: 360,
-      fontFamily: CHART_DEFAULTS.fontFamily,
-      toolbar: { show: false },
-      zoom: { enabled: false },
-      animations: { enabled: true, easing: 'easeinout', speed: CHART_DEFAULTS.animSpeed },
-      dropShadow: { enabled: true, top: 3, left: 0, blur: 6, opacity: 0.08 }
-    },
-    series: allSeries.map(s => ({ name: s.name, data: s.data })),
-    colors: allSeries.map(s => s.color),
-    fill: {
-      type: 'gradient',
-      gradient: { shadeIntensity: 1, opacityFrom: 0.35, opacityTo: 0.02, stops: [0, 85, 100] }
-    },
-    stroke: { curve: 'smooth', width: 2.5 },
-    markers: { size: 4, strokeWidth: 2, strokeColors: '#fff', hover: { sizeOffset: 3 } },
-    xaxis: {
-      categories: chartData.months,
-      labels: { style: { fontSize: '11px', fontWeight: 500, colors: '#888' } },
-      axisBorder: { show: false },
-      axisTicks: { show: false }
-    },
-    yaxis: {
-      labels: {
-        formatter: function(val) { return val.toFixed(0) + ' \u20ac'; },
-        style: { fontSize: '11px', fontWeight: 500, colors: ['#888'] }
-      }
-    },
-    grid: { borderColor: '#f0f0f0', strokeDashArray: 3, padding: { left: 10, right: 10 } },
-    legend: {
-      position: 'bottom', fontSize: '12px', fontWeight: 600,
-      markers: { size: 6, shape: 'circle', offsetX: -4 },
-      itemMargin: { horizontal: 14, vertical: 6 }
-    },
-    tooltip: {
-      shared: true,
-      intersect: false,
-      style: { fontSize: '12px' },
-      y: { formatter: function(val) { return val.toFixed(2) + ' \u20ac'; } }
-    },
-    dataLabels: { enabled: false }
-  };
-
-  revenueChart = new ApexCharts(el, options);
-  revenueChart.render();
-}
 
 function updatePrestationsChart(selectedYear = 'current', selectedMonth = '') {
   const el = document.getElementById('prestations-chart');
@@ -3454,10 +3133,6 @@ window.UtilsServices = {
   
   // Analytics
   updateAnalytics,
-  updateFilterAmountsDisplay,
-  setupDynamicFilters,
-  setupYearSelector,
-  updateRevenueChart,
   updatePrestationsChart,
   updateDureesChart,
   updateKeyStats,

@@ -1,4 +1,4 @@
-// ===== GESTION : ECRAN (v1.1.0.8) =====
+// ===== GESTION : ECRAN (v1.1.2.0) =====
 // Onglet « Gestion » : Pro (4 chiffres, detail au clic, courbe), Perso, Reglages.
 // Mots d'Elise, pas de jargon comptable (ni « resultat », ni « provision »).
 // Evenements par delegation (data-ge="action") : aucun onclick global ajoute.
@@ -672,10 +672,118 @@ function fermer() {
   if (typeof closeModalCompletely === 'function') closeModalCompletely(); else closeModal();
 }
 
+// v1.1.2.0 : vraie liste de categories. L'ancien <datalist> ne s'ouvrait pas au toucher (ni au
+// clic sur ordinateur) et ne proposait rien sur telephone. Ici : la liste s'ouvre des qu'on touche
+// le champ, se filtre en tapant, et « + Ajouter … » garde une categorie nouvelle dans les reglages.
 function optionsCategories(cle, valeur) {
-  const liste = (D().reglages().categories[cle] || []);
-  return `<datalist id="ge-cats-${cle}">${liste.map(c => `<option value="${esc(c)}">`).join('')}</datalist>
-    <input name="categorie" list="ge-cats-${cle}" value="${esc(valeur || '')}" placeholder="Choisir ou écrire">`;
+  return `<div class="ge-choix" data-ge-choix="${cle}">
+      <input name="categorie" value="${esc(valeur || '')}" placeholder="Choisir ou écrire" autocomplete="off"
+        role="combobox" aria-label="Catégorie" aria-expanded="false" aria-autocomplete="list">
+      <button type="button" class="ge-choix-fleche" data-ge-choix-ouvrir tabindex="-1" aria-label="Voir les catégories">▾</button>
+      <ul class="ge-choix-liste" role="listbox" hidden></ul>
+    </div>`;
+}
+
+function sansAccents(t) {
+  return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+}
+
+/** La categorie telle qu'elle est deja ecrite dans la liste (« loyer cabine » -> « Loyer cabine »). */
+function categorieConnue(cle, saisie) {
+  const texte = String(saisie || '').trim();
+  if (!texte) return null;
+  return (D().reglages().categories[cle] || []).find(c => sansAccents(c) === sansAccents(texte)) || texte;
+}
+
+/** Une categorie nouvelle rejoint la liste de son type, pour la retrouver la prochaine fois. */
+async function retenirCategorie(cle, categorie) {
+  if (!cle || !categorie) return;
+  const R = D().reglages();
+  const liste = R.categories[cle] || [];
+  if (liste.some(c => sansAccents(c) === sansAccents(categorie))) return;
+  await D().enregistrerReglages({ categories: { ...R.categories, [cle]: [...liste, categorie] } });
+}
+
+function remplirChoix(boite, filtre) {
+  const liste = D().reglages().categories[boite.dataset.geChoix] || [];
+  const saisie = boite.querySelector('input').value.trim();
+  const cherche = sansAccents(filtre);
+  const trouvees = liste.filter(c => !cherche || sansAccents(c).includes(cherche));
+  const existe = liste.some(c => sansAccents(c) === sansAccents(saisie));
+  const items = trouvees.map(c => `<li role="option" data-valeur="${esc(c)}" class="${sansAccents(c) === sansAccents(saisie) ? 'is-choisi' : ''}">${esc(c)}</li>`);
+  if (saisie && !existe) items.push(`<li role="option" class="ge-choix-ajout" data-valeur="${esc(saisie)}">+ Ajouter « ${esc(saisie)} »</li>`);
+  const ul = boite.querySelector('.ge-choix-liste');
+  ul.innerHTML = items.join('');
+  ul.hidden = !items.length;
+  boite.querySelector('input').setAttribute('aria-expanded', String(!ul.hidden));
+}
+
+function fermerChoix(boite) {
+  const ul = boite?.querySelector('.ge-choix-liste');
+  if (!ul) return;
+  ul.hidden = true;
+  boite.querySelector('input').setAttribute('aria-expanded', 'false');
+}
+
+function choisirCategorie(li) {
+  const boite = li.closest('.ge-choix');
+  boite.querySelector('input').value = li.dataset.valeur;
+  fermerChoix(boite);
+}
+
+function lierChoixCategories() {
+  // Ouvrir au toucher : toute la liste, pas seulement ce qui ressemble a la valeur deja la
+  document.addEventListener('focusin', e => {
+    const boite = e.target.closest('.ge-choix');
+    if (boite && e.target.matches('input')) remplirChoix(boite, '');
+  });
+  document.addEventListener('input', e => {
+    const boite = e.target.closest('.ge-choix');
+    if (boite) remplirChoix(boite, e.target.value);
+  });
+  // mousedown + preventDefault : le champ garde le focus, la liste ne se ferme pas avant le choix
+  document.addEventListener('mousedown', e => {
+    const li = e.target.closest('.ge-choix-liste li');
+    if (li) { e.preventDefault(); choisirCategorie(li); return; }
+    const fleche = e.target.closest('[data-ge-choix-ouvrir]');
+    if (!fleche) return;
+    e.preventDefault();
+    const boite = fleche.closest('.ge-choix');
+    if (boite.querySelector('.ge-choix-liste').hidden) {
+      boite.querySelector('input').focus();
+      remplirChoix(boite, '');
+    } else {
+      fermerChoix(boite);
+    }
+  });
+  // Sur telephone, le toucher d'une ligne peut faire perdre le focus avant le choix : on attend
+  // un instant avant de fermer, et le « click » ci-dessous rattrape le choix
+  document.addEventListener('click', e => {
+    const li = e.target.closest('.ge-choix-liste li');
+    if (li) choisirCategorie(li);
+  });
+  document.addEventListener('focusout', e => {
+    const boite = e.target.closest('.ge-choix');
+    if (!boite) return;
+    setTimeout(() => { if (!boite.contains(document.activeElement)) fermerChoix(boite); }, 150);
+  });
+  document.addEventListener('keydown', e => {
+    const boite = e.target.closest('.ge-choix');
+    if (!boite || !e.target.matches('input')) return;
+    const ul = boite.querySelector('.ge-choix-liste');
+    const items = [...ul.querySelectorAll('li')];
+    const actif = ul.querySelector('li.is-actif');
+    if (e.key === 'Escape' && !ul.hidden) { e.preventDefault(); fermerChoix(boite); return; }
+    if (e.key === 'Enter' && !ul.hidden && actif) { e.preventDefault(); choisirCategorie(actif); return; }
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    e.preventDefault();
+    if (ul.hidden) { remplirChoix(boite, ''); return; }
+    const i = items.indexOf(actif);
+    const pas = e.key === 'ArrowDown' ? 1 : -1;
+    const suivant = items[i < 0 ? (pas > 0 ? 0 : items.length - 1) : (i + pas + items.length) % items.length];
+    if (actif) actif.classList.remove('is-actif');
+    if (suivant) { suivant.classList.add('is-actif'); suivant.scrollIntoView({ block: 'nearest' }); }
+  });
 }
 
 function formulaireMouvement(type, mv = null, compteForce = null) {
@@ -698,7 +806,7 @@ function formulaireMouvement(type, mv = null, compteForce = null) {
         <label class="ge-champ"><span>${t.sens === 'entree' ? 'Arrivé sur' : t.sens === 'transfert' ? 'Depuis' : 'Payé avec'}</span><select name="compte">${comptes}</select></label>
         ${t.vers ? `<label class="ge-champ"><span>Vers</span><input value="${C().COMPTES[t.vers]}" disabled></label>` : ''}
         ${type === 'verser' ? `<label class="ge-champ"><span>Pour le mois de</span><select name="moisConcerne">${choixMois}</select></label>` : ''}
-        ${t.categories ? `<label class="ge-champ"><span>Catégorie</span>${optionsCategories(t.categories, mv?.categorie)}</label>` : ''}
+        ${t.categories ? `<div class="ge-champ"><span>Catégorie</span>${optionsCategories(t.categories, mv?.categorie)}</div>` : ''}
         <label class="ge-champ ge-champ-large"><span>Libellé (facultatif)</span><input name="libelle" type="text" value="${esc(mv?.libelle || '')}"></label>
       </div>
       <div class="modal-actions ge-actions">
@@ -721,7 +829,7 @@ function formulaireRecurrent(type, r = null) {
         <label class="ge-champ ge-champ-large"><span>Nom</span><input name="nom" type="text" required value="${esc(r?.nom || '')}"></label>
         <label class="ge-champ"><span>Montant (€)</span><input name="montant" type="number" step="0.01" min="0" inputmode="decimal" required value="${r ? r.montant : ''}"></label>
         <label class="ge-champ"><span>Compte</span><select name="compte">${comptes}</select></label>
-        ${t.categories ? `<label class="ge-champ"><span>Catégorie</span>${optionsCategories(t.categories, r?.categorie)}</label>` : ''}
+        ${t.categories ? `<div class="ge-champ"><span>Catégorie</span>${optionsCategories(t.categories, r?.categorie)}</div>` : ''}
         <label class="ge-champ"><span>Fréquence</span><select name="frequence" data-ge-change="frequence"><option value="mensuelle" ${annuelle ? '' : 'selected'}>Tous les mois</option><option value="annuelle" ${annuelle ? 'selected' : ''}>Une fois par an</option></select></label>
         <label class="ge-champ ge-si-annuelle" ${annuelle ? '' : 'hidden'}><span>Quel mois ?</span><select name="moisAnnuel">${moisOptions}</select></label>
         <label class="ge-champ"><span>À partir de</span><input name="debut" type="month" required value="${r?.debut || debutDefaut}"></label>
@@ -830,6 +938,7 @@ function formulaireDeclare(mois) {
 function lierEvenements() {
   if (vue.lie) return;
   vue.lie = true;
+  lierChoixCategories();
   document.addEventListener('click', e => {
     const el = e.target.closest('[data-ge]');
     if (!el || !(el.closest('#gestion') || el.closest('#modal-overlay'))) return;
@@ -955,6 +1064,7 @@ async function soumettre(f) {
     // Rattache au mois choisi seulement s'il differe de celui de la date
     const moisChoisi = f.elements.moisConcerne?.value || null;
     const moisConcerne = moisChoisi && moisChoisi !== f.elements.date.value.slice(0, 7) ? moisChoisi : null;
+    const categorie = categorieConnue(t.categories, f.elements.categorie?.value);
     await D().enregistrerMouvement({
       id: f.dataset.id || undefined,
       date: f.elements.date.value,
@@ -962,23 +1072,25 @@ async function soumettre(f) {
       sens: t.sens,
       compte: f.elements.compte.value,
       compteVers: t.vers || null,
-      categorie: f.elements.categorie?.value.trim() || null,
+      categorie,
       libelle: f.elements.libelle.value.trim() || null,
       moisConcerne,
       montant
     });
+    await retenirCategorie(t.categories, categorie);
     const moisAffiche = moisConcerne || f.elements.date.value.slice(0, 7);
     vue.mois = moisAffiche <= moisCourant() ? moisAffiche : vue.mois;
   } else if (quoi === 'recurrent') {
     const t = TYPES_RECURRENTS[f.dataset.type];
     const frequence = f.elements.frequence.value;
+    const categorie = categorieConnue(t.categories, f.elements.categorie?.value);
     await D().enregistrerRecurrent({
       id: f.dataset.id || undefined,
       espace: t.espace,
       sens: t.sens,
       compte: f.elements.compte.value,
       compteVers: t.vers || null,
-      categorie: f.elements.categorie?.value.trim() || null,
+      categorie,
       nom: f.elements.nom.value.trim(),
       montant: lireNombre(f, 'montant') || 0,
       frequence,
@@ -986,6 +1098,7 @@ async function soumettre(f) {
       debut: f.elements.debut.value,
       fin: f.elements.fin.value || null
     });
+    await retenirCategorie(t.categories, categorie);
   } else if (quoi === 'solde') {
     const date = f.elements.date.value;
     await D().enregistrerSolde({

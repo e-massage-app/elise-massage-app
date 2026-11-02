@@ -42,17 +42,6 @@ function estDansPeriodeAnalytics(dateStr, selectedYear, selectedMonth) {
   return jour >= debut && jour <= fin;
 }
 
-// v1.1.0.0 : mois 'YYYY-MM' des graphiques "N derniers mois". Avant :
-// new Date(annee, 11, 31) puis setMonth(mois - i) debordait (31 dec ->
-// setMonth(1) = 3 mars) : des mois doubles et d'autres sautes, pour les annees
-// passees et, pour l'annee en cours, les 29-31 du mois.
-function moisDeLaPeriodeAnalytics(period, selectedYear) {
-  const moisFin = (selectedYear === 'current' || !selectedYear)
-    ? jourLocal(new Date()).slice(0, 7)
-    : `${parseInt(selectedYear, 10)}-12`;
-  return Encaissements.derniersMois(moisFin, period);
-}
-
 // ===== CALCULS DASHBOARD =====
 
 function calculateGoogleAdsROI() {
@@ -574,134 +563,6 @@ function calculateFilterAmounts() {
   };
 }
 
-function getRevenueChartData(filters = null, period = 12, selectedYear = 'current', selectedMonth = '') {
-  const appData = DataManager.getAppData();
-
-  const isMoisCourant = period === 'current-month';
-  const months = [];
-  const revenues = [];
-  const headSpaRevenues = [];
-  const bonsCadeauxRevenues = [];
-  const tips = [];
-  const costs = [];
-
-  // v1.0.7.0 : groupes dynamiques. Chaque groupe -> tableau de revenus par periode.
-  // Clef = nom du groupe. Initialise a la demande des qu'on rencontre une prestation.
-  const groupesRevenues = {};
-  const ensureGroupe = (name) => {
-    if (!groupesRevenues[name]) groupesRevenues[name] = [];
-  };
-  // Filtre actif sur un groupe ? Si filters.groupes existe, on lit dedans. Sinon legacy.
-  const isGroupeActif = (name) => {
-    if (!filters) return true;
-    if (filters.groupes && Object.prototype.hasOwnProperty.call(filters.groupes, name)) return !!filters.groupes[name];
-    // legacy
-    if (name === 'Massages') return !!filters.massages;
-    if (name === 'HeadSpa') return !!filters.headspa;
-    // groupe inconnu (ex: Epilation cree apres deploy) : actif par defaut
-    return true;
-  };
-
-  const depenseFilterMatch = (d) => {
-    if (!filters) return true;
-    const cat = d.categorie || 'Autre';
-    return (cat === 'Huiles' && filters.depensesHuiles) ||
-           (cat === 'Matériel' && filters.depensesMateriel) ||
-           (cat === 'Formation' && filters.depensesFormation) ||
-           (cat === 'Transport' && filters.depensesTransport) ||
-           (cat === 'Marketing' && filters.depensesMarketing) ||
-           (cat === 'Loyer' && filters.depensesLoyer) ||
-           (cat === 'Autre' && filters.depensesAutre);
-  };
-
-  const periods = []; // { dateMatch, label } pour iterer une fois
-
-  if (isMoisCourant) {
-    const today = new Date();
-    const currentYear = today.getFullYear();
-    const currentMonth = today.getMonth();
-    const todayDate = today.getDate();
-    for (let day = 1; day <= todayDate; day++) {
-      const dateString = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      periods.push({ kind: 'day', match: dateString, label: day.toString() });
-    }
-  } else {
-    // v1.1.0.0 : mois calcules sur les chaines (fin du debordement de setMonth)
-    moisDeLaPeriodeAnalytics(period, selectedYear).forEach(monthStr => {
-      const [annee, mois] = monthStr.split('-').map(Number);
-      if (selectedMonth !== '' && mois !== parseInt(selectedMonth)) {
-        return;
-      }
-      const label = new Date(annee, mois - 1, 1).toLocaleDateString('fr-FR', {
-        month: 'short',
-        year: period > 6 ? 'numeric' : undefined
-      });
-      periods.push({ kind: 'month', match: monthStr, label });
-    });
-  }
-
-  // Pre-collect groupes connus pour avoir des series remplies de 0 partout
-  if (DataManager.getGroupesCategories) {
-    DataManager.getGroupesCategories().forEach(g => ensureGroupe(g.nom));
-  }
-  // Toujours s'assurer que Massages et HeadSpa existent (alias legacy)
-  ensureGroupe('Massages');
-  ensureGroupe('HeadSpa');
-
-  periods.forEach(({ kind, match, label }) => {
-    months.push(label);
-
-    // v1.1.0.0 : regle Encaissements. Series par groupe = prix + tips des
-    // prestations du groupe (tips seuls si carte cadeau) ; la serie "Tips" en
-    // est le detail ; "Bons Cadeaux" = ventes moins remboursements.
-    const debut = kind === 'day' ? match : `${match}-01`;
-    const fin = kind === 'day' ? match : Encaissements.dernierJourDuMois(match);
-    const lignes = Encaissements.encaissementsEntre(appData, debut, fin);
-    const totaux = Encaissements.totaliserEncaissements(lignes);
-
-    const bucket = repartirEncaissementsParGroupe(lignes);
-
-    // v1.0.7.2 : on ne pousse de valeurs QUE pour les groupes deja connus (= actifs).
-    // Les buckets venant de categories archivees (ex: ancienne categorie "Test" archive)
-    // sont volontairement ignores -> ils disparaissent des pills et du chart.
-    Object.keys(groupesRevenues).forEach(name => {
-      const val = isGroupeActif(name) ? (bucket[name] || 0) : 0;
-      groupesRevenues[name].push(val);
-    });
-
-    // Bons cadeaux
-    let bcVal = 0;
-    if (!filters || filters.bonsCadeaux) {
-      bcVal = totaux.bonsVendus + totaux.bonsRembourses;
-    }
-    bonsCadeauxRevenues.push(bcVal);
-
-    // Tips
-    let tipsVal = 0;
-    if (!filters || filters.tips) {
-      tipsVal = totaux.tips;
-    }
-    tips.push(tipsVal);
-
-    // Couts
-    let coutVal = 0;
-    if (appData.depenses) {
-      coutVal = appData.depenses
-        .filter(d => kind === 'day' ? d.date === match : (d.date && d.date.startsWith(match)))
-        .reduce((sum, d) => sum + (depenseFilterMatch(d) ? (d.montant || 0) : 0), 0);
-    }
-    costs.push(coutVal);
-  });
-
-  // Series legacy : Massages -> revenues, HeadSpa -> headSpaRevenues
-  for (let i = 0; i < months.length; i++) {
-    revenues.push((groupesRevenues['Massages'] && groupesRevenues['Massages'][i]) || 0);
-    headSpaRevenues.push((groupesRevenues['HeadSpa'] && groupesRevenues['HeadSpa'][i]) || 0);
-  }
-
-  return { months, revenues, headSpaRevenues, bonsCadeauxRevenues, tips, costs, groupesRevenues };
-}
-
 
 function getPrestationsTypeChart(selectedYear = 'current', selectedMonth = '') {
   const appData = DataManager.getAppData();
@@ -788,76 +649,6 @@ function getGroupeNameForPrestation(p) {
   }
   // Fallback retrocompat : on conserve la dichotomie historique
   return DataManager.isPartnershipSoin(soinKey) ? 'HeadSpa' : 'Massages';
-}
-
-function calculateFilterAmountsForPeriod(period = 12, selectedYear = 'current') {
-  const appData = DataManager.getAppData();
-  // v1.0.7.0 : groupes en dict dynamique. massages/headspa restent en alias pour la retrocompat.
-  const amounts = { massages: 0, headspa: 0, groupes: {}, bonsCadeaux: 0, tips: 0, huiles: 0, materiel: 0, formation: 0, transport: 0, marketing: 0, loyer: 0, autre: 0 };
-
-  // v1.1.0.0 : memes montants que le graphique des revenus (regle Encaissements) :
-  // groupes = prix + tips (tips seuls si carte cadeau), "Tips" en est le detail,
-  // "Bons Cadeaux" = ventes moins remboursements de la periode.
-  const ajouterEncaissements = (debut, fin) => {
-    const lignes = Encaissements.encaissementsEntre(appData, debut, fin);
-    const totaux = Encaissements.totaliserEncaissements(lignes);
-    Object.entries(repartirEncaissementsParGroupe(lignes)).forEach(([groupe, montant]) => {
-      amounts.groupes[groupe] = (amounts.groupes[groupe] || 0) + montant;
-    });
-    amounts.bonsCadeaux += totaux.bonsVendus + totaux.bonsRembourses;
-    amounts.tips += totaux.tips;
-  };
-
-  const bucketDepense = (d) => {
-    const cat = d.categorie || 'Autre';
-    const montant = d.montant || 0;
-    switch(cat) {
-      case 'Huiles': amounts.huiles += montant; break;
-      case 'Matériel': amounts.materiel += montant; break;
-      case 'Formation': amounts.formation += montant; break;
-      case 'Transport': amounts.transport += montant; break;
-      case 'Marketing': amounts.marketing += montant; break;
-      case 'Loyer': amounts.loyer += montant; break;
-      default: amounts.autre += montant; break;
-    }
-  };
-
-  const isMoisCourant = period === 'current-month';
-
-  if (isMoisCourant) {
-    const today = new Date();
-    const currentYear = today.getFullYear();
-    const currentMonth = today.getMonth();
-    const todayDate = today.getDate();
-
-    const moisStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
-    ajouterEncaissements(`${moisStr}-01`, `${moisStr}-${String(todayDate).padStart(2, '0')}`);
-
-    for (let day = 1; day <= todayDate; day++) {
-      const dateString = `${moisStr}-${String(day).padStart(2, '0')}`;
-      if (appData.depenses) {
-        appData.depenses.filter(d => d.date === dateString).forEach(bucketDepense);
-      }
-    }
-  } else {
-    // v1.1.0.0 : mois calcules sur les chaines (fin du debordement de setMonth)
-    const listeMois = moisDeLaPeriodeAnalytics(period, selectedYear);
-    if (listeMois.length > 0) {
-      ajouterEncaissements(`${listeMois[0]}-01`, Encaissements.dernierJourDuMois(listeMois[listeMois.length - 1]));
-    }
-
-    listeMois.forEach(monthStr => {
-      if (appData.depenses) {
-        appData.depenses.filter(d => d.date && d.date.startsWith(monthStr)).forEach(bucketDepense);
-      }
-    });
-  }
-
-  // Alias legacy : massages = groupe "Massages", headspa = groupe "HeadSpa"
-  amounts.massages = amounts.groupes['Massages'] || 0;
-  amounts.headspa = amounts.groupes['HeadSpa'] || 0;
-
-  return { amounts, totalPrestations: 0, avgDuration: 0 };
 }
 
 function calculateKeyStats(selectedYear = 'current', selectedMonth = '') {
@@ -1254,16 +1045,13 @@ window.Calculations = {
   
   // Analytics
   calculateFilterAmounts,
-  getRevenueChartData,
   getPrestationsTypeChart,
   getDureesChart,
-  calculateFilterAmountsForPeriod,
   getGroupeNameForPrestation,
   calculateKeyStats,
-  // v1.1.0.0 : filtres annee/mois et mois des graphiques, partages avec les services
+  // v1.1.0.0 : filtres annee/mois, partages avec les services
   bornesAnalytics,
   estDansPeriodeAnalytics,
-  moisDeLaPeriodeAnalytics,
 
   // Distance
   validateAddress,

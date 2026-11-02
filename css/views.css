@@ -3018,3 +3018,376 @@
   border-top: 1px solid #f3ebe1;
   border-radius: 0 0 var(--border-radius) var(--border-radius);
 }
+
+/* ==========================================================================
+   v1.1.2.0 — PERIODE (filtres du haut) ET CARTE « EVOLUTION »
+   Les filtres du haut pilotent toute la page. Le graphique d'evolution est
+   refait : colonnes empilees par activite, « Il me reste », annee d'avant en
+   pointilles, legende cliquable, detail d'un mois au toucher.
+   ========================================================================== */
+
+/* --- Periode -------------------------------------------------------------- */
+.ana-periode {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+  margin-bottom: 1.25rem;
+  padding: 0.7rem 0.9rem 0.7rem 1.15rem;
+  background: var(--white);
+  border: 1px solid #ece1d5;
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow);
+}
+.ana-periode-titre {
+  font-family: 'Playfair Display', serif;
+  font-size: 1rem;
+  color: #8a6a4f;
+}
+.ana-periode-champs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.ana-periode select {
+  min-height: 38px;
+  padding: 0.4rem 0.9rem;
+  border: 1px solid #e6d8c9;
+  border-radius: 999px;
+  background: #fdfaf6;
+  color: var(--text-dark);
+  font: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+.ana-periode-mois {
+  min-height: 38px;
+  padding: 0.4rem 1rem;
+  border: 1px solid #e6d8c9;
+  border-radius: 999px;
+  background: var(--white);
+  color: #8a6a4f;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.ana-periode-mois:hover { border-color: var(--beige-dore); }
+.ana-periode-mois.active {
+  background: var(--beige-dore);
+  border-color: var(--beige-dore);
+  color: var(--white);
+}
+.ana-periode select:focus-visible,
+.ana-periode-mois:focus-visible,
+.evo button:focus-visible {
+  outline: 2px solid var(--beige-dore);
+  outline-offset: 2px;
+}
+
+/* --- Carte Evolution ------------------------------------------------------ */
+.evo-tete {
+  padding: 1.05rem 1.25rem 0.2rem;
+}
+.evo-tete h3 {
+  margin: 0;
+  font-family: 'Playfair Display', serif;
+  font-size: 1.2rem;
+  font-weight: 500;
+  color: var(--text-dark);
+  text-wrap: balance;
+}
+.evo-tete p {
+  margin: 0.15rem 0 0;
+  font-size: 0.8rem;
+  color: #9c9187;
+}
+
+/* Encaisse − Frais = Il me reste */
+.evo-chiffres {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.35rem 0.8rem;
+  padding: 0.85rem 1.25rem 0.2rem;
+}
+.evo-chiffre {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.evo-k {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9c9187;
+}
+.evo-v {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.35rem;
+  line-height: 1.1;
+  color: var(--text-dark);
+  font-variant-numeric: tabular-nums;
+}
+.evo-chiffre.is-reste .evo-v { color: #7a5236; font-weight: 600; }
+.evo-op {
+  font-size: 1.15rem;
+  color: #cdbcab;
+  padding-bottom: 0.1rem;
+}
+.evo-compare {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  margin-left: auto;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  background: #f3ede6;
+  color: #8a6a4f;
+}
+.evo-compare small { font-size: 0.72rem; font-weight: 400; opacity: 0.85; }
+.evo-compare.is-hausse { background: #e9f4ec; color: #3d7a55; }
+.evo-compare.is-baisse { background: #fbeceb; color: #a8463f; }
+.evo-attente {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #9c9187;
+}
+
+/* Legende : une pastille par activite (cliquable), puis les deux traits */
+.evo-legende {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.85rem 1.25rem 0;
+}
+.evo-puce {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.32rem 0.75rem 0.32rem 0.55rem;
+  border: 1px solid #ece1d5;
+  border-radius: 999px;
+  background: var(--white);
+  color: var(--text-dark);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: border-color .15s, opacity .15s, background .15s;
+}
+.evo-puce:hover { border-color: var(--c); background: #fdfaf6; }
+.evo-puce i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--c);
+  border: 2px solid var(--c);
+  flex: none;
+}
+.evo-puce b {
+  font-weight: 500;
+  color: #9c9187;
+  font-variant-numeric: tabular-nums;
+}
+.evo-puce.is-off { opacity: 0.5; }
+.evo-puce.is-off i { background: transparent; }
+.evo-puce.is-off b { text-decoration: line-through; }
+.evo-trait {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 0.3rem;
+  font-size: 0.78rem;
+  color: #9c9187;
+}
+.evo-trait i { width: 18px; flex: none; border-top: 2.5px solid #7a5236; }
+.evo-trait i.is-avant { border-top: 2px dashed #bcae9f; }
+
+.evo-graphique {
+  padding: 0.3rem 0.5rem 0;
+  min-height: 260px;
+}
+.evo-vide {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 220px;
+  padding: 2rem 1rem;
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  color: #9c9187;
+  text-align: center;
+}
+
+/* Bulle au survol / au toucher */
+.evo .apexcharts-tooltip {
+  border: 1px solid #ece1d5 !important;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(122, 82, 54, 0.14) !important;
+  background: var(--white) !important;
+}
+.evo-bulle {
+  min-width: 190px;
+  padding: 0.65rem 0.8rem 0.55rem;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.78rem;
+  color: var(--text-dark);
+}
+.evo-bulle-titre {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin-bottom: 0.4rem;
+  font-family: 'Playfair Display', serif;
+  font-size: 0.95rem;
+}
+.evo-bulle-titre span {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.65rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: #f3ede6;
+  color: #8a6a4f;
+}
+.evo-bulle-ligne {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.12rem 0;
+}
+.evo-bulle-ligne i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.evo-bulle-ligne b { margin-left: auto; padding-left: 1rem; font-weight: 500; font-variant-numeric: tabular-nums; }
+.evo-bulle-ligne.is-reste { color: #7a5236; font-weight: 600; }
+.evo-bulle-ligne.is-reste b { font-weight: 600; }
+.evo-bulle-ligne.is-avant,
+.evo-bulle-ligne.is-vide { color: #9c9187; }
+.evo-bulle-sep { margin: 0.35rem 0; border-top: 1px dashed #ece1d5; }
+.evo-bulle-astuce { margin-top: 0.4rem; font-size: 0.68rem; color: #b5a99c; }
+
+/* Detail de la periode ou de la colonne touchee */
+.evo-detail {
+  margin-top: 0.4rem;
+  padding: 1rem 1.25rem 1.1rem;
+  background: #fdfaf6;
+  border-top: 1px solid #f1e8de;
+}
+.evo-detail-tete {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+.evo-detail-tete h4 {
+  margin: 0;
+  font-family: 'Playfair Display', serif;
+  font-size: 1rem;
+  color: var(--text-dark);
+}
+.evo-lien {
+  border: 0;
+  background: none;
+  padding: 0.2rem 0;
+  color: #8a6a4f;
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.evo-lien:hover { text-decoration: underline; }
+.evo-detail-grille {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+.evo-bloc {
+  padding: 0.75rem 0.9rem 0.7rem;
+  background: var(--white);
+  border: 1px solid #ece1d5;
+  border-radius: 10px;
+}
+.evo-bloc-titre {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding-bottom: 0.45rem;
+  margin-bottom: 0.3rem;
+  border-bottom: 1px solid #f3ebe1;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9c9187;
+}
+.evo-bloc-titre b {
+  font-family: 'Playfair Display', serif;
+  font-size: 1rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-dark);
+  font-variant-numeric: tabular-nums;
+}
+.evo-bloc ul { list-style: none; margin: 0; padding: 0; }
+.evo-bloc li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.28rem 0;
+  font-size: 0.85rem;
+}
+.evo-bloc li + li { border-top: 1px dashed #f3ebe1; }
+.evo-bloc li i { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.evo-bloc li span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.evo-bloc li b { margin-left: auto; font-weight: 500; font-variant-numeric: tabular-nums; }
+.evo-note,
+.evo-rien { margin: 0.35rem 0 0; font-size: 0.76rem; color: #9c9187; }
+.evo-detail-pied {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.4rem 1rem;
+  margin-top: 0.85rem;
+}
+.evo-reste {
+  font-size: 0.9rem;
+  color: #7a5236;
+}
+.evo-reste b {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-left: 0.3rem;
+  font-variant-numeric: tabular-nums;
+}
+.evo-avant { font-size: 0.8rem; color: #9c9187; font-variant-numeric: tabular-nums; }
+.evo-mention {
+  margin: 0.7rem 0 0;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  color: #a89c90;
+}
+
+@media (max-width: 560px) {
+  .ana-periode { flex-direction: column; align-items: stretch; padding: 0.7rem 0.8rem; }
+  .ana-periode-champs { display: grid; grid-template-columns: 1fr 1fr; }
+  .ana-periode-mois { grid-column: 1 / -1; }
+  .evo-tete { padding: 0.95rem 1rem 0.1rem; }
+  .evo-chiffres { padding: 0.75rem 1rem 0.1rem; gap: 0.3rem 0.6rem; }
+  .evo-v { font-size: 1.15rem; }
+  .evo-compare { margin-left: 0; }
+  .evo-legende { padding: 0.75rem 1rem 0; gap: 0.35rem; }
+  .evo-puce { font-size: 0.76rem; padding: 0.28rem 0.6rem 0.28rem 0.5rem; }
+  .evo-graphique { padding: 0.2rem 0.1rem 0; }
+  .evo-detail { padding: 0.9rem 1rem 1rem; }
+  .evo-detail-grille { grid-template-columns: 1fr; }
+}

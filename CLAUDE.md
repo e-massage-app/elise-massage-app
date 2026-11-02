@@ -68,13 +68,18 @@ de faire **Ctrl+Shift+R** (le cache HTTP du navigateur est distinct du cache du 
   en LECTURE SEULE ; les cles (jeton developpeur, secret OAuth) sont des secrets Supabase, la connexion
   Google est dans la table `google_ads_connexion` (`scripts/migration-google-ads.sql`). Plan :
   `tasks/todo-google-ads.md`. Ne JAMAIS remettre une cle Google dans le code (depot public)
-- `tests/` : `npm test` (Node, sans dependance) ; `tests/apercu-gestion.html` = l'onglet avec des donnees fictives
+- `js/analytics/evolution-*.js` : graphique « Évolution » d'Analytics (calculs purs + ecran) ; les filtres
+  du haut d'Analytics (Annee, Mois, « Ce mois-ci ») pilotent toute la page. Plan : `tasks/todo-analytics.md`
+- ApexCharts est charge SANS version (`cdn.jsdelivr.net/npm/apexcharts` = la derniere, 8.x en nov. 2026) :
+  tout apercu doit charger la meme URL, sinon on teste une autre bibliotheque que celle du logiciel
+- `tests/` : `npm test` (Node, sans dependance) ; `tests/apercu-gestion.html` et `tests/apercu-analytics.html`
+  = l'onglet avec des donnees fictives
 - `tasks/prive/` : documents avec les chiffres d'Elise, ignores par Git. Le depot est visible publiquement :
   aucun montant personnel dans le code, les tests ou les commits
 
 ## Versioning
 - Format : `X.Y.Z.W` ou X.Y = version PWA, Z.W = heritage version Electron
-- Version actuelle : `1.1.1.0` (Google Ads par la fonction Supabase « google-ads » : plus aucune cle Google dans le code, connexion sans copier-coller)
+- Version actuelle : `1.1.2.0` (Analytics : graphique « Évolution » refait et pilote par les filtres du haut ; Gestion : vraie liste de categories)
 - **OBLIGATOIRE** : a chaque modification demandee par l'utilisateur, proposer un bump de version et attendre validation
 - Mettre a jour la version dans 3 endroits : `package.json`, `index.html` (burger menu + footer)
 - Puis **`node scripts/estampiller-version.js`** : repose `?v=X.Y.Z.W` sur tous les
