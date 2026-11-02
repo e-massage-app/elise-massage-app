@@ -1,4 +1,4 @@
-// ===== GESTION : ECRAN (v1.1.0.4) =====
+// ===== GESTION : ECRAN (v1.1.0.5) =====
 // Onglet « Gestion » : Pro (4 chiffres, detail au clic, courbe), Perso, Reglages.
 // Mots d'Elise, pas de jargon comptable (ni « resultat », ni « provision »).
 // Evenements par delegation (data-ge="action") : aucun onclick global ajoute.
@@ -54,7 +54,7 @@ function pourcent(n) {
 }
 
 function ctx() {
-  return C().contexte(DataManager.getAppData(), D().etat.gestion, D().reglages(), D().etat.ads, D().etat.adsJours);
+  return C().contexte(DataManager.getAppData(), D().etat.gestion, D().reglages(), D().etat.ads, D().etat.adsJours, aujourdhui());
 }
 
 function notifier(message, type = 'success') {
@@ -336,9 +336,10 @@ function regrouperLogiciel(postes) {
 }
 
 function detailFrais(p) {
-  const etiquettes = { logiciel: 'logiciel', fixe: 'charge fixe', saisie: 'ajouté ici' };
+  const etiquettes = { logiciel: 'logiciel', fixe: 'charge fixe', saisie: 'ajouté ici', anticipe: 'prévu · compté dès le 1er' };
   const lignes = regrouperLogiciel(p.postes).map(po => {
     let note = etiquettes[po.source] || 'calculé';
+    if (po.abonnement && po.source === 'logiciel') note = 'abonnement · compté dès le 1er';
     if (po.nombre > 1) note = `${po.nombre} fois · ${note}`;
     if (po.source === 'saisie' && po.categorie && po.categorie !== po.libelle) note = `${esc(po.categorie)} · ${note}`;
     if (po.cle === 'urssaf') note = `${pourcent(D().reglages().tauxUrssaf)} ${p.declare !== null ? 'du montant déclaré' : 'de l\'encaissé'}`;

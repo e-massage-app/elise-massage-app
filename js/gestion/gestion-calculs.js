@@ -1,4 +1,4 @@
-// ===== GESTION : CALCULS (v1.1.0.4) =====
+// ===== GESTION : CALCULS (v1.1.0.5) =====
 // Fonctions pures : ni DOM, ni Supabase, ni date du jour implicite (on la passe).
 // Testees sous Node : tests/gestion-calculs.test.js.
 //
@@ -183,9 +183,48 @@ function pousserMouvement(flux, mv, moisConcerne, source) {
   }
 }
 
+// ----- Abonnements du logiciel (Planity…) -----
+
+/** Meme regle que estDepenseDeLAbonnement (modal-manager.js) : la depense du logiciel qui appartient a l'abonnement. */
+function depenseDeLAbonnement(d, abo) {
+  if (!d || typeof d.date !== 'string' || !abo) return false;
+  if (d.type === 'abonnement-auto') return d.abonnementNom === abo.nom;
+  if (d.type) return false;
+  const nom = String(abo.nom || '').trim().toLowerCase();
+  if (!nom || d.categorie !== abo.categorie) return false;
+  const egal = v => String(v || '').trim().toLowerCase() === nom;
+  return egal(d.fournisseur) || egal(d.abonnementNom);
+}
+
+/**
+ * Le logiciel ne cree la depense d'un abonnement que le jour du prelevement (Planity : le 22).
+ * La Gestion la compte des le 1er, comme une charge fixe (Jordan, 2026-11-02) : pour un mois que le
+ * logiciel n'a pas encore cree, elle l'ajoute « prevu le 22 » DANS SES CALCULS SEULEMENT. Rien n'est
+ * ecrit dans les depenses : Analytics et le reste du logiciel n'en voient rien. Le jour venu, la vraie
+ * depense prend le relais, sans doublon.
+ */
+function abonnementsAnticipes(ctx, mois) {
+  const depenses = ctx.appData.depenses || [];
+  return (ctx.appData.parametres?.abonnements || [])
+    .filter(abo => abo && abo.actif && Number(abo.montant) > 0)
+    .filter(abo => {
+      const siens = depenses.filter(d => depenseDeLAbonnement(d, abo)).map(d => _Enc.moisDe(d.date)).sort();
+      if (siens.includes(mois)) return false;
+      // Seulement les mois pas encore crees : apres sa derniere depense, sinon a partir du mois en cours
+      const dernier = siens[siens.length - 1];
+      return dernier ? mois > dernier : !!ctx.aujourdhui && mois >= ctx.aujourdhui.slice(0, 7);
+    })
+    .map(abo => {
+      const jour = Math.min(Math.max(1, Number(abo.jourPrelevement) || 1), Number(_Enc.dernierJourDuMois(mois).slice(8, 10)));
+      return { date: jourDuMois(mois, jour), montant: Number(abo.montant), categorie: abo.categorie || 'Abonnement', libelle: abo.nom, abonnement: true, anticipe: true };
+    });
+}
+
+/** Les depenses du logiciel du mois (hors estimations kilometriques), plus les abonnements pas encore crees. */
 function depensesLogiciel(ctx, mois) {
   const R = ctx.reglages;
-  return (ctx.appData.depenses || [])
+  const abonnements = ctx.appData.parametres?.abonnements || [];
+  const reelles = (ctx.appData.depenses || [])
     .filter(d => _Enc.moisDe(d.date) === mois)
     .filter(d => R.inclureTransport || !estEstimationKilometrique(d))
     .map(d => ({
@@ -193,8 +232,10 @@ function depensesLogiciel(ctx, mois) {
       montant: Number(d.montant) || 0,
       categorie: d.categorie || 'Autre',
       libelle: d.abonnementNom || d.fournisseur || d.description || '',
-      compte: R.compteParCategorie[d.categorie] || 'pro'
+      abonnement: abonnements.some(abo => depenseDeLAbonnement(d, abo))
     }));
+  return reelles.concat(abonnementsAnticipes(ctx, mois))
+    .map(d => ({ ...d, compte: R.compteParCategorie[d.categorie] || 'pro' }));
 }
 
 // ----- Le mois pro : encaisse, frais, reste -----
@@ -258,7 +299,7 @@ function moisPro(ctx, mois) {
   postes.push({ cle: 'ads', libelle: 'Google Ads', montant: t.ads, calcule: t.adsGoogle, corrigeable: true, inconnu: t.adsInconnu });
 
   depensesLogiciel(ctx, mois).forEach(d => {
-    postes.push({ cle: null, libelle: d.libelle ? `${d.categorie} · ${d.libelle}` : d.categorie, categorie: d.categorie, montant: d.montant, source: 'logiciel', date: d.date });
+    postes.push({ cle: null, libelle: d.libelle ? `${d.categorie} · ${d.libelle}` : d.categorie, categorie: d.categorie, montant: d.montant, source: d.anticipe ? 'anticipe' : 'logiciel', abonnement: !!d.abonnement, date: d.date });
   });
 
   (ctx.gestion.recurrents || [])
@@ -560,7 +601,8 @@ function courbeDuMois(ctx, mois, aujourdhui) {
   // Frais : charges fixes le 1er, depenses a leur date
   p.postes.forEach(po => {
     if (po.cle === 'urssaf' || po.cle === 'carte' || po.cle === 'ads') return;
-    ajouter(po.source === 'fixe' ? debut : po.date, -(Number(po.montant) || 0));
+    // Charges fixes et abonnements (Planity) le 1er : anticipes, meme s'ils sont preleves plus tard
+    ajouter(po.source === 'fixe' || po.abonnement ? debut : po.date, -(Number(po.montant) || 0));
   });
 
   // Ce que je me suis verse pour ce mois (un virement mensuel automatique compte le 1er)
@@ -605,7 +647,7 @@ function queMois(mois) {
   return /^[aeiouyàâéèêîôû]/i.test(nom) ? `qu'${nom}` : `que ${nom}`;
 }
 
-function contexte(appData, gestion, reglages, ads, adsJours) {
+function contexte(appData, gestion, reglages, ads, adsJours, aujourdhui) {
   return {
     appData: appData || {},
     gestion: {
@@ -616,7 +658,8 @@ function contexte(appData, gestion, reglages, ads, adsJours) {
     },
     reglages: reglagesComplets(reglages),
     ads: ads || null,
-    adsJours: adsJours || null
+    adsJours: adsJours || null,
+    aujourdhui: aujourdhui || null
   };
 }
 
@@ -633,6 +676,7 @@ const GestionCalculs = {
   montantRecurrent,
   fluxConcernant,
   depensesLogiciel,
+  abonnementsAnticipes,
   totauxPro,
   moisPro,
   pourMoi,

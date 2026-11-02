@@ -70,7 +70,7 @@ de faire **Ctrl+Shift+R** (le cache HTTP du navigateur est distinct du cache du 
 
 ## Versioning
 - Format : `X.Y.Z.W` ou X.Y = version PWA, Z.W = heritage version Electron
-- Version actuelle : `1.1.0.4` (URSSAF du mois M prelevee le 2-4 du mois M+2 : deux URSSAF dues en fin de mois ; solde du compte affiche a cote de la reserve)
+- Version actuelle : `1.1.0.5` (Gestion : les abonnements du logiciel, Planity, comptes des le 1er sans rien ecrire dans les depenses)
 - **OBLIGATOIRE** : a chaque modification demandee par l'utilisateur, proposer un bump de version et attendre validation
 - Mettre a jour la version dans 3 endroits : `package.json`, `index.html` (burger menu + footer)
 - Puis **`node scripts/estampiller-version.js`** : repose `?v=X.Y.Z.W` sur tous les

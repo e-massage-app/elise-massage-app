@@ -337,3 +337,43 @@ test('courbe du mois : ce que je me verse la fait descendre, jusque dans le roug
   const nov = G.courbeDuMois(ctx(d), '2026-11', '2026-11-02');
   assert.deepEqual(nov.valeurs.slice(0, 3), [-10, -10, null]);
 });
+
+// Abonnement du logiciel (fictif) : 50 € le 22 ; la depense d'octobre existe deja dans base()
+function avecAbonnement(d) {
+  d.appData.parametres = { abonnements: [{ nom: 'PLATEFORME', montant: 50, jourPrelevement: 22, categorie: 'Abonnement', actif: true }] };
+  return d;
+}
+
+test('abonnement : compte des le 1er, anticipe tant que le logiciel ne l a pas cree, sans doublon', () => {
+  const d = avecAbonnement(avecSoldes(base()));
+  const avant = JSON.stringify(d.appData.depenses);
+  const c = G.contexte(d.appData, d.gestion, d.reglages, d.ads, ADS_JOURS, '2026-11-02');
+  // octobre : la vraie depense existe, rien d'anticipe, meme total ; dans la courbe elle tombe le 1er
+  assert.equal(G.moisPro(c, '2026-10').frais, 279.8);
+  assert.equal(G.courbeDuMois(c, '2026-10', '2026-11-02').valeurs[0], 1.48);
+  assert.equal(G.courbeDuMois(c, '2026-10', '2026-11-02').valeurs[30], 320.2);
+  // novembre : pas encore creee -> prevue le 22, comptee des le 1er, due jusqu'au 22
+  const nov = G.moisPro(c, '2026-11');
+  assert.ok(nov.postes.some(p => p.source === 'anticipe' && p.montant === 50 && p.date === '2026-11-22'));
+  assert.equal(nov.frais, 60); // banque 10 + abonnement 50
+  assert.deepEqual(G.courbeDuMois(c, '2026-11', '2026-11-02').valeurs.slice(0, 2), [-60, -60]);
+  assert.ok(G.aPayer(c, '2026-11', '2026-11-02').lignes.some(l => l.montant === 50 && l.date === '2026-11-22'));
+  // rien n'est ecrit dans les depenses du logiciel (Analytics n'en voit rien)
+  assert.equal(JSON.stringify(d.appData.depenses), avant);
+  // le 22, le logiciel cree la vraie depense : elle prend le relais, sans doublon
+  d.appData.depenses.push({ date: '2026-11-22', categorie: 'Abonnement', montant: 50, type: 'abonnement-auto', abonnementNom: 'PLATEFORME' });
+  const c2 = G.contexte(d.appData, d.gestion, d.reglages, d.ads, ADS_JOURS, '2026-11-23');
+  assert.equal(G.moisPro(c2, '2026-11').frais, 60);
+  assert.ok(!G.moisPro(c2, '2026-11').postes.some(p => p.source === 'anticipe'));
+});
+
+test('abonnement inactif ou mois passe sans depense : rien d anticipe', () => {
+  const d = avecAbonnement(base());
+  d.appData.parametres.abonnements[0].actif = false;
+  assert.equal(G.abonnementsAnticipes(G.contexte(d.appData, d.gestion, d.reglages, d.ads, null, '2026-11-02'), '2026-11').length, 0);
+  const e = avecAbonnement(base());
+  e.appData.depenses = e.appData.depenses.filter(x => x.categorie !== 'Abonnement');
+  const c = G.contexte(e.appData, e.gestion, e.reglages, e.ads, null, '2026-11-02');
+  assert.equal(G.abonnementsAnticipes(c, '2026-10').length, 0, 'avant le mois en cours, sans depense : on ne l invente pas');
+  assert.equal(G.abonnementsAnticipes(c, '2026-11').length, 1);
+});

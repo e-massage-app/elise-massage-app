@@ -171,3 +171,14 @@ est public, aucun montant personnel ne doit etre commite, ni dans le code ni dan
 - Google Ads inchange (cout compte au jour le jour, preleve le 1er du mois suivant).
 - URSSAF de septembre corrigee au vrai montant de l'avis en base (accord de Jordan).
 - `npm test` : 31 tests.
+
+## v1.1.0.5 (2026-11-02) : Planity anticipe
+
+- Le logiciel ne cree la depense d'un abonnement que le jour du prelevement (Planity : le 22).
+  La Gestion compte chaque abonnement actif des le 1er, comme une charge fixe : « prevu le 22 » tant
+  que la depense n'existe pas, puis la vraie depense prend le relais (pas de doublon). Dans la courbe,
+  abonnements et charges fixes tombent le 1er ; cote banque, l'abonnement est « du » jusqu'au 22.
+- Exigence de Jordan : rien dans les depenses du logiciel, Analytics n'en voit rien. Tout est calcule
+  dans `gestion-calculs.js` (`abonnementsAnticipes`), verifie par un test (depenses inchangees).
+- Nouveau releve du compte pro au 02/11 saisi a la demande de Jordan (base propre).
+- `npm test` : 33 tests.
