@@ -30,7 +30,8 @@ function base() {
       mois: {},
       soldes: []
     },
-    reglages: { tauxUrssaf: 21.4, tauxCarte: 1.75, matelas: 1000, besoinMensuel: 500, seuilTendu: 70 },
+    // fraisGoogle a 0 : les montants des tests restent ronds ; le test dedie verifie les 2 %
+    reglages: { tauxUrssaf: 21.4, tauxCarte: 1.75, matelas: 1000, besoinMensuel: 500, seuilTendu: 70, fraisGoogle: 0 },
     ads: { '2026-09': 100, '2026-10': 60 }
   };
 }
@@ -392,4 +393,18 @@ test('Google Ads encore « a venir » au releve : la date confirmee le garde du 
   assert.ok(G.aPayer(ctx(d), '2026-11', '2026-11-02').lignes.some(l => l.categorie === 'Google Ads' && l.montant === 60));
   assert.equal(G.soldeCompte(ctx(d), 'pro', '2026-11-03').montant, 1700 - 60);
   assert.equal(G.adsAConfirmer(ctx(d), 'pro', '2026-11-02'), null, 'deja confirme');
+});
+
+test('Google Ads : la taxe d environ 2 % s ajoute a la depense lue chez Google, une correction la remplace', () => {
+  const d = base();
+  d.reglages.fraisGoogle = 2;
+  const t = G.totauxPro(ctx(d), '2026-10');
+  assert.equal(t.adsGoogleBrut, 60);
+  assert.equal(t.adsGoogle, 61.2);
+  assert.equal(t.ads, 61.2);
+  // la courbe repartit la facture (taxe comprise) sur les jours de depense
+  const c = G.courbeDuMois(G.contexte(d.appData, d.gestion, d.reglages, d.ads, ADS_JOURS), '2026-10', '2026-11-02');
+  assert.equal(c.valeurs[30], G.moisPro(ctx(d), '2026-10').reste);
+  d.gestion.mois['2026-10'] = { corrections: { ads: 62.5 } };
+  assert.equal(G.totauxPro(ctx(d), '2026-10').ads, 62.5);
 });

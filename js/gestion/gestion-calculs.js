@@ -1,4 +1,4 @@
-// ===== GESTION : CALCULS (v1.1.0.6) =====
+// ===== GESTION : CALCULS (v1.1.0.7) =====
 // Fonctions pures : ni DOM, ni Supabase, ni date du jour implicite (on la passe).
 // Testees sous Node : tests/gestion-calculs.test.js.
 //
@@ -33,6 +33,7 @@ const REGLAGES_DEFAUT = {
   seuilTendu: 70,
   compteUrssaf: 'pro',
   jourUrssaf: 4,          // l'URSSAF du mois M part entre le 2 et le 4 du mois M+2 : le plus tard par prudence
+  fraisGoogle: 2,         // taxe « France Regulatory Operating Cost » que Google ajoute a la facture (%)
   compteParCategorie: { Loyer: 'caisse' },
   inclureTransport: false,
   categories: {
@@ -284,7 +285,9 @@ function totauxPro(ctx, mois) {
   const commissionCalculee = arrondi(logiciel.carte * R.tauxCarte / 100);
   const commission = nombreOuNull(corr.carte) ?? commissionCalculee;
 
-  const adsGoogle = ctx.ads ? nombreOuNull(ctx.ads[mois]) : null;
+  // L'API donne la depense ; Google facture en plus ~2 % de taxe (ecran de facturation, 2026-11-02)
+  const adsGoogleBrut = ctx.ads ? nombreOuNull(ctx.ads[mois]) : null;
+  const adsGoogle = adsGoogleBrut === null ? null : arrondi(adsGoogleBrut * (1 + (Number(R.fraisGoogle) || 0) / 100));
   const ads = nombreOuNull(corr.ads) ?? (adsGoogle ?? 0);
 
   return {
@@ -299,6 +302,7 @@ function totauxPro(ctx, mois) {
     urssaf,
     commissionCalculee,
     commission,
+    adsGoogleBrut,
     adsGoogle,
     ads,
     adsInconnu: adsGoogle === null && nombreOuNull(corr.ads) === null
@@ -611,7 +615,7 @@ function courbeDuMois(ctx, mois, aujourdhui) {
 
   // Google Ads au jour le jour (une correction du mois est repartie au prorata)
   const jours = ctx.adsJours || {};
-  const partAds = p.adsGoogle ? p.ads / p.adsGoogle : 0;
+  const partAds = p.adsGoogleBrut ? p.ads / p.adsGoogleBrut : 0;
   Object.keys(jours).filter(dansMois).forEach(j => ajouter(j, -jours[j] * partAds));
 
   // Frais : charges fixes le 1er, depenses a leur date

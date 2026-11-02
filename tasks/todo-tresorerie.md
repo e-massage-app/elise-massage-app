@@ -199,3 +199,12 @@ est public, aucun montant personnel ne doit etre commite, ni dans le code ni dan
 4. Si l'avis URSSAF donne un autre montant : mois concerne > frais > URSSAF > « Corriger ».
 Le reste du mois, rien : URSSAF (2-4 du mois M+2), Google (1er), Planity (22) sont deja prevus ;
 le jour du prelevement le compte baisse, la reserve ne bouge pas.
+
+## v1.1.0.7 (2026-11-02) : taxe Google Ads
+
+- L'API Google Ads donne la depense ; la facture ajoute la « France Regulatory Operating Cost »
+  (verifie sur 3 mois de factures : 1,93 a 2,01 %, un peu moins quand une part est diffusee hors de
+  France). Reglage `fraisGoogle` = 2 % ; une correction a la main du mois reste prioritaire.
+- Releves du 31/10 corriges en base : le depot de 500 € note dans l'Excel n'etait pas fait
+  (compte pro -500, caisse +500, total inchange). Un depot se saisit le jour ou il est fait :
+  Ma reserve > « Deposer en banque ».

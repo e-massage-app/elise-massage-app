@@ -1,4 +1,4 @@
-// ===== GESTION : ECRAN (v1.1.0.6) =====
+// ===== GESTION : ECRAN (v1.1.0.7) =====
 // Onglet « Gestion » : Pro (4 chiffres, detail au clic, courbe), Perso, Reglages.
 // Mots d'Elise, pas de jargon comptable (ni « resultat », ni « provision »).
 // Evenements par delegation (data-ge="action") : aucun onclick global ajoute.
@@ -347,7 +347,7 @@ function detailFrais(p) {
     if (po.source === 'saisie' && po.categorie && po.categorie !== po.libelle) note = `${esc(po.categorie)} · ${note}`;
     if (po.cle === 'urssaf') note = `${pourcent(D().reglages().tauxUrssaf)} ${p.declare !== null ? 'du montant déclaré' : 'de l\'encaissé'}`;
     if (po.cle === 'carte') note = `${pourcent(D().reglages().tauxCarte)} des paiements par carte`;
-    if (po.cle === 'ads') note = po.inconnu ? (D().etat.adsErreur ? esc(D().etat.adsErreur) : 'en attente de Google') : 'lu chez Google';
+    if (po.cle === 'ads') note = po.inconnu ? (D().etat.adsErreur ? esc(D().etat.adsErreur) : 'en attente de Google') : `lu chez Google + ${pourcent(D().reglages().fraisGoogle)} de taxe`;
     if (po.calcule !== undefined && po.calcule !== null && po.corrigeable && Math.abs(po.montant - po.calcule) > 0.004) note += ` · calculé : ${euros(po.calcule)}`;
     if (po.date) note = `${dateCourte(po.date)} · ${note}`;
     let action = '';
@@ -619,6 +619,7 @@ function vueReglages() {
         ${champ('seuilTendu', '« Tendu » à partir de (% du besoin)', R.seuilTendu, 'En dessous : Alerte. Affiché une fois le mois terminé.', 'type="number" step="1" min="0" max="100" inputmode="numeric"')}
         ${champ('tauxUrssaf', 'Taux URSSAF (%)', R.tauxUrssaf)}
         ${champ('tauxCarte', 'Commission carte SumUp (%)', R.tauxCarte, 'À changer si la formule ou le prestataire change.')}
+        ${champ('fraisGoogle', 'Taxe Google Ads en plus (%)', R.fraisGoogle, 'Google l\'ajoute à la facture : environ 2 % en France.')}
         ${champ('jourUrssaf', 'L\'URSSAF part vers le … du mois M+2', R.jourUrssaf, 'Entre le 2 et le 4 : le 4 par prudence.', 'type="number" step="1" min="1" max="28" inputmode="numeric"')}
         <label class="ge-champ"><span>L'URSSAF est payée depuis</span><select name="compteUrssaf">${optionsComptes(R.compteUrssaf)}</select>
           <small>Si c'est l'épargne, elle ne baisse pas ta réserve.</small></label>
@@ -1011,6 +1012,7 @@ async function soumettre(f) {
       tauxCarte: lireNombre(f, 'tauxCarte') ?? 1.75,
       compteUrssaf: f.elements.compteUrssaf.value,
       jourUrssaf: lireNombre(f, 'jourUrssaf') ?? 4,
+      fraisGoogle: lireNombre(f, 'fraisGoogle') ?? 2,
       compteParCategorie: { ...R.compteParCategorie, Loyer: f.elements.compteLoyer.value },
       categories
     });
