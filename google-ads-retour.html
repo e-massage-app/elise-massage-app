@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Elise Massage - Google Ads</title>
+    <meta name="theme-color" content="#d4a574">
+    <!-- v1.1.1.0 : Google renvoie ici apres la connexion (URI de redirection du client OAuth
+         « Elise Massage App (web) »). La page transmet le code a la fonction Supabase « google-ads »,
+         qui garde la connexion cote serveur, puis ramene dans l'app. -->
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #f8f5f2 0%, #F5E6E0 50%, #f8f5f2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            color: #4a4a4a;
+        }
+        .carte {
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 8px 24px rgba(212, 165, 116, 0.25);
+            padding: 2rem 1.5rem;
+            max-width: 380px;
+            width: 100%;
+            text-align: center;
+        }
+        h1 { font-size: 1.3rem; margin-bottom: 0.75rem; color: #b07a4f; }
+        p { line-height: 1.5; }
+        .erreur { color: #c0504d; }
+        a.bouton {
+            display: inline-block;
+            margin-top: 1.25rem;
+            padding: 0.7rem 1.4rem;
+            border-radius: 10px;
+            background: #d4a574;
+            color: #fff;
+            text-decoration: none;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <main class="carte">
+        <h1 id="titre">Connexion à Google Ads…</h1>
+        <p id="message">Un instant, je termine la connexion.</p>
+        <a class="bouton" id="retour" href="./" hidden>Revenir à l'app</a>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js?v=1.1.1.0"></script>
+    <script src="js/supabase-client.js?v=1.1.1.0"></script>
+    <script src="js/core/google-ads.js?v=1.1.1.0"></script>
+    <script>
+    (async function () {
+        const titre = document.getElementById('titre');
+        const message = document.getElementById('message');
+        const retour = document.getElementById('retour');
+        const p = new URLSearchParams(window.location.search);
+
+        function afficher(t, m, erreur) {
+            titre.textContent = t;
+            message.textContent = m;
+            message.classList.toggle('erreur', !!erreur);
+            retour.hidden = false;
+        }
+
+        if (p.get('error')) {
+            afficher('Connexion annulée', p.get('error') === 'access_denied'
+                ? 'Tu as refusé l\'accès à Google Ads. Tu peux recommencer depuis l\'app.'
+                : `Google a répondu : ${p.get('error')}.`, true);
+            return;
+        }
+        if (!p.get('code') || !p.get('state')) {
+            afficher('Lien incomplet', 'Recommence la connexion depuis l\'app.', true);
+            return;
+        }
+        try {
+            const r = await GoogleAdsApi.terminerConnexion(p.get('code'), p.get('state'));
+            afficher('Google Ads est connecté', r.email ? `Compte : ${r.email}. Retour à l'app…` : 'Retour à l\'app…');
+            setTimeout(() => window.location.replace('./'), 1500);
+        } catch (e) {
+            afficher('La connexion n\'a pas abouti', e.message, true);
+        }
+    })();
+    </script>
+</body>
+</html>

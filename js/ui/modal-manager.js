@@ -3476,182 +3476,17 @@ async function handleParametresFormSubmit(e) {
 
 // ===== ✅ GOOGLE ADS OAUTH COMPLET - PRÊT À COPIER-COLLER =====
 
+// v1.1.1.0 : la connexion passe par la fonction Supabase « google-ads » (js/core/google-ads.js).
+// Google renvoie sur google-ads-retour.html : plus de code a copier-coller, et plus aucune cle
+// (secret OAuth, jeton developpeur, jetons Google) dans le navigateur ni dans le depot.
 async function connectToGoogleAds() {
+  const statusDiv = document.getElementById('google-ads-status');
   try {
-    console.log('🔗 Connexion Google Ads via Electron...');
-    
-    const statusDiv = document.getElementById('google-ads-status');
-    const connectBtn = document.getElementById('connect-google-ads');
-    
-    if (statusDiv) statusDiv.innerHTML = '<span style="color: #f39c12;">🔄 Connexion en cours...</span>';
-    if (connectBtn) connectBtn.disabled = true;
-    
-    // ✅ Configuration OAuth
-    const clientId = '299743000252-n9eus4jp2e0tf7odskhiomcna402jn01.apps.googleusercontent.com';
-    const redirectUri = 'urn:ietf:wg:oauth:2.0:oob';
-    const scope = 'https://www.googleapis.com/auth/adwords https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile';
-    
-    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
-      `client_id=${encodeURIComponent(clientId)}&` +
-      `redirect_uri=${encodeURIComponent(redirectUri)}&` +
-      `scope=${encodeURIComponent(scope)}&` +
-      `response_type=code&` +
-      `access_type=offline&` +
-      `prompt=consent`;
-    
-    console.log('🌐 URL OAuth:', authUrl);
-    
-    // Ouvrir l'URL OAuth dans un nouvel onglet
-    window.open(authUrl, '_blank');
-    
-    // Afficher une modal pour que l'utilisateur colle le code
-    const authCode = await showAuthCodeModal();
-    
-    if (authCode) {
-      // Échanger le code contre un token
-      const tokenResult = await exchangeAuthCode(authCode, clientId, redirectUri);
-      
-      if (tokenResult.success) {
-        await saveGoogleAdsTokens(tokenResult.tokens);
-        await updateGoogleAdsStatus();
-        showTemporaryMessage('🎉 Google Ads connecté !', 'success');
-      } else {
-        if (statusDiv) statusDiv.innerHTML = `<span style="color: #e74c3c;">❌ ${tokenResult.error}</span>`;
-      }
-    } else {
-      if (statusDiv) statusDiv.innerHTML = '<span style="color: #666;">Connexion annulée</span>';
-    }
-    
-    if (connectBtn) connectBtn.disabled = false;
-    
+    if (statusDiv) statusDiv.innerHTML = '<span style="color: #f39c12;">🔄 Ouverture de Google…</span>';
+    await GoogleAdsApi.connecter();
   } catch (error) {
-    console.error('❌ Erreur connectToGoogleAds:', error);
-    const statusDiv = document.getElementById('google-ads-status');
+    console.error('❌ Erreur connexion Google Ads:', error);
     if (statusDiv) statusDiv.innerHTML = `<span style="color: #e74c3c;">❌ ${error.message}</span>`;
-    
-    const connectBtn = document.getElementById('connect-google-ads');
-    if (connectBtn) connectBtn.disabled = false;
-  }
-}
-
-function showAuthCodeModal() {
-  return new Promise((resolve) => {
-    const modalHTML = `
-      <h3>🔗 Authentification Google Ads</h3>
-      <div style="margin: 1rem 0;">
-        <p><strong>Étapes :</strong></p>
-        <ol style="text-align: left; margin: 1rem 0;">
-          <li>Une page Google s'est ouverte dans votre navigateur</li>
-          <li>Connectez-vous et autorisez l'accès</li>
-          <li>Google va afficher un <strong>code d'autorisation</strong></li>
-          <li>Copiez ce code et collez-le ci-dessous</li>
-        </ol>
-      </div>
-      
-      <div class="form-group" style="margin: 1rem 0;">
-        <label><strong>Code d'autorisation Google :</strong></label>
-        <input 
-          type="text" 
-          id="auth-code-input" 
-          placeholder="Collez le code ici..." 
-          style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; font-family: monospace;"
-        >
-      </div>
-      
-      <div class="modal-actions" style="margin-top: 2rem;">
-        <button type="button" class="btn-secondary" onclick="resolveAuthCode(null)">Annuler</button>
-        <button type="button" class="btn-primary" onclick="submitAuthCode()">Valider</button>
-      </div>
-    `;
-    
-    // Fonctions pour gérer la modal
-    window.resolveAuthCode = (code) => {
-      closeModal();
-      delete window.resolveAuthCode;
-      delete window.submitAuthCode;
-      resolve(code);
-    };
-    
-    window.submitAuthCode = () => {
-      const code = document.getElementById('auth-code-input').value.trim();
-      if (code) {
-        window.resolveAuthCode(code);
-      } else {
-        alert('Veuillez saisir le code d\'autorisation');
-      }
-    };
-    
-    showModal('auth-code-modal', modalHTML);
-    
-    // Focus sur l'input
-    setTimeout(() => {
-      const input = document.getElementById('auth-code-input');
-      if (input) input.focus();
-    }, 200);
-  });
-}
-
-async function exchangeAuthCode(authCode, clientId, redirectUri) {
-  try {
-    console.log('🔄 Échange code → token...');
-    
-    // ✅ CORRIGÉ : Bon client secret
-    const clientSecret = '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';
-    
-    const response = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'authorization_code',
-        client_id: clientId,
-        client_secret: clientSecret,
-        redirect_uri: redirectUri,
-        code: authCode
-      })
-    });
-    
-    const data = await response.json();
-    console.log('📊 Réponse token:', data); // Pour debug
-    
-    if (response.ok && data.access_token) {
-      return {
-        success: true,
-        tokens: {
-          access_token: data.access_token,
-          refresh_token: data.refresh_token,
-          expires_in: data.expires_in,
-          token_type: data.token_type,
-          created_at: Date.now()
-        }
-      };
-    } else {
-      console.error('❌ Erreur échange token:', data);
-      return { success: false, error: data.error_description || data.error || 'Erreur échange token' };
-    }
-    
-  } catch (error) {
-    console.error('❌ Erreur exchangeAuthCode:', error);
-    return { success: false, error: error.message };
-  }
-}
-
-async function saveGoogleAdsTokens(tokens) {
-  try {
-    const parametres = DataManager.getParametres();
-    
-    // Chiffrement basique des tokens
-    const encryptedTokens = btoa(JSON.stringify(tokens));
-    
-    parametres.googleAdsTokens = encryptedTokens;
-    parametres.googleAdsConnected = true;
-    parametres.googleAdsConnectedAt = new Date().toISOString();
-
-    // v1.1.0.1 : seulement ces trois cles (voir CLES_PARAMETRES_A_PART, data-manager.js)
-    await DataManager.saveParametresCles(['googleAdsTokens', 'googleAdsConnected', 'googleAdsConnectedAt']);
-
-  } catch (error) {
-    console.error('❌ Erreur sauvegarde tokens:', error);
-    throw error;
   }
 }
 
@@ -3665,13 +3500,13 @@ async function disconnectFromGoogleAds() {
     
     if (!confirmation) return;
     
-    // v1.1.0.1 : valeurs videes puis enregistrees ; supprimer les cles du cache ne
-    // les retirait pas de la base (un upsert n'efface rien) et la connexion revenait.
+    // v1.1.1.0 : la fonction Supabase revoque la connexion chez Google et met les parametres a jour
+    // en base ; on aligne la copie en memoire.
+    await GoogleAdsApi.deconnecter();
     const parametres = DataManager.getParametres();
     parametres.googleAdsTokens = '';
     parametres.googleAdsConnected = false;
     parametres.googleAdsConnectedAt = '';
-    await DataManager.saveParametresCles(['googleAdsTokens', 'googleAdsConnected', 'googleAdsConnectedAt']);
 
     await updateGoogleAdsStatus();
     showTemporaryMessage('🔓 Déconnecté de Google Ads', 'info');
@@ -3761,16 +3596,7 @@ async function testAccessibleCustomers(accessToken) {
     console.log('📋 Test accès clients Google Ads...');
     
     // ✅ URL CORRECTE avec : au lieu de /
-    const response = await fetch('https://googleads.googleapis.com/v24/customers:listAccessibleCustomers', {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'developer-token': 'tZ0KGweXjUnyQubimDfCsQ', // ✅ BON TOKEN avec zéro
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'User-Agent': 'Elise-Massage-App/1.0'
-      }
-    });
+    const response = await GoogleAdsApi.appel('v24/customers:listAccessibleCustomers', { method: 'GET' });
     
     console.log('📊 Réponse status:', response.status);
     console.log('📊 Réponse headers:', [...response.headers.entries()]);
@@ -3817,33 +3643,12 @@ async function testAccessibleCustomers(accessToken) {
   }
 }
 
-async function testSimpleGoogleAPI(accessToken) {
-  try {
-    console.log('🧪 Test API Google simple...');
-    
-    // Test avec l'API userinfo (plus simple)
-    const response = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Accept': 'application/json'
-      }
-    });
-    
-    if (response.ok) {
-      const data = await response.json();
-      console.log('✅ Infos utilisateur:', data);
-      return { 
-        success: true, 
-        user: data.name || data.email,
-        email: data.email 
-      };
-    } else {
-      const errorText = await response.text();
-      return { success: false, error: `${response.status}: ${errorText}` };
-    }
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
+async function testSimpleGoogleAPI() {
+  // v1.1.1.0 : la fonction Supabase connait le compte Google connecte
+  const e = await GoogleAdsApi.etat({ forcer: true });
+  return e.connecte
+    ? { success: true, user: e.email || 'compte Google', email: e.email || '' }
+    : { success: false, error: e.erreur || 'Google Ads n\'est pas connecté' };
 }
 
 async function testCampaignData(accessToken, customerId) {
@@ -3861,17 +3666,7 @@ async function testCampaignData(accessToken, customerId) {
     `;
     
     // ✅ URL v24 (Google sunset v21 le 05/08/2026 ; v24 = derniere version)
-    const response = await fetch(`https://googleads.googleapis.com/v24/customers/${customerId}/googleAds:searchStream`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'developer-token': 'tZ0KGweXjUnyQubimDfCsQ', // ✅ BON TOKEN avec zéro
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'User-Agent': 'Elise-Massage-App/1.0'
-      },
-      body: JSON.stringify({ query: query })
-    });
+    const response = await GoogleAdsApi.appel(`v24/customers/${customerId}/googleAds:searchStream`, { method: 'POST', body: JSON.stringify({ query: query }) });
     
     console.log('📊 Réponse campagne status:', response.status);
     
@@ -3906,80 +3701,12 @@ async function testCampaignData(accessToken, customerId) {
   }
 }
 
+// v1.1.1.0 : plus de jetons Google dans le navigateur. getValidTokens garde son nom et sa forme pour
+// les ecrans qui l'appellent : un objet si la connexion Google (gardee par la fonction Supabase) est
+// utilisable, sinon null. Le « jeton » n'est plus utilise : GoogleAdsApi.appel s'authentifie seul.
 async function getValidTokens() {
-  try {
-    const parametres = DataManager.getParametres();
-    const encryptedTokens = parametres.googleAdsTokens;
-    
-    if (!encryptedTokens) return null;
-    
-    const tokens = JSON.parse(atob(encryptedTokens));
-    
-    // Vérifier expiration
-    const expiresAt = tokens.created_at + (tokens.expires_in * 1000);
-    if (Date.now() < expiresAt) {
-      return tokens;
-    }
-    
-    // Rafraîchir le token si expiré
-    if (tokens.refresh_token) {
-      const refreshed = await refreshToken(tokens.refresh_token);
-      if (refreshed.success) {
-        await saveGoogleAdsTokens(refreshed.tokens);
-        return refreshed.tokens;
-      }
-    }
-    
-    return null;
-    
-  } catch (error) {
-    console.error('❌ Erreur getValidTokens:', error);
-    return null;
-  }
-}
-
-async function refreshToken(refreshToken) {
-  try {
-    console.log('🔄 Rafraîchissement token...');
-    
-    // ✅ CORRIGÉ : Bons identifiants
-    const clientId = '299743000252-n9eus4jp2e0tf7odskhiomcna402jn01.apps.googleusercontent.com';
-    const clientSecret = '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';
-    
-    const response = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'refresh_token',
-        client_id: clientId,
-        client_secret: clientSecret,
-        refresh_token: refreshToken
-      })
-    });
-    
-    const data = await response.json();
-    
-    if (response.ok && data.access_token) {
-      console.log('✅ Token rafraîchi');
-      return {
-        success: true,
-        tokens: {
-          access_token: data.access_token,
-          refresh_token: refreshToken, // Garde l'ancien refresh token
-          expires_in: data.expires_in,
-          token_type: data.token_type,
-          created_at: Date.now()
-        }
-      };
-    } else {
-      console.error('❌ Erreur refresh:', data);
-      return { success: false, error: data.error_description || data.error };
-    }
-    
-  } catch (error) {
-    console.error('❌ Erreur refreshToken:', error);
-    return { success: false, error: error.message };
-  }
+  const e = await GoogleAdsApi.etat();
+  return e && e.connecte ? { access_token: 'fonction-supabase' } : null;
 }
 
 // ===== 🔄 FONCTION updateGoogleAdsStatus MISE À JOUR =====
@@ -4201,17 +3928,7 @@ async function getCampaignsForCustomer(accessToken, customerId) {
       LIMIT 50
     `;
     
-    const response = await fetch(`https://googleads.googleapis.com/v24/customers/${customerId}/googleAds:searchStream`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'developer-token': 'tZ0KGweXjUnyQubimDfCsQ',
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'User-Agent': 'Elise-Massage-App/1.0'
-      },
-      body: JSON.stringify({ query: query })
-    });
+    const response = await GoogleAdsApi.appel(`v24/customers/${customerId}/googleAds:searchStream`, { method: 'POST', body: JSON.stringify({ query: query }) });
     
     if (response.ok) {
       const data = await response.json();

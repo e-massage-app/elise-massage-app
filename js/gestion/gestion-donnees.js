@@ -220,16 +220,7 @@ async function requeteCoutsParJour(accessToken, customerId, debut, fin) {
     FROM campaign
     WHERE segments.date BETWEEN '${debut}' AND '${fin}'
   `;
-  const reponse = await fetch(`https://googleads.googleapis.com/v24/customers/${customerId}/googleAds:searchStream`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'developer-token': 'tZ0KGweXjUnyQubimDfCsQ',
-      'Content-Type': 'application/json',
-      'Accept': 'application/json'
-    },
-    body: JSON.stringify({ query })
-  });
+  const reponse = await GoogleAdsApi.appel(`v24/customers/${customerId}/googleAds:searchStream`, { method: 'POST', body: JSON.stringify({ query }) });
   if (!reponse.ok) throw new Error(`Google Ads a répondu ${reponse.status}`);
   const data = await reponse.json();
   const lignes = [];

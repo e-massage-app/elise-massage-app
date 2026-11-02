@@ -37,7 +37,7 @@ if (!/^\d+\.\d+\.\d+\.\d+$/.test(version)) {
 const MOTIF = /(?:src|href)="((?:js|css)\/[^"?]+)(?:\?v=[^"]*)?"/g;
 
 let total = 0;
-for (const fichier of ['index.html', 'login.html']) {
+for (const fichier of ['index.html', 'login.html', 'google-ads-retour.html']) {
   const chemin = path.join(racine, fichier);
   if (!fs.existsSync(chemin)) continue;
 

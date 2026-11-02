@@ -3065,17 +3065,7 @@ async function getCampaignsForCustomerWithPeriod(accessToken, customerId, period
     
     // Requête GAQL prête
     
-    const response = await fetch(`https://googleads.googleapis.com/v24/customers/${customerId}/googleAds:searchStream`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'developer-token': 'tZ0KGweXjUnyQubimDfCsQ',
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'User-Agent': 'Elise-Massage-App/1.0'
-      },
-      body: JSON.stringify({ query: query })
-    });
+    const response = await GoogleAdsApi.appel(`v24/customers/${customerId}/googleAds:searchStream`, { method: 'POST', body: JSON.stringify({ query: query }) });
     
     if (response.ok) {
       const data = await response.json();

@@ -64,13 +64,17 @@ de faire **Ctrl+Shift+R** (le cache HTTP du navigateur est distinct du cache du 
 - `js/core/encaissements.js` : LA regle d'encaissement (ce que les clientes ont paye), utilisee par tous les ecrans
 - `js/gestion/` : onglet Gestion (calculs purs, donnees de ses tables `gestion_*`, ecran) ; plan dans `tasks/todo-tresorerie.md`
 - `scripts/migration-gestion.sql` : tables de l'onglet Gestion (appliquee le 2026-11-02)
+- `js/core/google-ads.js` + `supabase/functions/google-ads/` : Google Ads passe par une fonction Supabase
+  en LECTURE SEULE ; les cles (jeton developpeur, secret OAuth) sont des secrets Supabase, la connexion
+  Google est dans la table `google_ads_connexion` (`scripts/migration-google-ads.sql`). Plan :
+  `tasks/todo-google-ads.md`. Ne JAMAIS remettre une cle Google dans le code (depot public)
 - `tests/` : `npm test` (Node, sans dependance) ; `tests/apercu-gestion.html` = l'onglet avec des donnees fictives
 - `tasks/prive/` : documents avec les chiffres d'Elise, ignores par Git. Le depot est visible publiquement :
   aucun montant personnel dans le code, les tests ou les commits
 
 ## Versioning
 - Format : `X.Y.Z.W` ou X.Y = version PWA, Z.W = heritage version Electron
-- Version actuelle : `1.1.0.8` (Gestion : projection du mois avec les rendez-vous du calendrier, en pointilles sur la courbe)
+- Version actuelle : `1.1.1.0` (Google Ads par la fonction Supabase « google-ads » : plus aucune cle Google dans le code, connexion sans copier-coller)
 - **OBLIGATOIRE** : a chaque modification demandee par l'utilisateur, proposer un bump de version et attendre validation
 - Mettre a jour la version dans 3 endroits : `package.json`, `index.html` (burger menu + footer)
 - Puis **`node scripts/estampiller-version.js`** : repose `?v=X.Y.Z.W` sur tous les
