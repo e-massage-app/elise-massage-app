@@ -328,71 +328,14 @@ async function syncGoogleAdsCostsOnStartup() {
     const today = new Date().toDateString();
     if (lastSync === today) return;
 
+    // v1.2.0.0 : cout DEPUIS LE DEBUT, par le redacteur unique (utils-services.js,
+    // rafraichirCacheGoogleAds). Avant : fetchGoogleAdsCostsSilent lisait les 30 derniers
+    // jours (LAST_30_DAYS) et les ecrivait dans le meme `total` que le cout depuis toujours ;
+    // un echec de tous les comptes y ecrivait meme 0.
     console.log('Synchronisation des couts Google Ads...');
-    const costs = await fetchGoogleAdsCostsSilent();
-
-    if (costs.success) {
-      // v1.1.0.0 : fusion (voir fusionnerCacheGoogleAds) : garder le vrai cout du mois
-      parametres.googleAdsCachedCosts = fusionnerCacheGoogleAds(parametres.googleAdsCachedCosts, costs.data);
-      parametres.googleAdsCostsLastSync = today;
-      DataManager.saveParametres(parametres);
-      console.log('Couts Google Ads synchronises');
-    }
+    if (await rafraichirCacheGoogleAds()) console.log('Couts Google Ads synchronises');
   } catch (error) {
     console.error('Erreur sync Google Ads startup:', error);
-  }
-}
-
-async function fetchGoogleAdsCostsSilent() {
-  try {
-    const parametres = DataManager.getParametres();
-    const selectedCampaigns = parametres.googleAdsSelectedCampaigns || [];
-    if (selectedCampaigns.length === 0) return { success: false, error: 'Aucune campagne selectionnee' };
-
-    const tokens = await getValidTokens();
-    if (!tokens) return { success: false, error: 'Tokens non disponibles' };
-
-    const customersResult = await testAccessibleCustomers(tokens.access_token);
-    if (!customersResult.success) return { success: false, error: 'Comptes non accessibles' };
-
-    let totalCost = 0;
-    let totalRevenue = 0;
-
-    // v1.1.0.0 : plus d'estimation du cout du mois (cout total / 12, ecrit dans
-    // currentMonth et monthlyBreakdown) : seul le vrai THIS_MONTH de l'API,
-    // demande par le tableau de bord, renseigne le cout du mois.
-    for (const customerId of customersResult.customers) {
-      try {
-        const campaigns = await getCampaignsForCustomer(tokens.access_token, customerId);
-        const selectedCampaignsData = campaigns.filter(c => selectedCampaigns.includes(c.id));
-        selectedCampaignsData.forEach(campaign => {
-          totalCost += campaign.cost || 0;
-        });
-      } catch (error) {
-        console.error(`Erreur campagnes ${customerId}:`, error);
-      }
-    }
-
-    const appData = DataManager.getAppData();
-    const clientsGoogleAds = appData.clients.filter(client => client.canalAcquisition === 'google-ads');
-    const prestationsGoogleAds = appData.prestations.filter(prestation => {
-      const client = appData.clients.find(c => c.id === prestation.clientId);
-      return client && client.canalAcquisition === 'google-ads';
-    });
-    // v1.1.0.0 : regle Encaissements (tips seuls pour une prestation carte cadeau)
-    totalRevenue = prestationsGoogleAds.reduce((sum, p) => sum + Encaissements.encaissePrestation(p), 0);
-
-    return {
-      success: true,
-      data: {
-        total: totalCost,
-        revenue: totalRevenue, clientsCount: clientsGoogleAds.length,
-        prestationsCount: prestationsGoogleAds.length, lastUpdate: new Date().toISOString()
-      }
-    };
-  } catch (error) {
-    console.error('Erreur fetchGoogleAdsCostsSilent:', error);
-    return { success: false, error: error.message };
   }
 }
 

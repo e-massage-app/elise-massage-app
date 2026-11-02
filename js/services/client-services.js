@@ -282,7 +282,8 @@ function generateParrainageSection(client) {
           <strong style="color: #7b1fa2;">Prospects (${filleuls.prospects.length}) :</strong>
           <div style="margin-left: 1rem;">
             ${filleuls.prospects.map(filleul => `
-              <span style="color: #7b1fa2; cursor: pointer; text-decoration: underline; margin-right: 1rem;" onclick="showProspectDetails('${filleul.id}')" title="Cliquer pour voir la fiche">
+              <!-- v1.2.0.0 : editProspect (showProspectDetails n'a jamais existe : le lien ne faisait rien) -->
+              <span style="color: #7b1fa2; cursor: pointer; text-decoration: underline; margin-right: 1rem;" onclick="editProspect('${filleul.id}')" title="Cliquer pour voir la fiche">
                 ${filleul.prenom} ${filleul.nom}
               </span>
             `).join('')}
@@ -696,7 +697,7 @@ function showClientDetails(clientId) {
     ${_irow('Huiles préférées', client.huiles || 'Non renseigné', !client.huiles)}
     ${_irow('Zones sensibles', client.zones || 'Non renseigné', !client.zones)}
     ${_irow('Allergies', client.allergies || 'Aucune connue', !client.allergies)}
-    ${_irow('Sexe', client.sexe ? (client.sexe === 'H' ? 'Homme' : 'Femme') : 'Non renseigné', !client.sexe)}
+    ${_irow('Sexe', ReglesEcrans.libelleSexe(client.sexe) || 'Non renseigné', !ReglesEcrans.libelleSexe(client.sexe))}
     ${client.notes ? `<div class="fc-section-title" style="margin-top:18px;">Notes</div><div class="fc-notes">📝 ${client.notes}</div>` : ''}
   `;
 
@@ -1090,8 +1091,9 @@ function editClient(clientId) {
     <label>Sexe (pour statistiques)</label>
     <select id="client-sexe" style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px;">
       <option value="" ${!client.sexe ? 'selected' : ''}>-- Non précisé --</option>
-      <option value="H" ${client.sexe === 'H' ? 'selected' : ''}>Homme</option>
-      <option value="F" ${client.sexe === 'F' ? 'selected' : ''}>Femme</option>
+      <!-- v1.2.0.0 : l'ancien code 'M' = Homme (avant : rien de choisi, et l'enregistrement l'effacait) -->
+      <option value="H" ${ReglesEcrans.libelleSexe(client.sexe) === 'Homme' ? 'selected' : ''}>Homme</option>
+      <option value="F" ${ReglesEcrans.libelleSexe(client.sexe) === 'Femme' ? 'selected' : ''}>Femme</option>
     </select>
     <small style="color: #666; font-size: 0.8rem;">💡 Pour analyser votre clientèle</small>
   </div>

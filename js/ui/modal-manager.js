@@ -51,7 +51,13 @@ function generateDureeOptions(soinId, selectedDuree) {
     const isSelected = parseInt(selectedDuree) === d || (!selectedDuree && d === 60);
     html += `<option value="${d}" ${isSelected ? 'selected' : ''}>${d} minutes</option>`;
   });
-  html += `<option value="autre" ${selectedDuree && !defaultDurees.includes(parseInt(selectedDuree)) ? 'selected' : ''}>Autre</option>`;
+  // v1.2.0.0 : une duree hors liste deja saisie a sa propre option, selectionnee. Avant :
+  // « Autre » etait choisi avec son champ cache et vide, et l'enregistrement remettait 60 min.
+  const dureePerso = parseInt(selectedDuree);
+  if (dureePerso > 0 && !defaultDurees.includes(dureePerso)) {
+    html += `<option value="${dureePerso}" selected>${dureePerso} minutes</option>`;
+  }
+  html += `<option value="autre">Autre</option>`;
   return html;
 }
 
@@ -3072,7 +3078,8 @@ async function handleCollaborateurEditSubmit(e) {
     email: formData.email || '',
     adresse: formData.adresse || '',
     notes: formData.notes || '',
-    tags: tags
+    // v1.2.0.0 : formulaire sans champ d'etiquettes -> on garde celles de la fiche (avant : effacees)
+    tags: document.getElementById('collaborateur-tags') ? tags : (appData.collaborateurs[collaborateurIndex].tags || [])
   };
 
   // Persister AVANT le cache
@@ -3752,7 +3759,7 @@ async function updateGoogleAdsStatus() {
         if (campaignsListDiv) {
           campaignsListDiv.innerHTML = `
             <div style="margin-bottom: 0.5rem;">
-              <strong>${selectedCampaigns.length} campagne(s) • Coût total: ${totalCost.toFixed(2)}€</strong>
+              <strong>${selectedCampaigns.length} campagne(s) • Coût total depuis le début : ${totalCost.toFixed(2)}€</strong>
             </div>
             ${campaignsDetails.map(campaign => `
               <div style="display: flex; justify-content: space-between; padding: 0.25rem 0; border-bottom: 1px solid rgba(21,87,36,0.1); font-size: 0.85rem;">
@@ -3911,112 +3918,12 @@ setTimeout(() => {
   }
 }
 
+// v1.2.0.0 : meme lecture que le reste de l'app, depuis le debut (getCampaignsForCustomerWithPeriod).
+// Avant : une requete LAST_30_DAYS, dont les couts s'affichaient sans le dire dans la gestion des
+// campagnes et partaient dans le cache du demarrage ; et une campagne sans diffusion depuis
+// 30 jours disparaissait de la liste, donc ne pouvait plus etre decochee.
 async function getCampaignsForCustomer(accessToken, customerId) {
-  try {
-    console.log(`📊 Récupération campagnes pour ${customerId}...`);
-    
-    const query = `
-      SELECT 
-        campaign.id,
-        campaign.name,
-        campaign.status,
-        metrics.cost_micros,
-        metrics.clicks,
-        metrics.impressions
-      FROM campaign
-      WHERE segments.date DURING LAST_30_DAYS
-      ORDER BY campaign.name
-      LIMIT 50
-    `;
-    
-    const response = await GoogleAdsApi.appel(`v24/customers/${customerId}/googleAds:searchStream`, { method: 'POST', body: JSON.stringify({ query: query }) });
-    
-    if (response.ok) {
-      const data = await response.json();
-      console.log(`📊 Réponse brute pour ${customerId}:`, data);
-      
-      const campaigns = [];
-      
-      // ✅ CORRECTION : La structure est data[0].results
-      let results = [];
-      
-      if (Array.isArray(data) && data.length > 0 && data[0].results) {
-        results = data[0].results;
-        console.log(`✅ Trouvé ${results.length} résultat(s) dans data[0].results`);
-      } else {
-        console.log('❌ Structure data[0].results non trouvée');
-        return [];
-      }
-      
-      // ✅ TRAITEMENT CORRIGÉ DES RÉSULTATS
-      results.forEach((result, index) => {
-        console.log(`🔍 Résultat ${index}:`, result);
-        
-        if (result && result.campaign && result.campaign.resourceName && result.campaign.name) {
-          try {
-            // ✅ CORRECTION : Extraire l'ID depuis resourceName
-            const campaignId = result.campaign.resourceName.split('/').pop();
-            
-            // Conversion sécurisée des micros en euros
-            const costMicros = result.metrics?.costMicros || 0;
-            const costEuros = parseInt(costMicros) / 1000000;
-            
-            const campaign = {
-              id: campaignId,  // ✅ ID extrait du resourceName
-              name: result.campaign.name,
-              status: result.campaign.status || 'UNKNOWN',
-              customerId: customerId,
-              cost: isNaN(costEuros) ? 0 : costEuros,
-              impressions: parseInt(result.metrics?.impressions || 0),
-              clicks: parseInt(result.metrics?.clicks || 0),
-              cpc: 0,
-              ctr: 0
-            };
-            
-            // Calculs dérivés sécurisés
-            if (campaign.clicks > 0 && campaign.cost > 0) {
-              campaign.cpc = campaign.cost / campaign.clicks;
-            }
-            if (campaign.impressions > 0 && campaign.clicks > 0) {
-              campaign.ctr = (campaign.clicks / campaign.impressions) * 100;
-            }
-            
-            campaigns.push(campaign);
-            console.log(`✅ Campagne ajoutée: ${campaign.name} (ID: ${campaign.id}, ${campaign.cost}€)`);
-            
-          } catch (parseError) {
-            console.error(`❌ Erreur parsing résultat ${index}:`, parseError);
-          }
-        } else {
-          console.log(`⚠️ Résultat ${index} ignoré - structure invalide:`, {
-            hasResult: !!result,
-            hasCampaign: !!(result && result.campaign),
-            hasResourceName: !!(result && result.campaign && result.campaign.resourceName),
-            hasName: !!(result && result.campaign && result.campaign.name)
-          });
-        }
-      });
-      
-      console.log(`✅ FINAL: ${campaigns.length} campagne(s) parsée(s) pour ${customerId}`);
-      return campaigns;
-      
-    } else {
-      const errorText = await response.text();
-      console.error(`❌ Erreur HTTP ${response.status} pour ${customerId}:`, errorText);
-      
-      // Gestion spéciale compte manager
-      if (response.status === 400 && errorText.includes('REQUESTED_METRICS_FOR_MANAGER')) {
-        console.log(`ℹ️ ${customerId} est un compte manager, ignoré`);
-        return [];
-      }
-      
-      throw new Error(`HTTP ${response.status}: ${errorText}`);
-    }
-    
-  } catch (error) {
-    console.error(`❌ Erreur getCampaignsForCustomer ${customerId}:`, error);
-    throw error;
-  }
+  return getCampaignsForCustomerWithPeriod(accessToken, customerId, 'all');
 }
 
 function generateCampaignModalHTML(allCampaigns, selectedCampaigns) {
@@ -4057,7 +3964,7 @@ function generateCampaignModalHTML(allCampaigns, selectedCampaigns) {
       <div style="display: flex; justify-content: space-between; align-items: center;">
         <div>
           <strong>${totalSelected} campagne(s) sélectionnée(s)</strong>
-          <div style="color: #666; font-size: 0.9rem;">Coût total: <strong>${totalCost.toFixed(2)}€</strong></div>
+          <div style="color: #666; font-size: 0.9rem;">Coût total depuis le début : <strong>${totalCost.toFixed(2)}€</strong></div>
         </div>
         <div style="display: flex; gap: 0.5rem;">
           <button type="button" onclick="selectAllCampaigns()" class="btn-secondary" style="font-size: 0.8rem; padding: 0.4rem 0.8rem;">
@@ -4260,63 +4167,27 @@ async function saveCampaignSelection() {
   }
 }
 
-// ✅ NOUVELLE FONCTION - À AJOUTER dans modal-manager.js
 // Synchronisation du cache Google Ads en arrière-plan
-
+// v1.2.0.0 : passe par le redacteur unique (utils-services.js, rafraichirCacheGoogleAds) :
+// cout depuis le debut dans googleAdsCachedCosts, ces cles seulement. Avant : cout des
+// 30 derniers jours dans une cle que personne ne lisait (googleAdsCachedCost), et
+// re-ecriture de TOUS les parametres chaque heure.
 async function updateGoogleAdsCache() {
   try {
-    console.log('🔄 Mise à jour cache Google Ads...');
-    
     const parametres = DataManager.getParametres();
     const selectedCampaigns = parametres.googleAdsSelectedCampaigns || [];
-    
-    if (selectedCampaigns.length === 0 || !parametres.googleAdsConnected) {
-      console.log('ℹ️ Pas de campagnes sélectionnées ou pas connecté');
-      return;
-    }
+    if (selectedCampaigns.length === 0 || !parametres.googleAdsConnected) return;
 
-    // Vérifier si mise à jour nécessaire (pas plus d'une fois par heure)
+    // Pas plus d'une fois par heure
     const lastUpdate = parametres.googleAdsLastCacheUpdate;
-    if (lastUpdate) {
-      const lastUpdateTime = new Date(lastUpdate);
-      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-      if (lastUpdateTime > oneHourAgo) {
-        console.log('ℹ️ Cache Google Ads récent, pas de mise à jour nécessaire');
-        return;
-      }
-    }
+    if (lastUpdate && new Date(lastUpdate) > new Date(Date.now() - 60 * 60 * 1000)) return;
 
-    let totalCost = 0;
-    const tokens = await getValidTokens();
-    
-    if (tokens) {
-      const customersResult = await testAccessibleCustomers(tokens.access_token);
-      if (customersResult.success) {
-        for (const customerId of customersResult.customers) {
-          try {
-            const campaigns = await getCampaignsForCustomer(tokens.access_token, customerId);
-            const selectedCampaignsData = campaigns.filter(c => selectedCampaigns.includes(c.id));
-            totalCost += selectedCampaignsData.reduce((sum, c) => sum + (c.cost || 0), 0);
-          } catch (error) {
-            console.error(`❌ Erreur récupération campagnes ${customerId}:`, error);
-          }
-        }
-      }
-    }
-
-    // Mettre à jour le cache
-    parametres.googleAdsCachedCost = totalCost;
-    parametres.googleAdsLastCacheUpdate = new Date().toISOString();
-    DataManager.saveParametres(parametres);
-    await DataManager.saveData();
-    
-    console.log(`✅ Cache Google Ads mis à jour: ${totalCost.toFixed(2)}€`);
+    if (!(await rafraichirCacheGoogleAds())) return;
 
     // Rafraîchir le dashboard si affiché
     if (typeof ViewManager !== 'undefined' && ViewManager.updateDashboard) {
       ViewManager.updateDashboard();
     }
-
   } catch (error) {
     console.error('❌ Erreur mise à jour cache Google Ads:', error);
   }
@@ -5336,6 +5207,12 @@ window.updateCoutKmCalcule = updateCoutKmCalcule;
 window.validateCurrentAddress = validateCurrentAddress;
 window.validateClientAddress = validateClientAddress;
 window.toggleAutreDuree = toggleAutreDuree;
+// v1.2.0.0 : « Autre » affiche enfin son champ de minutes. toggleAutreDuree n'etait branche
+// sur aucun menu ; ecoute deleguee, car handleTypeChange remplace le onchange du menu.
+document.addEventListener('change', (e) => {
+  const menu = e.target && e.target.id && e.target.id.match(/^(rdv|prestation)-duree$/);
+  if (menu) toggleAutreDuree(menu[1]);
+});
 window.handlePrestationTypeChange = handlePrestationTypeChange;
 window.handleRdvTypeChange = handleRdvTypeChange;
 window.updateHeadSpaPrix = updateHeadSpaPrix;
@@ -5406,7 +5283,7 @@ window.selectAllCampaigns = selectAllCampaigns;
 window.deselectAllCampaigns = deselectAllCampaigns;
 window.saveCampaignSelection = saveCampaignSelection;
 window.updateGoogleAdsCache = updateGoogleAdsCache;
-// syncGoogleAdsCostsOnStartup et fetchGoogleAdsCostsSilent sont definis dans app.js
+// syncGoogleAdsCostsOnStartup est defini dans app.js (v1.2.0.0 : fetchGoogleAdsCostsSilent retire)
 
 // ✅ NOUVEAU : Gestion des périodes de campagnes
 window.showCampaignPeriodsModal = showCampaignPeriodsModal;

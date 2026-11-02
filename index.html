@@ -144,6 +144,8 @@
                     <div id="prochains-rdv" class="rdv-list">
                         <!-- RDV générés dynamiquement -->
                     </div>
+                    <!-- v1.2.0.0 : relances « à agir », genere par ViewManager.renderRelancesAPrevoir -->
+                    <div id="relances-a-prevoir" class="relances-prevoir"></div>
                 </div>
             </div>
         </div>
@@ -268,7 +270,8 @@
         <button class="btn-primary dropdown-btn" onclick="toggleAddDropdown()">➕ Ajouter <span style="margin-left: 0.4rem;">▼</span></button>
         <div id="add-dropdown" class="dropdown-menu" style="display: none; position: absolute; top: 100%; right: 0; background: white; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); min-width: 180px; z-index: 1000;">
           <button class="dropdown-menu-item" onclick="showAddClientModal(); hideAddDropdown()">Nouveau client</button>
-          <button class="dropdown-menu-item" onclick="showAddProspectModal(); hideAddDropdown()">Nouveau prospect</button>
+          <!-- v1.2.0.0 : prospects masques a l'ecran (classe prospects-masques), rien n'est supprime -->
+          <button class="dropdown-menu-item prospects-masques" onclick="showAddProspectModal(); hideAddDropdown()">Nouveau prospect</button>
           <button class="dropdown-menu-item" onclick="showAddCollaborateurModal(); hideAddDropdown()">Nouveau collaborateur</button>
         </div>
       </div>
@@ -299,7 +302,7 @@
   <!-- v1.0.9.4 : onglets d'entite + tri -->
   <div class="annu-etabs">
     <button id="etab-clients" class="annu-etab active" onclick="ViewManager.setAnnuaireEntity('clients')">👤 Clients <span class="annu-etab-cnt" id="etab-cnt-clients">0</span></button>
-    <button id="etab-prospects" class="annu-etab" onclick="ViewManager.setAnnuaireEntity('prospects')">🌱 Prospects <span class="annu-etab-cnt" id="etab-cnt-prospects">0</span></button>
+    <button id="etab-prospects" class="annu-etab prospects-masques" onclick="ViewManager.setAnnuaireEntity('prospects')">🌱 Prospects <span class="annu-etab-cnt" id="etab-cnt-prospects">0</span></button>
     <button id="etab-collaborateurs" class="annu-etab" onclick="ViewManager.setAnnuaireEntity('collaborateurs')">🤝 Collaborateurs <span class="annu-etab-cnt" id="etab-cnt-collaborateurs">0</span></button>
     <div class="annu-sortwrap">
       <select id="client-sort-select" class="annu-fsel" onchange="ViewManager.setSortMode(this.value)">
@@ -646,6 +649,8 @@
     <script src="js/core/persistance.js?v=1.1.3.0"></script>
     <script src="js/core/data-manager.js?v=1.1.3.0"></script>
     <script src="js/core/encaissements.js?v=1.1.3.0"></script>
+    <script src="js/core/google-ads-calculs.js?v=1.1.3.0"></script>
+    <script src="js/core/regles-ecrans.js?v=1.1.3.0"></script>
     <script src="js/core/calculations.js?v=1.1.3.0"></script>
     
     <!-- Services : Logique métier -->

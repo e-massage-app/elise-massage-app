@@ -875,13 +875,15 @@ function getNbPrestationsMassageForClient(clientId) {
 // v1.0.9.1 : compte les RDVs futurs non-transformes du client dans les groupes surveilles.
 // Utile pour anticiper le palier : "ce RDV massage planifie fera de lui son 5eme"
 // -> le badge apparait DES la creation du RDV, pas seulement apres validation.
+// v1.2.0.0 : seulement aujourd'hui ou plus tard (un RDV passe non transforme n'est plus « a venir »)
 function getNbRdvsFuturesMassageForClient(clientId) {
   if (!clientId) return 0;
   const cfg = getFideliteConfig();
   const groupes = cfg.groupesComptes;
   if (!groupes || groupes.length === 0) return 0;
+  const today = _relanceToday();
   return (appData.rdv || [])
-    .filter(r => r.clientId === clientId && !r.transformeEnPrestation && r.statut !== 'annulé' && r.statut !== 'annule')
+    .filter(r => r.clientId === clientId && ReglesEcrans.estRdvAVenir(r, today))
     .filter(r => {
       const soinKey = r.soinId || r.type;
       const g = getGroupeForSoinId(soinKey) || (isPartnershipSoin(soinKey) ? 'HeadSpa' : 'Massages');
@@ -1702,11 +1704,11 @@ function getDernierRdvGroupe(clientId, groupe) {
 }
 
 // RDV futur deja pose sur ce groupe -> inutile de relancer.
+// v1.2.0.0 : un RDV annule n'est pas un « RDV prévu » (ReglesEcrans.estRdvAVenir)
 function getProchainRdvGroupe(clientId, groupe) {
   const today = _relanceToday();
   const dates = (appData.rdv || [])
-    .filter(r => r.clientId === clientId && r.date && r.date >= today)
-    .filter(r => !r.transformeEnPrestation)
+    .filter(r => r.clientId === clientId && ReglesEcrans.estRdvAVenir(r, today))
     .filter(r => getGroupeForSoinId(r.soinId || r.type) === groupe)
     .map(r => r.date)
     .sort();
@@ -1748,12 +1750,18 @@ function getStatutRelance(relance) {
   return { cle: 'ajour', label: 'À jour', icone: '🟢', couleur: '#4a9d6e' };
 }
 
+// v1.2.0.0 : relances demandant une action (depassee, bientot), la plus en retard d'abord.
+// Sert au badge de l'onglet et a l'encart « Relances à prévoir » du tableau de bord.
+function getRelancesAAgir() {
+  return getAllRelances()
+    .map(r => ({ relance: r, statut: getStatutRelance(r), date: getDateRelance(r) }))
+    .filter(x => x.statut.cle === 'depassee' || x.statut.cle === 'bientot')
+    .sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999'));
+}
+
 // Nb de relances demandant une action (pour le badge de l'onglet)
 function getNbRelancesAAgir() {
-  return getAllRelances().filter(r => {
-    const s = getStatutRelance(r);
-    return s.cle === 'depassee' || s.cle === 'bientot';
-  }).length;
+  return getRelancesAAgir().length;
 }
 
 // ----- Ecriture (DB-first, rollback du cache si echec) -----
@@ -1899,7 +1907,7 @@ window.DataManager = {
   // v1.0.10.0 : relances
   getAllRelances, getRelanceById, getRelancesForGroupe, getRelanceForClient, getRelancesForClient,
   getDernierRdvGroupe, getProchainRdvGroupe, getDernierRdvRelance, getDateRelance,
-  getStatutRelance, getNbRelancesAAgir,
+  getStatutRelance, getNbRelancesAAgir, getRelancesAAgir,
   addRelance, updateRelance, deleteRelanceById, marquerRelancee, annulerRelancee,
   syncRelanceApresRdv, getRelanceSmsTemplates, setRelanceSmsTemplates, buildRelanceSms,
   mapRelanceFromDb, mapRelanceToDb,

@@ -154,6 +154,9 @@ function updateDashboard() {
 
   // Affichage des prochains RDV (preserve)
   updateProchainsRdvDisplay();
+
+  // v1.2.0.0 : relances a faire, juste sous les prochains rendez-vous
+  renderRelancesAPrevoir();
 }
 
 // ===== v1.0.9.0 : Section Dashboard "Clients a feliciter" =====
@@ -706,14 +709,16 @@ function renderGroupeTabHTML(groupe, kpis) {
     const groupeCats = categories.filter(c => ((c.groupe && c.groupe.trim()) ? c.groupe : c.nom) === groupe);
     groupeCats.forEach(c => {
       if (c.objectifCaMensuel) objectif += Number(c.objectifCaMensuel) || 0;
-      if (c.coutProduitDefault) coutProduitTotal += Number(c.coutProduitDefault) * nbMois;
     });
+    // v1.2.0.0 : chaque categorie x SES prestations du mois (avant : x toutes celles du groupe)
+    coutProduitTotal = ReglesEcrans.coutsProduits(groupeCats, kpis.nbParCategorieMois);
   }
   const pctObjectif = objectif > 0 ? (caMois / objectif * 100) : 0;
 
   // Panier moyen
-  const panierMois = nbMois > 0 ? (caMois / nbMois) : 0;
-  const panierTotal = nbTotal > 0 ? (caTotal / nbTotal) : 0;
+  // v1.2.0.0 : sans les prestations reglees par carte cadeau (regle du panier d'Analytics)
+  const panierMois = (kpis.panierParGroupeMois || {})[groupe] || 0;
+  const panierTotal = (kpis.panierParGroupeTotal || {})[groupe] || 0;
 
   // v1.0.8.2 : cards en array {id, html} pour drag&drop + layout par lignes
   const cards = [
@@ -882,7 +887,7 @@ function showPaiementsAVenirDetails() {
     totalPaiements += prixEstime;
     
     const rdvDate = new Date(`${rdv.date}T${rdv.heure}`);
-    const isToday = rdv.date === new Date().toISOString().split('T')[0];
+    const isToday = rdv.date === ReglesEcrans.jourLocal(new Date()); // v1.2.0.0 : jour local, pas UTC
     const isPast = rdvDate < new Date();
     
     const statusIcon = isPast ? '⏰' : isToday ? '🎯' : '📅';
@@ -1292,6 +1297,52 @@ function updateProchainsRdvDisplay() {
   }).join('');
 }
 
+// ===== v1.2.0.0 : ENCART « RELANCES À PRÉVOIR » DU TABLEAU DE BORD =====
+// Les clientes dont la relance est « à agir » (dépassée ou bientôt) : meme regle que l'onglet
+// Relances (DataManager.getRelancesAAgir), la plus en retard d'abord. Une ligne ouvre la
+// fiche (qui montre le suivi) ; « Voir les relances » ouvre l'onglet sur le bon groupe.
+const RELANCES_A_PREVOIR_MAX = 5;
+
+function renderRelancesAPrevoir() {
+  const hote = document.getElementById('relances-a-prevoir');
+  if (!hote || typeof DataManager.getRelancesAAgir !== 'function') return;
+  const echap = t => String(t == null ? '' : t)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  const aAgir = DataManager.getRelancesAAgir().filter(x => DataManager.getClientById(x.relance.clientId));
+  const lignes = aAgir.slice(0, RELANCES_A_PREVOIR_MAX).map(({ relance, statut, date }) => {
+    const client = DataManager.getClientById(relance.clientId);
+    return `
+      <div class="rdv-item" onclick="ClientServices.showClientDetails('${relance.clientId}')">
+        <div class="rdv-date" style="color: ${statut.couleur};">${statut.icone} ${statut.label}${date ? ' · ' + DataManager.formatDate(date) : ''}</div>
+        <div class="rdv-client">${echap(`${client.prenom || ''} ${client.nom || ''}`.trim())}</div>
+        <div class="rdv-type">${echap(relance.groupe)}${relance.precisions ? ' · ' + echap(relance.precisions) : ''}</div>
+      </div>`;
+  }).join('');
+
+  const reste = aAgir.length - RELANCES_A_PREVOIR_MAX;
+  // Le groupe de la plus en retard, ecrit dans un onclick : chaine JS, puis attribut HTML
+  const groupe = aAgir.length ? aAgir[0].relance.groupe : '';
+  const groupeJs = echap(groupe.replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
+  hote.innerHTML = `
+    <h2>Relances à prévoir</h2>
+    <div class="rdv-list">
+      ${lignes || '<div class="relances-prevoir-vide">Aucune relance à prévoir pour le moment.</div>'}
+      <button type="button" class="relances-prevoir-lien" onclick="ViewManager.ouvrirOngletRelances('${groupeJs}')">
+        ${reste > 0 ? `Voir les relances (+ ${reste})` : 'Voir les relances'} →
+      </button>
+    </div>`;
+}
+
+// Ouvre l'onglet Relances (sur un groupe s'il est donne) comme un appui sur la navigation :
+// onglet actif surligne, menu mobile compris.
+function ouvrirOngletRelances(groupe) {
+  if (groupe) relanceGroupeActif = groupe;
+  const onglet = document.querySelector('.app-nav .nav-tab[onclick*="\'relances\'"]');
+  if (onglet) onglet.click(); else window.showTab('relances');
+  window.scrollTo(0, 0);
+}
+
 // ===== CALENDRIER - AFFICHAGE AVEC PRESTATIONS UNIFORMISÉES =====
 function updateCalendar() {
   const year = currentDate.getFullYear();
@@ -1342,7 +1393,7 @@ function updateCalendar() {
     const isInstitut = DataManager.isJourInstitut(dateStr);
     
     const hasEvents = rdvDuJour.length > 0 || prestationsDirectes.length > 0;
-    const isToday = dateStr === new Date().toISOString().split('T')[0];
+    const isToday = dateStr === ReglesEcrans.jourLocal(new Date()); // v1.2.0.0 : jour local, pas UTC
     const fermeture = fermeLeJour(dateStr);
     
     // Construire le contenu du jour
@@ -2196,52 +2247,61 @@ const generateClientHTML = (client, stats, isFidele = false) => {
 }
 
 // ===== DÉPENSES =====
+// v1.2.0.0 : SEUL rendu de l'onglet. Il applique toujours les filtres affiches
+// (filtrerDepensesAffichees, utils-services.js) : apres une modification, une suppression
+// ou au retour sur l'onglet, la liste reste celle des filtres choisis.
 function updateDepensesDisplay() {
-  updateDepensesResume();
-  updateDepensesTable();
+  const toutes = DataManager.getSortedDepenses();
+  const depenses = (typeof filtrerDepensesAffichees === 'function') ? filtrerDepensesAffichees(toutes) : toutes;
+  const filtre = depenses.length !== toutes.length;
+  updateDepensesResume(depenses);
+  updateDepensesTable(depenses, filtre);
+
+  const compteur = document.getElementById('depenses-results-count');
+  if (compteur) {
+    compteur.innerHTML = filtre
+      ? `<span style="color: var(--beige-dore);">📊 ${depenses.length} résultat${depenses.length > 1 ? 's' : ''} trouvé${depenses.length > 1 ? 's' : ''}</span>`
+      : '';
+  }
 }
 
-function updateDepensesResume() {
+function updateDepensesResume(depenses) {
   const container = document.getElementById('depenses-resume');
-  const appData = DataManager.getAppData();
-  
-  const totalDepenses = appData.depenses ? appData.depenses.reduce((sum, d) => sum + (d.montant || 0), 0) : 0;
-  
+
+  const totalDepenses = depenses.reduce((sum, d) => sum + (d.montant || 0), 0);
+
   // Grouper par catégorie
   const parCategorie = {};
-  if (appData.depenses) {
-    appData.depenses.forEach(dep => {
-      const cat = dep.categorie || 'Autre';
-      parCategorie[cat] = (parCategorie[cat] || 0) + (dep.montant || 0);
-    });
-  }
-  
+  depenses.forEach(dep => {
+    const cat = dep.categorie || 'Autre';
+    parCategorie[cat] = (parCategorie[cat] || 0) + (dep.montant || 0);
+  });
+
   container.innerHTML = `
     <div class="resume-total">
       <strong>Total des dépenses: ${totalDepenses.toFixed(2)}€</strong>
     </div>
     <div class="resume-categories">
-      ${Object.entries(parCategorie).map(([cat, montant]) => 
+      ${Object.entries(parCategorie).map(([cat, montant]) =>
         `<div class="resume-item">${cat}: ${montant.toFixed(2)}€</div>`
       ).join('')}
     </div>
   `;
 }
 
-function updateDepensesTable() {
+function updateDepensesTable(depenses, filtre) {
   const tbody = document.querySelector('#depenses-table tbody');
-  const depenses = DataManager.getSortedDepenses();
-  
+
   if (depenses.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem;">Aucune dépense enregistrée</td></tr>';
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 2rem;">${filtre ? 'Aucune dépense trouvée' : 'Aucune dépense enregistrée'}</td></tr>`;
     return;
   }
-  
+
   tbody.innerHTML = depenses.map(depense => {
     // Déterminer si c'est une dépense automatique
     const isAuto = depense.prestationId && depense.categorie === 'Transport';
     const rowClass = isAuto ? 'depense-auto' : '';
-    
+
     // Générer le contenu des notes
     let notesContent = '-';
     if (isAuto && depense.prestationId) {
@@ -2250,7 +2310,7 @@ function updateDepensesTable() {
     } else if (depense.notes) {
       notesContent = depense.notes;
     }
-    
+
     return `
       <tr class="${rowClass}">
         <td data-label="Date">${DataManager.formatDate(depense.date)}</td>
@@ -3783,6 +3843,9 @@ window.ViewManager = {
   // v1.0.10.0 : relances
   updateRelancesDisplay,
   setRelanceGroupe,
+  // v1.2.0.0 : encart du tableau de bord
+  renderRelancesAPrevoir,
+  ouvrirOngletRelances,
   updateRelanceBadges,
   showAddRelanceModal,
   onRelanceFormChange,

@@ -248,10 +248,10 @@ let dureesChart = null;
 // page. Avant : updateAnalytics redessinait tout sur « Annee actuelle » quel que
 // soit le choix affiche, le graphique d'evolution avait son propre choix d'annee
 // (ignore), et chaque ouverture d'Analytics ajoutait un ecouteur de plus.
+// v1.2.0.0 : l'onglet Google Ads est recharge par updateAllAnalyticsCharts (il suit la Periode).
 function updateAnalytics() {
   setupGlobalAnalyticsControls();
   updateAllAnalyticsCharts();
-  updateGoogleAdsAnalytics();
 }
 
 let filtresAnalyticsBranches = false;
@@ -319,6 +319,8 @@ function updateAllAnalyticsCharts() {
   updateAnaKpis(selectedYear, selectedMonth);
   updatePrestationsStats(selectedYear, selectedMonth);
   updateDureesStats(selectedYear, selectedMonth);
+  // v1.2.0.0 : l'onglet Google Ads suit aussi la Periode du haut, et se recharge avec elle
+  updateGoogleAdsAnalytics();
 }
 
 // Dans utils-services.js, ajoutez cette fonction
@@ -418,7 +420,7 @@ function updateGenreChart(selectedYear = 'current', selectedMonth = '') {
 
   const genreData = [statsGenre.hommes.clients, statsGenre.femmes.clients, statsGenre.nonPrecise.clients];
   const genreTotal = genreData.reduce((a, b) => a + b, 0);
-  if (genreTotal === 0) return;
+  if (genreTotal === 0) { poserIndiceAnalytics(ctx, INDICE_VIDE); return; }
 
   rendreAnneauAnalytics(ctx, [
     { label: 'Hommes',      value: statsGenre.hommes.clients,     couleur: '#7d9bb5' },
@@ -527,7 +529,7 @@ function updatePrestationsChart(selectedYear = 'current', selectedMonth = '') {
   const hasData = sorted.some(s => s.value > 0);
   const displayed = hasData ? sorted : sorted.filter((s, i) => i < 6); // Max 6 si tout est vide
 
-  if (displayed.length === 0) return;
+  if (displayed.length === 0) { poserIndiceAnalytics(el, INDICE_VIDE); return; }
 
   const barColors = [CHART_PALETTE.primary, CHART_PALETTE.purple, CHART_PALETTE.orange, CHART_PALETTE.blue, CHART_PALETTE.green, CHART_PALETTE.pink, CHART_PALETTE.secondary, CHART_PALETTE.accent2];
   const details = chartData.details || {};
@@ -541,6 +543,8 @@ function updatePrestationsChart(selectedYear = 'current', selectedMonth = '') {
     poserIndiceAnalytics(el, displayed[0].label + ' représente ' +
       Math.round(displayed[0].value / totalTypes * 100) + ' % des prestations (' +
       displayed[0].value + ' sur ' + totalTypes + ').');
+  } else {
+    poserIndiceAnalytics(el, INDICE_VIDE);
   }
   return;
 
@@ -630,6 +634,10 @@ function rendreBarresAnalytics(el, items, opts) {
 
 // Phrase d'accroche sous le titre : ce que le graphique raconte, plutot que
 // de laisser le lecteur l'interpreter seul.
+// v1.2.0.0 : sans donnee sur la periode, la phrase le dit. Avant : celle de la periode
+// precedente restait affichee sous un graphique vide.
+const INDICE_VIDE = 'Aucune donnée sur la période.';
+
 function poserIndiceAnalytics(el, texte) {
   const carte = el.closest('.chart-container, .analytics-container, .stats-container');
   if (!carte) return;
@@ -731,7 +739,7 @@ function updateDureesChart(selectedYear = 'current', selectedMonth = '') {
   el.innerHTML = '';
 
   const chartData = Calculations.getDureesChart(selectedYear, selectedMonth);
-  if (!chartData.data || chartData.data.length === 0) return;
+  if (!chartData.data || chartData.data.length === 0) { poserIndiceAnalytics(el, INDICE_VIDE); return; }
 
   // Trier par valeur décroissante
   const sorted = chartData.labels.map((label, i) => ({ label, value: chartData.data[i] }))
@@ -850,8 +858,10 @@ function updateKeyStats(selectedYear = 'current', selectedMonth = '') {
   
   // DÉTERMINER LE TEXTE DE LA PÉRIODE
   const isFiltered = selectedYear !== 'current' || selectedMonth !== '';
-  const periodText = isFiltered ? 
-    (selectedMonth !== '' ? `${getMonthName(selectedMonth)} ${selectedYear}` : selectedYear) :
+  // v1.2.0.0 : 'current' = l'annee en cours en clair (avant : « Novembre current »)
+  const anneeAffichee = selectedYear === 'current' ? String(new Date().getFullYear()) : selectedYear;
+  const periodText = isFiltered ?
+    (selectedMonth !== '' ? `${getMonthName(selectedMonth)} ${anneeAffichee}` : anneeAffichee) :
     'Cette année';
   
   // v1.0.18.0 : le libelle repetait le nombre ("180 clients" / "180").
@@ -877,7 +887,7 @@ function updateKeyStats(selectedYear = 'current', selectedMonth = '') {
       <span class="stat-label">${totalClientsText}</span>
       <span class="stat-value">${isFiltered ? stats.filteredClientsCount : stats.totalClients}</span>
     </div>
-    <div class="stat-item">
+    <div class="stat-item prospects-masques">
       <span class="stat-label">Total prospects</span>
       <span class="stat-value">${stats.totalProspects}</span>
     </div>
@@ -1303,7 +1313,7 @@ function updateMoyensPaiementChart(selectedYear = 'current', selectedMonth = '')
   }
 
   const montantsParLabel = chartData.montantsParLabel;
-  if (totalPaiements === 0) return;
+  if (totalPaiements === 0) { poserIndiceAnalytics(el, INDICE_VIDE); return; }
 
   // Trier par montant décroissant
   const sorted = chartData.labels.map((label, i) => ({
@@ -1330,6 +1340,8 @@ function updateMoyensPaiementChart(selectedYear = 'current', selectedMonth = '')
     poserIndiceAnalytics(el, sorted[0].label + ' représente ' +
       Math.round(sorted[0].montant / totalMontant * 100) + ' % des encaissements (' +
       Math.round(sorted[0].montant).toLocaleString('fr-FR') + ' €).');
+  } else {
+    poserIndiceAnalytics(el, INDICE_VIDE);
   }
   return;
 
@@ -1431,7 +1443,7 @@ function updateCanalsChart(selectedYear = 'current', selectedMonth = '') {
     statsElement.textContent = `${totalCanaux} ${totalCanaux > 1 ? 'canaux' : 'canal'} • ${totalClients} client${totalClients > 1 ? 's' : ''}`;
   }
 
-  if (totalClients === 0) return;
+  if (totalClients === 0) { poserIndiceAnalytics(el, INDICE_VIDE); return; }
 
   // Trier par valeur décroissante
   const sorted = chartData.labels.map((label, i) => ({ label, value: chartData.data[i] }))
@@ -1588,66 +1600,45 @@ function setupDepensesSearch() {
   }
 }
 
+// v1.2.0.0 : un seul rendu (ViewManager.updateDepensesDisplay), qui applique toujours les
+// filtres affiches. Avant : ce chemin avait son propre tableau (sans les libelles du
+// telephone), et une modification, une suppression ou un retour sur l'onglet reaffichait
+// tout, filtres encore choisis dans les menus.
 function applyDepensesFilters() {
-  const appData = DataManager.getAppData();
-  if (!appData.depenses) return;
-  
+  ViewManager.updateDepensesDisplay();
+}
+
+// Les depenses qui passent les filtres affiches (recherche, categorie, periode, montant).
+function filtrerDepensesAffichees(depenses) {
   const searchQuery = document.getElementById('depenses-search')?.value.toLowerCase().trim() || '';
   const categorieFilter = document.getElementById('depenses-filter-categorie')?.value || '';
   const periodeFilter = document.getElementById('depenses-filter-periode')?.value || '';
   const montantFilter = document.getElementById('depenses-filter-montant')?.value || '';
-  
-  let filteredDepenses = appData.depenses.filter(depense => {
+  const aujourdhui = ReglesEcrans.jourLocal(new Date());
+
+  return depenses.filter(depense => {
     // Recherche textuelle
     if (searchQuery) {
-      const matchesSearch = 
+      const matchesSearch =
         (depense.description && depense.description.toLowerCase().includes(searchQuery)) ||
         (depense.fournisseur && depense.fournisseur.toLowerCase().includes(searchQuery)) ||
         (depense.categorie && depense.categorie.toLowerCase().includes(searchQuery)) ||
         (depense.notes && depense.notes.toLowerCase().includes(searchQuery)) ||
-        depense.montant.toString().includes(searchQuery);
-      
+        String(depense.montant || 0).includes(searchQuery);
+
       if (!matchesSearch) return false;
     }
-    
+
     // Filtre catégorie
     if (categorieFilter && depense.categorie !== categorieFilter) {
       return false;
     }
-    
-    // Filtre période
-    if (periodeFilter) {
-      const depenseDate = new Date(depense.date);
-      const today = new Date();
-      const currentMonth = today.getMonth();
-      const currentYear = today.getFullYear();
-      
-      switch (periodeFilter) {
-        case 'ce-mois':
-          if (depenseDate.getMonth() !== currentMonth || depenseDate.getFullYear() !== currentYear) {
-            return false;
-          }
-          break;
-        case 'mois-dernier':
-          const lastMonth = new Date(currentYear, currentMonth - 1);
-          if (depenseDate.getMonth() !== lastMonth.getMonth() || depenseDate.getFullYear() !== lastMonth.getFullYear()) {
-            return false;
-          }
-          break;
-        case '3-mois':
-          const threeMonthsAgo = new Date(currentYear, currentMonth - 3);
-          if (depenseDate < threeMonthsAgo) {
-            return false;
-          }
-          break;
-        case 'cette-annee':
-          if (depenseDate.getFullYear() !== currentYear) {
-            return false;
-          }
-          break;
-      }
+
+    // Filtre période (v1.2.0.0 : sur les dates TEXT ; « 3 derniers mois » = ce mois + les 2 precedents)
+    if (periodeFilter && !ReglesEcrans.depenseDansPeriode(depense.date, periodeFilter, aujourdhui)) {
+      return false;
     }
-    
+
     // Filtre montant
     if (montantFilter) {
       const montant = depense.montant || 0;
@@ -1666,78 +1657,9 @@ function applyDepensesFilters() {
           break;
       }
     }
-    
+
     return true;
   });
-  
-  // Afficher les résultats filtrés
-  displayFilteredDepenses(filteredDepenses);
-
-  // Mettre a jour le resume avec les depenses filtrees
-  updateDepensesResumeFiltered(filteredDepenses);
-
-  // Mettre à jour le compteur
-  const resultCount = document.getElementById('depenses-results-count');
-  if (resultCount) {
-    if (filteredDepenses.length !== appData.depenses.length) {
-      resultCount.innerHTML = `<span style="color: var(--beige-dore);">📊 ${filteredDepenses.length} résultat${filteredDepenses.length > 1 ? 's' : ''} trouvé${filteredDepenses.length > 1 ? 's' : ''}</span>`;
-    } else {
-      resultCount.textContent = '';
-    }
-  }
-}
-
-function updateDepensesResumeFiltered(filteredDepenses) {
-  const container = document.getElementById('depenses-resume');
-  if (!container) return;
-
-  const total = filteredDepenses.reduce((sum, d) => sum + (d.montant || 0), 0);
-
-  const parCategorie = {};
-  filteredDepenses.forEach(dep => {
-    const cat = dep.categorie || 'Autre';
-    parCategorie[cat] = (parCategorie[cat] || 0) + (dep.montant || 0);
-  });
-
-  container.innerHTML = `
-    <div class="resume-total">
-      <strong>Total des d\u00e9penses: ${total.toFixed(2)}\u20ac</strong>
-    </div>
-    <div class="resume-categories">
-      ${Object.entries(parCategorie).map(([cat, montant]) =>
-        `<div class="resume-item">${cat}: ${montant.toFixed(2)}\u20ac</div>`
-      ).join('')}
-    </div>
-  `;
-}
-
-function displayFilteredDepenses(depenses) {
-  const tbody = document.querySelector('#depenses-table tbody');
-  if (!tbody) return;
-  
-  if (depenses.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-light);">Aucune dépense trouvée</td></tr>';
-    return;
-  }
-  
-  // Trier par date décroissante
-  depenses.sort((a, b) => new Date(b.date) - new Date(a.date));
-  
-  tbody.innerHTML = depenses.map(depense => `
-    <tr>
-      <td>${DataManager.formatDate(depense.date)}</td>
-      <td><span class="categorie-badge categorie-${depense.categorie ? depense.categorie.toLowerCase().replace(/\s+/g, '-') : ''}">${depense.categorie || 'Non définie'}</span></td>
-      <td>${depense.description}</td>
-      <td>${depense.fournisseur || '-'}</td>
-      <td style="text-align: right; font-weight: 600; color: var(--beige-dore);">${depense.montant.toFixed(2)} €</td>
-      <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis;" title="${depense.notes || ''}">${depense.notes || '-'}</td>
-      <td style="text-align: center;">
-        <button class="btn-secondary" onclick="FormManager.editDepense('${depense.id}')" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; margin-right: 0.25rem;">✏️</button>
-        <button class="btn-danger" onclick="FormManager.deleteDepense('${depense.id}')" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;">🗑️</button>
-        ${depense.prestationId ? `<button class="btn-info" onclick="showPrestationFromDepense('${depense.prestationId}')" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; margin-left: 0.25rem;" title="Voir la prestation liée">🔗</button>` : ''}
-      </td>
-    </tr>
-  `).join('');
 }
 
 // ===== ✅ NOUVEAU : TABLEAU REVENUS PAR CANAL =====
@@ -1751,8 +1673,12 @@ function updateCanauxRevenusTable(selectedYear = 'current', selectedMonth = '') 
   // Calculer les revenus partenariat séparément
   const headSpaStats = calculatePartnershipRevenue(selectedYear, selectedMonth);
 
+  // v1.2.0.0 : l'encart de comparaison d'une autre periode ne reste pas sous un tableau vide
+  const ancienneNote = document.getElementById('canaux-revenus-table')?.closest('.chart-container')?.querySelector('.ana-note');
+
   if (analytics.totalClients === 0 && headSpaStats.revenus === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 2rem; color: var(--text-light);">Aucune donnée disponible</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 2rem; color: var(--text-light);">Aucune donnée sur la période</td></tr>';
+    if (ancienneNote) ancienneNote.remove();
     return;
   }
 
@@ -1794,7 +1720,7 @@ function updateCanauxRevenusTable(selectedYear = 'current', selectedMonth = '') 
     const carte = table && table.closest('.chart-container');
     if (!carte) return;
     const avecClients = analytics.sorted.filter(c => c.clients > 0);
-    if (avecClients.length < 2) return;
+    if (avecClients.length < 2) { if (ancienneNote) ancienneNote.remove(); return; }
     const parVolume = avecClients.slice().sort((a, b) => b.clients - a.clients)[0];
     const parValeur = avecClients.slice()
       .filter(c => !/non renseign/i.test(c.label))
@@ -1867,33 +1793,16 @@ function updateGoogleAdsAnalytics() {
     container.innerHTML = generateEmptyGoogleAdsSection();
     return;
   }
-  
-  // Calculer les métriques avec données cachées
-  const metrics = calculateGoogleAdsMetrics();
-  
-  // ✅ AFFICHER IMMÉDIATEMENT avec placeholder
+
+  // v1.2.0.0 : premier affichage sur la Periode du haut : revenus et clientes tout de suite,
+  // cout et ROI en attente de l'API (« … »), puis UN seul chargement. Avant : cartes du
+  // cache (revenus de toutes les epoques), menu campagne + periode et deux lectures de
+  // l'API en parallele, dont la derniere arrivee imposait sa periode.
+  const metrics = calculerKpisGoogleAdsPeriode(periodeGoogleAdsDesFiltres(), 0);
+  metrics.coutInconnu = true;
+  metrics.campaignsCount = selectedCampaigns.length;
   container.innerHTML = generateGoogleAdsSection(metrics);
-  
-  // ✅ CHARGER LES SÉLECTEURS DE FAÇON ASYNCHRONE
-  setTimeout(async () => {
-    const selectorsDiv = document.getElementById('campaign-period-selectors');
-    if (selectorsDiv && typeof generateCampaignPeriodSelector !== 'undefined') {
-      const selectorsHTML = await generateCampaignPeriodSelector();
-      selectorsDiv.innerHTML = selectorsHTML;
-      
-      // ✅ Initialiser la sélection par défaut après chargement du selector
-      setTimeout(() => {
-        if (typeof initializeDefaultSelection === 'function') {
-          initializeDefaultSelection();
-        }
-      }, 500);
-    }
-  }, 100);
-  
-  // ✅ CHARGER LES VRAIES DONNÉES EN ARRIÈRE-PLAN
-  setTimeout(() => {
-    loadAndDisplayCampaignsData();
-  }, 200);
+  rafraichirEcranGoogleAds();
 }
 
 function generateEmptyGoogleAdsSection() {
@@ -1922,9 +1831,6 @@ function generateGoogleAdsSection(metrics) {
             ${metrics.campaignsCount} campagne(s)
           </span>
         </h4>
-        <div id="campaign-period-selectors" style="display: flex; gap: 0.5rem;">
-          <!-- Sélecteurs chargés dynamiquement -->
-        </div>
       </div>
       
       <!-- Contenu du bloc -->
@@ -1937,14 +1843,14 @@ function generateGoogleAdsSection(metrics) {
                libelle en petites capitales, valeur en Inter (v1.1.2.1). -->
           <div class="ana-kpi is-vert">
             <div class="ana-kpi-k">Retour sur investissement</div>
-            <div id="ga-kpi-roi-money" class="ana-kpi-v">${metrics.roi >= 0 ? '+' : ''}${Math.round(metrics.roiMoney).toLocaleString('fr-FR')} €</div>
-            <div id="ga-kpi-roi-percent" class="ana-kpi-n">(${metrics.roi >= 0 ? '+' : ''}${metrics.roi.toFixed(1)}%)</div>
+            <div id="ga-kpi-roi-money" class="ana-kpi-v">${metrics.coutInconnu ? '…' : (metrics.roi >= 0 ? '+' : '') + Math.round(metrics.roiMoney).toLocaleString('fr-FR') + ' €'}</div>
+            <div id="ga-kpi-roi-percent" class="ana-kpi-n">${metrics.coutInconnu ? '' : `(${metrics.roi >= 0 ? '+' : ''}${metrics.roi.toFixed(1)}%)`}</div>
           </div>
 
           <div class="ana-kpi is-or">
             <div class="ana-kpi-k">Investissement</div>
-            <div id="ga-kpi-cost" class="ana-kpi-v">${Math.round(metrics.totalCost).toLocaleString('fr-FR')} €</div>
-            <div id="ga-kpi-cost-sub" class="ana-kpi-n">Depuis le début</div>
+            <div id="ga-kpi-cost" class="ana-kpi-v">${metrics.coutInconnu ? '…' : Math.round(metrics.totalCost).toLocaleString('fr-FR') + '\u00a0€'}</div>
+            <div id="ga-kpi-cost-sub" class="ana-kpi-n">${metrics.libellePeriode || 'Depuis le début'}</div>
           </div>
 
           <div class="ana-kpi">
@@ -1956,7 +1862,7 @@ function generateGoogleAdsSection(metrics) {
           <div class="ana-kpi is-brun">
             <div class="ana-kpi-k">Clientes</div>
             <div id="ga-kpi-clients" class="ana-kpi-v">${metrics.clientsCount}</div>
-            <div id="ga-kpi-clients-sub" class="ana-kpi-n">Via Google Ads</div>
+            <div id="ga-kpi-clients-sub" class="ana-kpi-n">${metrics.libellePeriode || 'Via Google Ads'}</div>
           </div>
         </div>
 
@@ -1969,10 +1875,12 @@ function generateGoogleAdsSection(metrics) {
               📋 Performance par Campagne
             </h5>
             
-            <!-- Sélecteur de période CORRIGÉ avec "Depuis le début" par défaut -->
+            <!-- v1.2.0.0 : par defaut, la Periode choisie en haut d'Analytics ; la changer en haut
+                 ramene ce menu sur elle. « Depuis le début » = les chiffres du tableau de bord. -->
             <div style="display: flex; align-items: center; gap: 0.75rem;">
               <select id="campaign-period-selector" onchange="changeCampaignPeriod()" style="padding: 0.4rem 0.8rem; border: 1px solid var(--border-color, #e8e3d8); border-radius: var(--border-radius, 4px); background: white; font-size: 0.8rem; color: var(--text-dark, #333);">
-                <option value="all" selected>📅 Depuis le début</option>
+                <option value="filtre" selected>📅 Période du haut : ${metrics.libellePeriode || ''}</option>
+                <option value="all">📅 Depuis le début</option>
                 <option value="THIS_MONTH">📅 Ce mois-ci</option>
                 <option value="LAST_MONTH">📅 Mois dernier</option>
                 <option value="7">📅 7 derniers jours</option>
@@ -2028,176 +1936,11 @@ function generateGoogleAdsSection(metrics) {
   `;
 }
 
-async function loadAndDisplayCampaignsData() {
-  const performanceSection = document.getElementById('campaigns-performance-section');
-  if (!performanceSection) {
-    console.warn('⚠️ Section campaigns-performance-section non trouvée');
-    return;
-  }
-
-  try {
-    
-    // ✅ AFFICHAGE IMMÉDIAT DU LOADING
-    performanceSection.innerHTML = `
-      <div style="text-align: center; padding: 1.5rem; color: var(--text-light, #666);">
-        <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">🔄</div>
-        <p style="margin: 0; font-size: 0.85rem;">Récupération depuis l'API Google Ads...</p>
-      </div>
-    `;
-    
-    // ✅ VÉRIFIER LA CONNEXION
-    const parametres = DataManager.getParametres();
-    const selectedCampaigns = parametres.googleAdsSelectedCampaigns || [];
-    
-    if (selectedCampaigns.length === 0) {
-      performanceSection.innerHTML = `
-        <div style="text-align: center; padding: 1.5rem; color: var(--text-light, #666);">
-          <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">📊</div>
-          <p style="margin: 0; font-size: 0.85rem;">Aucune campagne sélectionnée</p>
-          <button onclick="showCampaignManagementModal()" style="margin-top: 1rem; background: var(--beige-dore, #d4af37); color: white; border: none; padding: 0.5rem 1rem; border-radius: var(--border-radius, 6px); cursor: pointer;">
-            📊 Sélectionner des campagnes
-          </button>
-        </div>
-      `;
-      return;
-    }
-    
-    // ✅ RÉCUPÉRER LES TOKENS (utilise les fonctions qui marchent déjà)
-    const tokens = await getValidTokens();
-    if (!tokens) {
-      performanceSection.innerHTML = `
-        <div style="text-align: center; padding: 1.5rem; color: #e74c3c;">
-          <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">🔑</div>
-          <p style="margin: 0; font-size: 0.85rem;">Token d'accès non disponible</p>
-        </div>
-      `;
-      return;
-    }
-    
-    // ✅ RÉCUPÉRER LES COMPTES (utilise les fonctions qui marchent déjà)
-    const customersResult = await testAccessibleCustomers(tokens.access_token);
-    if (!customersResult.success) {
-      performanceSection.innerHTML = `
-        <div style="text-align: center; padding: 1.5rem; color: #e74c3c;">
-          <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">❌</div>
-          <p style="margin: 0; font-size: 0.85rem;">Erreur API: ${customersResult.error}</p>
-        </div>
-      `;
-      return;
-    }
-    
-    // ✅ RÉCUPÉRER TOUTES LES CAMPAGNES AVEC PÉRIODE "all" (DEPUIS LE DÉBUT)
-    const allCampaigns = [];
-    for (const customerId of customersResult.customers) {
-      try {
-        const campaigns = await getCampaignsForCustomerWithPeriod(tokens.access_token, customerId, 'all');
-        allCampaigns.push(...campaigns);
-        // Campagnes récupérées silencieusement
-      } catch (error) {
-        console.error(`❌ Erreur compte ${customerId}:`, error);
-      }
-    }
-    
-    // ✅ FILTRER LES CAMPAGNES SÉLECTIONNÉES
-    const selectedCampaignsData = allCampaigns.filter(campaign => 
-      selectedCampaigns.includes(campaign.id)
-    );
-    
-    // Campagnes filtrées
-    
-    // ✅ AFFICHER LE TABLEAU FINAL AVEC PÉRIODE "all"
-    if (selectedCampaignsData.length > 0) {
-      const tableHTML = generateFinalCampaignsTableWithPeriod(selectedCampaignsData, 'all');
-      performanceSection.innerHTML = tableHTML;
-      // Tableau généré
-      
-      // v1.0.13.0 : ecriture partielle supprimee.
-      // Ce bloc n'ecrivait QUE la carte clients, via un identifiant qui n'existe
-      // plus depuis la v1.0.12.0 - il echouait donc en silence. C'etait la 6e
-      // ecriture partielle du fichier. Les six cartes sont desormais ecrites
-      // ensemble, plus bas, par afficherKpisGoogleAdsPourPeriode().
-      
-      // ✅ METTRE À JOUR LE CACHE SILENCIEUSEMENT (SANS régénérer pour éviter boucle infinie)
-      const realTotalCost = selectedCampaignsData.reduce((sum, c) => sum + (c.cost || 0), 0);
-      const appData = DataManager.getAppData();
-      const clientsGoogleAds = appData.clients.filter(client => client.canalAcquisition === 'google-ads');
-      const prestationsGoogleAds = appData.prestations.filter(prestation => {
-        const client = appData.clients.find(c => c.id === prestation.clientId);
-        return client && client.canalAcquisition === 'google-ads';
-      });
-      // v1.1.0.0 : regle Encaissements (tips seuls pour une prestation carte cadeau)
-      const totalRevenue = prestationsGoogleAds.reduce((sum, p) => sum + Encaissements.encaissePrestation(p), 0);
-
-      // Mettre à jour le cache dans les paramètres
-      // v1.1.0.0 : fusion, et non remplacement : le remplacement effacait le
-      // vrai cout du mois (currentMonth / lastUpdateMonth) pose par le tableau de bord.
-      parametres.googleAdsCachedCosts = fusionnerCacheGoogleAds(parametres.googleAdsCachedCosts, {
-        total: realTotalCost,
-        revenue: totalRevenue,
-        clientsCount: clientsGoogleAds.length,
-        prestationsCount: prestationsGoogleAds.length,
-        lastUpdate: new Date().toISOString()
-      });
-      DataManager.saveParametres(parametres);
-      
-      console.log(`✅ Cache mis à jour : Coût ${realTotalCost.toFixed(0)}€`);
-      
-      // v1.0.12.1 - CORRECTIF DE FOND : cette fonction ecrivait DIRECTEMENT dans
-      // les cartes KPI, mais seulement DEUX d'entre elles (ROI et Cout) sur six.
-      // Etant asynchrone (elle attend l'API Google Ads), elle arrivait EN DERNIER
-      // et ecrasait le ROI calcule juste avant, tout en laissant revenus,
-      // prestations et clients issus d'un autre calcul. Un ecrivain partiel
-      // garantit l'incoherence : on voyait un ROI de 10 280 EUR affiche a cote
-      // de revenus de 6 300 EUR (alors que 6300 - 1940 = 4360).
-      //
-      // Le cout vient d'etre rafraichi dans le cache juste au-dessus. On delegue
-      // donc le recalcul COMPLET a l'unique autorite d'affichage, qui ecrit les
-      // six cartes ensemble a partir d'un seul jeu de donnees.
-      // v1.0.13.0 : passer par le meme moteur de periode que le selecteur,
-      // pour que le premier affichage et les suivants suivent la meme regle.
-      if (typeof afficherKpisGoogleAdsPourPeriode === 'function') {
-        afficherKpisGoogleAdsPourPeriode('all', realTotalCost);
-      } else {
-        console.warn('⚠️ Moteur de periode indisponible : cartes KPI non rafraichies');
-      }
-    } else {
-      performanceSection.innerHTML = `
-        <div style="text-align: center; padding: 1.5rem; color: var(--text-light, #666);">
-          <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">⚠️</div>
-          <p style="margin: 0; font-size: 0.85rem;">Campagnes sélectionnées non trouvées dans l'API</p>
-          <div style="margin-top: 0.5rem; font-size: 0.8rem; color: var(--text-light, #888);">
-            IDs recherchés: ${selectedCampaigns.join(', ')}<br>
-            Campagnes API trouvées: ${allCampaigns.length}
-          </div>
-        </div>
-      `;
-    }
-    
-  } catch (error) {
-    console.error('❌ Erreur loadAndDisplayCampaignsData:', error);
-    performanceSection.innerHTML = `
-      <div style="text-align: center; padding: 1.5rem; color: #e74c3c;">
-        <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">💥</div>
-        <p style="margin: 0; font-size: 0.85rem;">Erreur: ${error.message}</p>
-        <button onclick="reloadCampaignsNow()" style="margin-top: 1rem; background: var(--beige-dore, #d4af37); color: white; border: none; padding: 0.5rem 1rem; border-radius: var(--border-radius, 6px); cursor: pointer;">
-          🔄 Réessayer
-        </button>
-      </div>
-    `;
-  }
-}
-
-// v1.1.0.0 : les ecritures du cache Google Ads (demarrage, chargement de
-// l'ecran, synchro manuelle) ne portent que sur le total depuis le debut. Le
-// cout du MOIS (currentMonth) n'est pose que par la vraie requete THIS_MONTH
-// du tableau de bord, datee par lastUpdateMonth : on la conserve. Les
-// anciennes estimations (currentMonth non date = cout total / 12 ou / 4, et
-// monthlyBreakdown) sont jetees.
-function fusionnerCacheGoogleAds(ancien, nouveau) {
-  const cache = Object.assign({}, ancien || {}, nouveau);
-  delete cache.monthlyBreakdown;
-  if (!cache.lastUpdateMonth) delete cache.currentMonth;
-  return cache;
+// v1.2.0.0 : un seul chargement de l'ecran, celui de la periode choisie
+// (loadAndDisplayCampaignsDataWithPeriod). Ce doublon « depuis le debut » avait son propre
+// calcul des cartes et son ecriture du cache, et courait en parallele de la periode affichee.
+function loadAndDisplayCampaignsData() {
+  return loadAndDisplayCampaignsDataWithPeriod('all');
 }
 
 // Doublon historique : plus aucun appelant depuis la v1.0.11.0, mais le nom
@@ -2205,57 +1948,6 @@ function fusionnerCacheGoogleAds(ancien, nouveau) {
 // divergeait silencieusement du vrai (c'est ce qui s'etait produit ici).
 function generateFinalCampaignsTable(campaignsData) {
   return generateFinalCampaignsTableWithPeriod(campaignsData, 'all');
-}
-
-function calculateGoogleAdsMetrics() {
-  const appData = DataManager.getAppData();
-  const parametres = appData.parametres || {};
-  
-  // Prestations Google Ads d'abord
-  const prestationsGoogleAds = appData.prestations.filter(prestation => {
-    const client = appData.clients.find(c => c.id === prestation.clientId);
-    return client && client.canalAcquisition === 'google-ads';
-  });
-  
-  // ✅ FIX : Clients Google Ads AVEC PRESTATIONS uniquement
-  const clientsGoogleAds = appData.clients.filter(client => {
-    if (client.canalAcquisition !== 'google-ads') return false;
-    // Vérifier qu'il a au moins 1 prestation
-    return prestationsGoogleAds.some(p => p.clientId === client.id);
-  });
-  
-  // v1.1.0.0 : regle Encaissements (tips seuls pour une prestation carte cadeau)
-  const totalRevenue = prestationsGoogleAds.reduce((sum, p) => sum + Encaissements.encaissePrestation(p), 0);
-  const cachedCosts = parametres.googleAdsCachedCosts || {};
-  const totalCost = cachedCosts.total || 0;
-  const roi = totalCost > 0 ? ((totalRevenue - totalCost) / totalCost) * 100 : 0;
-  const roiMoney = totalRevenue - totalCost;
-
-  // Données par client
-  const clientsData = clientsGoogleAds.map(client => {
-    const clientPrestations = prestationsGoogleAds.filter(p => p.clientId === client.id);
-    const clientRevenue = clientPrestations.reduce((sum, p) => sum + Encaissements.encaissePrestation(p), 0);
-    
-    return {
-      client,
-      prestationsCount: clientPrestations.length,
-      revenue: clientRevenue,
-      avgSession: clientPrestations.length > 0 ? clientRevenue / clientPrestations.length : 0,
-      lastSession: clientPrestations.length > 0 ? 
-        Math.max(...clientPrestations.map(p => new Date(p.date).getTime())) : null
-    };
-  }).sort((a, b) => b.revenue - a.revenue);
-  
-  return {
-    clientsCount: clientsGoogleAds.length,
-    prestationsCount: prestationsGoogleAds.length,
-    totalRevenue,
-    totalCost,
-    roi,
-    roiMoney,
-    campaignsCount: parametres.googleAdsSelectedCampaigns?.length || 0,
-    clientsData
-  };
 }
 
 function generateGoogleAdsClientsCards(clientsData) {
@@ -2313,16 +2005,14 @@ function toggleGoogleAdsClients() {
 }
 
 function reloadCampaignsNow() {
-  console.log('🔄 Reload forcé des campagnes');
-  loadAndDisplayCampaignsData();
+  rafraichirEcranGoogleAds();
 }
 
 function changeCampaignPeriod() {
   const selector = document.getElementById('campaign-period-selector');
   if (!selector) return;
-  
+
   const selectedPeriod = selector.value;
-  const periodText = selector.options[selector.selectedIndex].text;
 
   // v1.0.11.0 : les deux modes calendrier affichent leurs champs et attendent la saisie
   const wrapMois = document.getElementById('campaign-period-month-wrap');
@@ -2330,24 +2020,9 @@ function changeCampaignPeriod() {
   if (wrapMois) wrapMois.style.display = (selectedPeriod === '__month') ? 'inline-flex' : 'none';
   if (wrapPlage) wrapPlage.style.display = (selectedPeriod === '__range') ? 'inline-flex' : 'none';
   if (selectedPeriod === '__month' || selectedPeriod === '__range') return;
-  
-  console.log('📅 Changement de période:', selectedPeriod, periodText);
-  
-  // Afficher un message de changement
-  const performanceSection = document.getElementById('campaigns-performance-section');
-  if (performanceSection) {
-    performanceSection.innerHTML = `
-      <div style="text-align: center; padding: 1.5rem; color: var(--text-light, #666);">
-        <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">📅</div>
-        <p style="margin: 0; font-size: 0.85rem;">Chargement des données pour : ${periodText.replace('📅 ', '')}</p>
-      </div>
-    `;
-  }
-  
-  // Recharger avec la nouvelle période
-  setTimeout(() => {
-    loadAndDisplayCampaignsDataWithPeriod(selectedPeriod);
-  }, 500);
+
+  // v1.2.0.0 : meme chemin que le premier affichage (« Période du haut » comprise)
+  rafraichirEcranGoogleAds();
 }
 
 // ============================================================
@@ -2406,143 +2081,54 @@ function _chargerPeriodeCampagne(debut, fin, libelle) {
 
 // Traduit une valeur de periode en plage de dates concrete.
 // Retourne null pour 'all' (aucune borne).
+// v1.2.0.0 : calcul pur partage (js/core/google-ads-calculs.js), libelles lisibles.
 function plageDatesPourPeriode(period) {
-  const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  const now = new Date();
+  return GoogleAdsCalculs.plagePourPeriode(period, new Date());
+}
 
-  if (typeof period === 'string' && period.startsWith('custom:')) {
-    const parts = period.split(':');
-    if (/^\d{4}-\d{2}-\d{2}$/.test(parts[1]) && /^\d{4}-\d{2}-\d{2}$/.test(parts[2])) {
-      return { debut: parts[1], fin: parts[2], libelle: `du ${parts[1]} au ${parts[2]}` };
-    }
-    return null;
-  }
-  if (period === 'all' || period === undefined || period === null) return null;
+// v1.2.0.0 : libelle d'une periode (avant : « custom:2026-01-01:… derniers jours », « THIS_MONTH jours »)
+function libellePeriodeGoogleAds(period) {
+  if (period === 'all') return 'depuis le début';
+  const plage = plageDatesPourPeriode(period);
+  return plage ? plage.libelle : String(period);
+}
 
-  if (period === 'THIS_MONTH') {
-    const d = new Date(now.getFullYear(), now.getMonth(), 1);
-    return { debut: iso(d), fin: iso(now),
-             libelle: now.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) };
-  }
-  if (period === 'LAST_MONTH') {
-    const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const f = new Date(now.getFullYear(), now.getMonth(), 0);
-    return { debut: iso(d), fin: iso(f),
-             libelle: d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) };
-  }
-  const jours = parseInt(period);
-  if (!isNaN(jours) && jours > 0) {
-    const d = new Date(now); d.setDate(d.getDate() - jours);
-    return { debut: iso(d), fin: iso(now), libelle: `${jours} derniers jours` };
-  }
-  return null;
+// v1.2.0.0 : la Periode du haut d'Analytics en periode Google Ads (« Année actuelle » = 1er janvier -> aujourd'hui)
+function periodeGoogleAdsDesFiltres() {
+  return GoogleAdsCalculs.periodePourFiltres(
+    document.getElementById('global-year-selector')?.value || 'current',
+    document.getElementById('global-month-selector')?.value || '',
+    GoogleAdsCalculs.jourLocal(new Date()));
 }
 
 // Calcule les KPI Google Ads SUR UNE PERIODE.
 // Definition retenue avec Jordan (celle de son rapport mensuel, calibree sur
 // son fichier Excel) : un client compte s'il a eu AU MOINS UNE prestation dans
 // la periode, et seules ses prestations DE CETTE PERIODE alimentent le CA.
-// Date de demarrage la plus ancienne parmi les campagnes selectionnees.
-// Sert de borne basse a "Depuis le debut" : sans elle, on comparait le cout
-// d'UNE campagne aux revenus de TOUTES les periodes, y compris celles d'avant
-// son lancement (ere Porto-Vecchio). Les clients ne portent aucune information
-// de campagne (canalAcquisition vaut seulement "google-ads"), donc la date est
-// le seul moyen de ne pas melanger les deux.
-function debutCampagnesSelectionnees() {
-  try {
-    const params = DataManager.getParametres() || {};
-    const ids = params.googleAdsSelectedCampaigns || [];
-    let mini = null;
-    ids.forEach(id => {
-      (DataManager.getCampaignPeriods(id) || []).forEach(per => {
-        if (per.startDate && (!mini || per.startDate < mini)) mini = per.startDate;
-      });
-    });
-    return mini ? String(mini).slice(0, 10) : null;
-  } catch (e) {
-    console.warn('debutCampagnesSelectionnees:', e);
-    return null;
-  }
-}
-
+// "Depuis le debut" = depuis le demarrage des campagnes selectionnees, pas depuis toujours.
+// v1.2.0.0 : meme calcul que le tableau de bord (GoogleAdsCalculs.kpisPeriode).
 function calculerKpisGoogleAdsPeriode(period, coutPeriode) {
-  const appData = DataManager.getAppData();
-  let plage = plageDatesPourPeriode(period);
-
-  // "Depuis le debut" = depuis le demarrage de la campagne, pas depuis toujours.
-  if (!plage) {
-    const debut = debutCampagnesSelectionnees();
-    if (debut) {
-      const aujourdhui = new Date();
-      const iso = `${aujourdhui.getFullYear()}-${String(aujourdhui.getMonth() + 1).padStart(2, '0')}-${String(aujourdhui.getDate()).padStart(2, '0')}`;
-      plage = { debut, fin: iso, libelle: `depuis le ${debut.split('-').reverse().join('/')}` };
-    }
-  }
-
-  const idsGoogleAds = new Set(
-    (appData.clients || []).filter(c => c.canalAcquisition === 'google-ads').map(c => c.id)
-  );
-
-  const prestations = (appData.prestations || []).filter(p => {
-    if (!idsGoogleAds.has(p.clientId) || !p.date) return false;
-    if (!plage) return true;
-    return p.date >= plage.debut && p.date <= plage.fin;
-  });
-
-  // v1.0.13.2 : les pourboires comptent dans le CA (decide avec Jordan) mais
-  // sont isoles pour rester lisibles - un mois a fort pourboire ne doit pas
-  // gonfler le CA sans explication.
-  // v1.1.0.0 : regle Encaissements : le prix d'une prestation reglee par carte
-  // cadeau ne compte pas (la carte a ete comptee a sa vente), ses tips si.
-  const totalRevenue = prestations.reduce((s, p) => s + Encaissements.encaissePrestation(p), 0);
-  const totalTips = prestations.reduce((s, p) => s + Encaissements.montant(p.tips), 0);
-  const totalPrix = totalRevenue - totalTips;
-  const parClient = {};
-  prestations.forEach(p => { (parClient[p.clientId] = parClient[p.clientId] || []).push(p); });
-
-  const clientsData = Object.entries(parClient).map(([clientId, ps]) => {
-    const client = (appData.clients || []).find(c => c.id === clientId) || { id: clientId, prenom: '?', nom: '' };
-    const revenue = ps.reduce((s, p) => s + Encaissements.encaissePrestation(p), 0);
-    return {
-      client,
-      prestationsCount: ps.length,
-      revenue,
-      avgSession: ps.length > 0 ? revenue / ps.length : 0,
-      lastSession: Math.max(...ps.map(p => new Date(p.date).getTime()))
-    };
-  }).sort((a, b) => b.revenue - a.revenue);
-
-  const cout = typeof coutPeriode === 'number' ? coutPeriode : 0;
-  return {
-    clientsCount: clientsData.length,
-    prestationsCount: prestations.length,
-    totalRevenue,
-    totalPrix,
-    totalTips,
-    totalCost: cout,
-    roi: cout > 0 ? ((totalRevenue - cout) / cout) * 100 : 0,
-    roiMoney: totalRevenue - cout,
-    clientsData,
-    libellePeriode: plage ? plage.libelle : 'Depuis le début'
-  };
+  const plage = plageDatesPourPeriode(period)
+    || GoogleAdsCalculs.plageDepuisLeDebut(DataManager.getParametres(), GoogleAdsCalculs.jourLocal(new Date()));
+  const metrics = GoogleAdsCalculs.kpisPeriode(DataManager.getAppData(), plage, coutPeriode);
+  metrics.libellePeriode = plage ? plage.libelle : 'Depuis le début';
+  return metrics;
 }
 
 // v1.0.13.3 : POINT D'ENTREE UNIQUE de l'ecran Google Ads.
 // Lit la periode choisie dans le selecteur "Performance par Campagne" et
-// recharge tout depuis cette seule source. Avant, le chargement initial et le
-// selecteur du haut declenchaient leur propre calcul en parallele : au premier
-// affichage l'ancien chemin gagnait la course, d'ou des cartes sans la mention
-// des pourboires et une periode differente de celle affichee dans le menu.
+// recharge tout depuis cette seule source.
+// v1.2.0.0 : « Période du haut » (choix par defaut) = les filtres Annee / Mois d'Analytics ;
+// le menu campagne + periode de l'en-tete (sans effet depuis la v1.0.13.3) est retire.
 function rafraichirEcranGoogleAds() {
   const sel = document.getElementById('campaign-period-selector');
-  const period = sel ? sel.value : 'all';
+  const choix = sel ? sel.value : 'filtre';
   // Les deux modes calendrier attendent une saisie : ne rien recharger.
-  if (period === '__month' || period === '__range') return;
-  if (typeof loadAndDisplayCampaignsDataWithPeriod === 'function') {
-    loadAndDisplayCampaignsDataWithPeriod(period);
-  } else {
-    console.warn('\u26a0\ufe0f loadAndDisplayCampaignsDataWithPeriod indisponible');
-  }
+  if (choix === '__month' || choix === '__range') return;
+  const periodeHaut = periodeGoogleAdsDesFiltres();
+  const optionHaut = sel && sel.querySelector('option[value="filtre"]');
+  if (optionHaut) optionHaut.textContent = '📅 Période du haut : ' + libellePeriodeGoogleAds(periodeHaut);
+  loadAndDisplayCampaignsDataWithPeriod(choix === 'filtre' ? periodeHaut : choix);
 }
 window.rafraichirEcranGoogleAds = rafraichirEcranGoogleAds;
 
@@ -2559,27 +2145,33 @@ function afficherKpisGoogleAdsPourPeriode(period, coutPeriode) {
   return metrics;
 }
 
+// v1.2.0.0 : chaque chargement porte un numero ; seul le dernier demande s'affiche
+// (changer vite de periode laissait gagner la reponse arrivee la derniere).
+let chargementGoogleAds = 0;
+
 async function loadAndDisplayCampaignsDataWithPeriod(period = '30') {
   const performanceSection = document.getElementById('campaigns-performance-section');
   if (!performanceSection) {
     console.warn('⚠️ Section campaigns-performance-section non trouvée');
     return;
   }
+  const numero = ++chargementGoogleAds;
+  const perime = () => numero !== chargementGoogleAds;
 
   try {
-    
+
     // ✅ AFFICHAGE IMMÉDIAT DU LOADING
     performanceSection.innerHTML = `
       <div style="text-align: center; padding: 1.5rem; color: var(--text-light, #666);">
         <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">🔄</div>
-        <p style="margin: 0; font-size: 0.85rem;">Récupération depuis l'API Google Ads (${period === 'all' ? 'depuis le début' : period + ' jours'})...</p>
+        <p style="margin: 0; font-size: 0.85rem;">Récupération depuis l'API Google Ads (${libellePeriodeGoogleAds(period)})...</p>
       </div>
     `;
-    
+
     // ✅ VÉRIFIER LA CONNEXION
     const parametres = DataManager.getParametres();
     const selectedCampaigns = parametres.googleAdsSelectedCampaigns || [];
-    
+
     if (selectedCampaigns.length === 0) {
       performanceSection.innerHTML = `
         <div style="text-align: center; padding: 1.5rem; color: var(--text-light, #666);">
@@ -2592,9 +2184,19 @@ async function loadAndDisplayCampaignsDataWithPeriod(period = '30') {
       `;
       return;
     }
-    
+
+    // v1.2.0.0 : periode entierement a venir (un mois plus tard choisi en haut) : rien
+    // depense, inutile d'interroger l'API
+    const plage = plageDatesPourPeriode(period);
+    if (plage && plage.debut > GoogleAdsCalculs.jourLocal(new Date())) {
+      performanceSection.innerHTML = generateFinalCampaignsTableWithPeriod([], period);
+      afficherKpisGoogleAdsPourPeriode(period, 0);
+      return;
+    }
+
     // ✅ RÉCUPÉRER LES TOKENS
     const tokens = await getValidTokens();
+    if (perime()) return;
     if (!tokens) {
       performanceSection.innerHTML = `
         <div style="text-align: center; padding: 1.5rem; color: #e74c3c;">
@@ -2604,9 +2206,10 @@ async function loadAndDisplayCampaignsDataWithPeriod(period = '30') {
       `;
       return;
     }
-    
+
     // ✅ RÉCUPÉRER LES COMPTES ET CAMPAGNES AVEC LA PÉRIODE
     const customersResult = await testAccessibleCustomers(tokens.access_token);
+    if (perime()) return;
     if (!customersResult.success) {
       performanceSection.innerHTML = `
         <div style="text-align: center; padding: 1.5rem; color: #e74c3c;">
@@ -2616,39 +2219,46 @@ async function loadAndDisplayCampaignsDataWithPeriod(period = '30') {
       `;
       return;
     }
-    
+
     // ✅ RÉCUPÉRER TOUTES LES CAMPAGNES AVEC LA PÉRIODE
     const allCampaigns = [];
+    let comptesLus = 0;
     for (const customerId of customersResult.customers) {
       try {
         const campaigns = await getCampaignsForCustomerWithPeriod(tokens.access_token, customerId, period);
         allCampaigns.push(...campaigns);
-        // Campagnes récupérées
+        comptesLus++;
       } catch (error) {
         console.error(`❌ Erreur compte ${customerId}:`, error);
       }
     }
-    
+    if (perime()) return;
+
     // ✅ FILTRER LES CAMPAGNES SÉLECTIONNÉES
-    const selectedCampaignsData = allCampaigns.filter(campaign => 
+    const selectedCampaignsData = allCampaigns.filter(campaign =>
       selectedCampaigns.includes(campaign.id)
     );
-    
-    // Campagnes filtrées
-    
+
     // ✅ AFFICHER LE TABLEAU AVEC INDICATION DE PÉRIODE
     if (selectedCampaignsData.length > 0) {
       const tableHTML = generateFinalCampaignsTableWithPeriod(selectedCampaignsData, period);
       performanceSection.innerHTML = tableHTML;
-      
+
       // v1.0.13.0 : le selecteur de periode pilote MAINTENANT les six cartes KPI
       // et la liste des clients, plus seulement le tableau.
       // Le cout provient de l'API pour CETTE periode exactement, donc le ROI
       // affiche compare bien des revenus et un cout de la meme fenetre de temps.
-      // (Avant, ce bloc n'ecrivait qu'une seule carte - la 5e ecriture partielle
-      // du fichier - avec un identifiant qui n'existe plus.)
       const coutPeriode = selectedCampaignsData.reduce((t, c) => t + (c.cost || 0), 0);
       afficherKpisGoogleAdsPourPeriode(period, coutPeriode);
+      // v1.2.0.0 : la lecture « depuis le debut » met aussi le cache a jour (meme redacteur partout)
+      if (period === 'all') {
+        enregistrerCacheGoogleAds(coutPeriode).catch(err => console.warn('Cache Google Ads non enregistré :', err));
+      }
+    } else if (comptesLus > 0) {
+      // v1.2.0.0 : l'API a repondu sans ligne pour ces campagnes : rien depense sur la periode
+      // (une annee d'avant les campagnes, un mois sans diffusion). Avant : « non trouvées ».
+      performanceSection.innerHTML = generateFinalCampaignsTableWithPeriod([], period);
+      afficherKpisGoogleAdsPourPeriode(period, 0);
     } else {
       performanceSection.innerHTML = `
         <div style="text-align: center; padding: 1.5rem; color: var(--text-light, #666);">
@@ -2657,8 +2267,9 @@ async function loadAndDisplayCampaignsDataWithPeriod(period = '30') {
         </div>
       `;
     }
-    
+
   } catch (error) {
+    if (perime()) return;
     console.error('❌ Erreur loadAndDisplayCampaignsDataWithPeriod:', error);
     performanceSection.innerHTML = `
       <div style="text-align: center; padding: 1.5rem; color: #e74c3c;">
@@ -2670,84 +2281,6 @@ async function loadAndDisplayCampaignsDataWithPeriod(period = '30') {
       </div>
     `;
   }
-}
-
-function updateGoogleAdsMetricsDisplay(metrics) {
-  // Mettre à jour les KPIs sans reconstruire tout le HTML
-  const roiElement = document.querySelector('#google-ads-analytics .grid-template-columns div:nth-child(1) div:nth-child(2)');
-  const costElement = document.querySelector('#google-ads-analytics .grid-template-columns div:nth-child(2) div:nth-child(2)');
-  
-  // Sélecteurs plus robustes
-  const containers = document.querySelectorAll('#google-ads-analytics [style*="grid-template-columns"] > div');
-  
-  if (containers.length >= 4) {
-    // ROI Total
-    const roiContainer = containers[0];
-    const roiValue = roiContainer.querySelector('[style*="font-size: 1.4rem"]');
-    const roiPercent = roiContainer.querySelector('[style*="font-size: 0.7rem"]');
-    if (roiValue) roiValue.textContent = `${metrics.roiMoney >= 0 ? '+' : ''}${metrics.roiMoney.toFixed(0)}€`;
-    if (roiPercent) roiPercent.textContent = `(${metrics.roi >= 0 ? '+' : ''}${metrics.roi.toFixed(1)}%)`;
-    
-    // Coût Total
-    const costContainer = containers[1];
-    const costValue = costContainer.querySelector('[style*="font-size: 1.4rem"]');
-    if (costValue) costValue.textContent = `${Math.round(metrics.totalCost).toLocaleString('fr-FR')} €`;
-    
-    // Revenus restent identiques (données globales)
-    // Clients restent identiques (données globales)
-  }
-}
-
-function calculateGoogleAdsMetricsForPeriod(campaignsData, period) {
-  const appData = DataManager.getAppData();
-  const parametres = appData.parametres || {};
-  
-  // Clients Google Ads (données globales)
-  const clientsGoogleAds = appData.clients.filter(client => 
-    client.canalAcquisition === 'google-ads'
-  );
-  
-  // Prestations Google Ads (données globales)
-  const prestationsGoogleAds = appData.prestations.filter(prestation => {
-    const client = appData.clients.find(c => c.id === prestation.clientId);
-    return client && client.canalAcquisition === 'google-ads';
-  });
-  
-  // v1.1.0.0 : regle Encaissements (tips seuls pour une prestation carte cadeau)
-  const totalRevenue = prestationsGoogleAds.reduce((sum, p) => sum + Encaissements.encaissePrestation(p), 0);
-
-  // ✅ CORRECTION : Utiliser les données de campagne pour le coût de la période
-  const totalCost = campaignsData ? campaignsData.reduce((sum, c) => sum + (c.cost || 0), 0) : 0;
-  
-  const roi = totalCost > 0 ? ((totalRevenue - totalCost) / totalCost) * 100 : 0;
-  const roiMoney = totalRevenue - totalCost;
-  
-  // Données par client
-  const clientsData = clientsGoogleAds.map(client => {
-    const clientPrestations = prestationsGoogleAds.filter(p => p.clientId === client.id);
-    const clientRevenue = clientPrestations.reduce((sum, p) => sum + Encaissements.encaissePrestation(p), 0);
-
-    return {
-      client,
-      prestationsCount: clientPrestations.length,
-      revenue: clientRevenue,
-      avgSession: clientPrestations.length > 0 ? clientRevenue / clientPrestations.length : 0,
-      lastSession: clientPrestations.length > 0 ?
-        Math.max(...clientPrestations.map(p => new Date(p.date).getTime())) : null
-    };
-  }).sort((a, b) => b.revenue - a.revenue);
-
-  return {
-    clientsCount: clientsGoogleAds.length,
-    prestationsCount: prestationsGoogleAds.length,
-    totalRevenue,
-    totalCost, // ✅ Coût spécifique à la période
-    roi,
-    roiMoney,
-    campaignsCount: parametres.googleAdsSelectedCampaigns?.length || 0,
-    clientsData,
-    period: period
-  };
 }
 
 async function getCampaignsForCustomerWithPeriod(accessToken, customerId, period = 'all') {
@@ -2889,21 +2422,15 @@ function generateFinalCampaignsTableWithPeriod(campaignsData, period = 'all') {
     return `
       <div style="text-align: center; padding: 1.5rem; color: var(--text-light, #666);">
         <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">📭</div>
-        <p style="margin: 0; font-size: 0.85rem;">Aucune donnée de campagne pour cette période</p>
+        <p style="margin: 0; font-size: 0.85rem;">Aucune dépense Google Ads sur la période « ${libellePeriodeGoogleAds(period)} »</p>
       </div>
     `;
   }
   
-  // ✅ CORRECTION : Déterminer le texte de la période avec support THIS_MONTH
-  const periodText = period === 'all' ? 'Depuis le début' :
-                    period === 'THIS_MONTH' ? 'Ce mois-ci (calendaire)' :
-                    period === 'LAST_MONTH' ? 'Le mois dernier' :
-                    period === 'TODAY' ? 'Aujourd\'hui' :
-                    period === 'YESTERDAY' ? 'Hier' :
-                    period === '7' ? '7 derniers jours' :
-                    period === '90' ? '90 derniers jours' :
-                    `${period} derniers jours`;
-  
+  // v1.2.0.0 : libelle lisible de la periode (avant : « custom:… derniers jours »)
+  const libelle = libellePeriodeGoogleAds(period);
+  const periodText = libelle.charAt(0).toUpperCase() + libelle.slice(1);
+
   return `
     <div class="ana-full">
       <div class="table-wrapper" style="overflow-x:auto;">
@@ -2949,154 +2476,71 @@ function generateFinalCampaignsTableWithPeriod(campaignsData, period = 'all') {
   `;
 }
 
-// ===== 🔧 FIX CACHE - Une seule fois pour synchroniser =====
+// ===== v1.2.0.0 : CACHE GOOGLE ADS « DEPUIS LE DEBUT », UN SEUL REDACTEUR =====
+// Le demarrage (app.js), la synchro horaire (modal-manager.js), l'ecran Analytics et
+// syncGoogleAdsCacheOnce passent tous par ici, avec le cout de l'API sans borne de date.
+// Avant : le demarrage y mettait 30 jours (LAST_30_DAYS), l'ecran tout l'historique, et
+// le tableau de bord affichait l'un ou l'autre selon le dernier passe.
 
-// AJOUTER cette fonction temporaire dans utils-services.js :
+// Campagnes selectionnees lues dans l'API pour une periode ; null si l'API n'a pas repondu.
+async function lireCampagnesSelectionnees(period) {
+  const selection = DataManager.getParametres().googleAdsSelectedCampaigns || [];
+  if (selection.length === 0) return null;
+  const tokens = await getValidTokens();
+  if (!tokens) return null;
+  const comptes = await testAccessibleCustomers(tokens.access_token);
+  if (!comptes.success) return null;
+  const campagnes = [];
+  let comptesLus = 0;
+  for (const customerId of comptes.customers) {
+    try {
+      campagnes.push(...await getCampaignsForCustomerWithPeriod(tokens.access_token, customerId, period));
+      comptesLus++;
+    } catch (error) {
+      console.error(`❌ Google Ads : compte ${customerId} illisible`, error);
+    }
+  }
+  // Aucun compte lu = cout inconnu, surtout pas 0
+  return comptesLus > 0 ? campagnes.filter(c => selection.includes(c.id)) : null;
+}
+
+// Ecrit le cache (cout depuis le debut + revenus et clientes de la meme regle que
+// l'onglet) et les dates de synchro ; ces cles seulement (saveParametresCles).
+async function enregistrerCacheGoogleAds(coutTotal) {
+  const parametres = DataManager.getParametres();
+  const kpis = calculerKpisGoogleAdsPeriode('all', coutTotal);
+  const maintenant = new Date();
+  parametres.googleAdsCachedCosts = GoogleAdsCalculs.cacheDepuisLeDebut(
+    parametres.googleAdsCachedCosts, coutTotal, kpis, maintenant.toISOString());
+  parametres.googleAdsCostsLastSync = maintenant.toDateString();
+  parametres.googleAdsLastCacheUpdate = maintenant.toISOString();
+  await DataManager.saveParametresCles(['googleAdsCachedCosts', 'googleAdsCostsLastSync', 'googleAdsLastCacheUpdate']);
+  return kpis;
+}
+
+// Relit le cout depuis le debut et met le cache a jour. Deux demandes simultanees
+// (demarrage + synchro horaire) partagent la meme lecture. null si rien n'a ete lu.
+let rafraichissementCacheGoogleAds = null;
+function rafraichirCacheGoogleAds() {
+  if (!rafraichissementCacheGoogleAds) {
+    rafraichissementCacheGoogleAds = (async () => {
+      const campagnes = await lireCampagnesSelectionnees('all');
+      if (!campagnes || campagnes.length === 0) return null;
+      return enregistrerCacheGoogleAds(campagnes.reduce((t, c) => t + (c.cost || 0), 0));
+    })().finally(() => { rafraichissementCacheGoogleAds = null; });
+  }
+  return rafraichissementCacheGoogleAds;
+}
+
+// Synchronisation manuelle (console) : meme chemin que le reste.
 async function syncGoogleAdsCacheOnce() {
   try {
-    console.log('🔄 Synchronisation une fois du cache Google Ads...');
-    
-    const parametres = DataManager.getParametres();
-    const selectedCampaigns = parametres.googleAdsSelectedCampaigns || [];
-    
-    if (selectedCampaigns.length === 0) {
-      console.log('❌ Aucune campagne sélectionnée');
-      return;
-    }
-    
-    // Récupérer les tokens
-    const tokens = await getValidTokens();
-    if (!tokens) {
-      console.log('❌ Pas de tokens disponibles');
-      return;
-    }
-    
-    // Récupérer les comptes
-    const customersResult = await testAccessibleCustomers(tokens.access_token);
-    if (!customersResult.success) {
-      console.log('❌ Comptes non accessibles');
-      return;
-    }
-    
-    // Récupérer TOUTES les campagnes (depuis le début)
-    const allCampaigns = [];
-    for (const customerId of customersResult.customers) {
-      try {
-        const campaigns = await getCampaignsForCustomerWithPeriod(tokens.access_token, customerId, 'all');
-        allCampaigns.push(...campaigns);
-      } catch (error) {
-        console.error(`❌ Erreur compte ${customerId}:`, error);
-      }
-    }
-    
-    // Filtrer les campagnes sélectionnées
-    const selectedCampaignsData = allCampaigns.filter(campaign => 
-      selectedCampaigns.includes(campaign.id)
-    );
-    
-    if (selectedCampaignsData.length > 0) {
-      const totalCost = selectedCampaignsData.reduce((sum, c) => sum + (c.cost || 0), 0);
-      
-      // Calculer les revenus
-      const appData = DataManager.getAppData();
-      const clientsGoogleAds = appData.clients.filter(client => 
-        client.canalAcquisition === 'google-ads'
-      );
-      const prestationsGoogleAds = appData.prestations.filter(prestation => {
-        const client = appData.clients.find(c => c.id === prestation.clientId);
-        return client && client.canalAcquisition === 'google-ads';
-      });
-      // v1.1.0.0 : regle Encaissements (tips seuls pour une prestation carte cadeau)
-      const totalRevenue = prestationsGoogleAds.reduce((sum, p) => sum + Encaissements.encaissePrestation(p), 0);
-
-      // METTRE À JOUR LE CACHE avec les vraies données
-      // v1.1.0.0 : plus de "currentMonth: totalCost / 4" (cout du mois invente) ;
-      // fusion pour garder le vrai cout du mois s'il est connu.
-      parametres.googleAdsCachedCosts = fusionnerCacheGoogleAds(parametres.googleAdsCachedCosts, {
-        total: totalCost, // ✅ VRAIES données API (253€ et quelques)
-        revenue: totalRevenue,
-        clientsCount: clientsGoogleAds.length,
-        prestationsCount: prestationsGoogleAds.length,
-        lastUpdate: new Date().toISOString()
-      });
-      
-      DataManager.saveParametres(parametres);
-      await DataManager.saveData();
-      
-      console.log('✅ Cache mis à jour avec:', totalCost + '€');
-      
-      // Rafraîchir l'affichage
-      updateGoogleAdsAnalytics();
-      
-    } else {
-      console.log('❌ Aucune campagne trouvée dans l\'API');
-    }
-    
+    const kpis = await rafraichirCacheGoogleAds();
+    console.log(kpis ? `✅ Cache Google Ads mis à jour : ${kpis.totalCost.toFixed(0)}€` : '❌ Coût Google Ads non lu');
+    updateGoogleAdsAnalytics();
   } catch (error) {
     console.error('❌ Erreur sync cache:', error);
   }
-}
-
-// ✅ Fonction pour calculer le nombre de clients UNIQUES par campagne (DÉDUPLICATION)
-function calculateUniqueCampaignClients(campaignsData, period = 'all') {
-  if (!campaignsData || campaignsData.length === 0) return 0;
-  
-  const appData = DataManager.getAppData();
-  const uniqueClientIds = new Set();
-  
-  // Calculer les dates limites selon la période
-  let startDate = null;
-  let endDate = new Date();
-  
-  if (period !== 'all') {
-    if (period === 'THIS_MONTH') {
-      // Début du mois actuel
-      startDate = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
-    } else if (period === 'LAST_MONTH') {
-      // Mois dernier
-      startDate = new Date(endDate.getFullYear(), endDate.getMonth() - 1, 1);
-      endDate = new Date(endDate.getFullYear(), endDate.getMonth(), 0);
-    } else if (period === 'TODAY') {
-      startDate = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
-    } else if (period === 'YESTERDAY') {
-      startDate = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate() - 1);
-      endDate = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate() - 1, 23, 59, 59);
-    } else {
-      // Période numérique (7, 30, etc.)
-      const days = parseInt(period);
-      startDate = new Date();
-      startDate.setDate(startDate.getDate() - days);
-    }
-  }
-  
-  // Filtrer les clients Google Ads avec prestations dans la période
-  const clientsGoogleAds = appData.clients.filter(client => {
-    // Vérifier si le client a le canal google-ads
-    if (client.canalAcquisition !== 'google-ads') return false;
-    
-    // Vérifier si le client a des prestations dans la période
-    const clientPrestations = appData.prestations.filter(p => {
-      if (p.clientId !== client.id) return false;
-      
-      // Si période = 'all', compter toutes les prestations
-      if (period === 'all') return true;
-      
-      const prestationDate = new Date(p.date);
-      
-      if (startDate && prestationDate < startDate) return false;
-      if (endDate && prestationDate > endDate) return false;
-      
-      return true;
-    });
-    
-    return clientPrestations.length > 0;
-  });
-  
-  // Ajouter les IDs au Set (déduplication automatique)
-  clientsGoogleAds.forEach(client => uniqueClientIds.add(client.id));
-  
-  console.log(`📊 Clients uniques calculés: ${uniqueClientIds.size} clients pour ${campaignsData.length} campagne(s) [période: ${period}]`);
-  return uniqueClientIds.size;
 }
 
 // ===== ARTEFACT 1 : Fonction à ajouter dans utils-services.js =====

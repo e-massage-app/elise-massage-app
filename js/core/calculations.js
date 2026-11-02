@@ -21,6 +21,18 @@ function repartirEncaissementsParGroupe(lignes) {
   return parGroupe;
 }
 
+// v1.2.0.0 : panier moyen par groupe (ReglesEcrans.panierMoyen : sans les cartes cadeaux)
+function panierMoyenParGroupe(prestations) {
+  const parGroupe = {};
+  prestations.forEach(p => {
+    const g = getGroupeNameForPrestation(p);
+    (parGroupe[g] = parGroupe[g] || []).push(p);
+  });
+  const paniers = {};
+  Object.keys(parGroupe).forEach(g => { paniers[g] = ReglesEcrans.panierMoyen(parGroupe[g]); });
+  return paniers;
+}
+
 // v1.1.0.0 : filtres annee / mois d'Analytics. "Annee actuelle" ('current')
 // = annee civile en cours. Avant, plusieurs widgets sautaient le filtre et
 // affichaient TOUTES les annees sous ce libelle, contrairement a la tuile CA.
@@ -44,11 +56,15 @@ function estDansPeriodeAnalytics(dateStr, selectedYear, selectedMonth) {
 
 // ===== CALCULS DASHBOARD =====
 
+// v1.2.0.0 : memes chiffres que l'onglet Google Ads « Depuis le début » (GoogleAdsCalculs) :
+// cout depuis le debut du cache, revenus (regle Encaissements) et clientes venues depuis le
+// demarrage des campagnes. Avant : revenus et clientes lus dans le cache, ecrits selon
+// l'ecran par l'une ou l'autre regle (toutes les epoques, clientes jamais venues comprises).
 function calculateGoogleAdsROI() {
   const appData = DataManager.getAppData();
   const parametres = appData.parametres || {};
   const selectedCampaigns = parametres.googleAdsSelectedCampaigns || [];
-  
+
   if (selectedCampaigns.length === 0 || !parametres.googleAdsConnected) {
     return {
       hasGoogleAdsData: false,
@@ -61,37 +77,16 @@ function calculateGoogleAdsROI() {
     };
   }
 
-  // ✅ UTILISER LES DONNÉES CACHÉES (qui marchent dans Analytics)
-  const cachedCosts = parametres.googleAdsCachedCosts || {};
-  const totalCost = cachedCosts.total || 0;           // 234.158392
-  const totalRevenue = cachedCosts.revenue || 0;      // 2240  
-  const clientsCount = cachedCosts.clientsCount || 0; // 3
-  // v1.1.0.0 : pas de repli sur le cout total (une estimation) : 0 si inconnu.
-  const currentMonthCost = cachedCosts.currentMonth || 0;
-
-  // ✅ CALCULER LE ROI AVEC LES DONNÉES CACHÉES
-  let roi = 0;
-  if (totalCost > 0) {
-    roi = ((totalRevenue - totalCost) / totalCost) * 100;
-  }
-
-  // ✅ COMPTER LES PRESTATIONS MANUELLEMENT POUR CONFIRMATION
-  const clientsGoogleAds = appData.clients.filter(client => 
-    client.canalAcquisition === 'google-ads'
-  );
-  const prestationsGoogleAds = appData.prestations.filter(prestation => {
-    const client = appData.clients.find(c => c.id === prestation.clientId);
-    return client && client.canalAcquisition === 'google-ads';
-  });
-
+  const kpis = GoogleAdsCalculs.kpisDepuisLeDebut(appData, jourLocal(new Date()));
   return {
-    hasGoogleAdsData: totalCost > 0 || clientsCount > 0,
-    totalCost,
-    totalRevenue,
-    roi,
-    clientsCount,
-    prestationsCount: prestationsGoogleAds.length,
-    currentMonthCost
+    hasGoogleAdsData: kpis.totalCost > 0 || kpis.clientsCount > 0,
+    totalCost: kpis.totalCost,
+    totalRevenue: kpis.totalRevenue,
+    roi: kpis.roi,
+    clientsCount: kpis.clientsCount,
+    prestationsCount: kpis.prestationsCount,
+    // v1.1.0.0 : pas de repli sur le cout total (une estimation) : 0 si inconnu.
+    currentMonthCost: (parametres.googleAdsCachedCosts || {}).currentMonth || 0
   };
 }
 
@@ -173,46 +168,12 @@ function calculateDashboardKPIs() {
     return total + prixEstime;
   }, 0);
   
-// ✅ CORRECTION : Récupérer les données Google Ads DIRECTEMENT depuis le cache
+// v1.2.0.0 : Google Ads = onglet « Depuis le début » (calculateGoogleAdsROI)
 const parametresGA = appData.parametres || {};
 const cachedCosts = parametresGA.googleAdsCachedCosts || {};
 const selectedCampaigns = parametresGA.googleAdsSelectedCampaigns || [];
 const isGoogleAdsConnected = parametresGA.googleAdsConnected;
-
-// ✅ Données Google Ads (utiliser le cache qui fonctionne)
-let googleAdsData = {
-  hasGoogleAdsData: false,
-  totalCost: 0,
-  totalRevenue: 0,
-  roi: 0,
-  clientsCount: 0,
-  prestationsCount: 0,
-  currentMonthCost: 0
-};
-
-if (isGoogleAdsConnected && selectedCampaigns.length > 0 && cachedCosts.total) {
-  const totalCost = cachedCosts.total;
-  const totalRevenue = cachedCosts.revenue || 0;
-  const clientsCount = cachedCosts.clientsCount || 0;
-  const roi = totalCost > 0 ? ((totalRevenue - totalCost) / totalCost) * 100 : 0;
-  
-  // Compter les prestations pour info
-  const clientsGoogleAds = appData.clients.filter(c => c.canalAcquisition === 'google-ads');
-  const prestationsGoogleAds = appData.prestations.filter(p => {
-    const client = appData.clients.find(c => c.id === p.clientId);
-    return client && client.canalAcquisition === 'google-ads';
-  });
-  
-  googleAdsData = {
-    hasGoogleAdsData: true,
-    totalCost,
-    totalRevenue,
-    roi,
-    clientsCount,
-    prestationsCount: prestationsGoogleAds.length,
-    currentMonthCost: totalCost // Pour l'instant même valeur
-  };
-}
+const googleAdsData = calculateGoogleAdsROI();
 
 // ✅ NOUVEAU SYSTÈME : Cache intelligent avec refresh toutes les 6h
 let googleAdsCostThisMonth = 0;
@@ -263,8 +224,9 @@ if (needsRefresh && isGoogleAdsConnected && selectedCampaigns.length > 0 && !win
         }
         parametres.googleAdsCachedCosts.currentMonth = cost;
         parametres.googleAdsCachedCosts.lastUpdateMonth = new Date().toISOString();
-        DataManager.saveParametres(parametres);
-        DataManager.saveData();
+        // v1.2.0.0 : cette cle seulement (avant : re-ecriture de tous les parametres)
+        DataManager.saveParametresCles(['googleAdsCachedCosts'])
+          .catch(err => console.warn('Coût Google Ads du mois non enregistré :', err));
         
         // Rafraîchir le dashboard automatiquement
         if (window.ViewManager && window.ViewManager.updateDashboard) {
@@ -376,6 +338,17 @@ if (needsRefresh && isGoogleAdsConnected && selectedCampaigns.length > 0 && !win
   const nbMassagesMois = nbParGroupeMois['Massages'] || 0;
   const nbHeadSpaMois = nbParGroupeMois['HeadSpa'] || 0;
 
+  // v1.2.0.0 : onglet d'un groupe : couts produits = cout de chaque categorie x SES prestations
+  // (avant : somme des couts x toutes les prestations du groupe) ; panier sans les prestations
+  // reglees par carte cadeau (regle du panier d'Analytics).
+  const nbParCategorieMois = {};
+  prestationsMoisCourant.forEach(p => {
+    const soin = DataManager.resolveSoin(p.soinId || p.type);
+    if (soin && soin.categorieId) nbParCategorieMois[soin.categorieId] = (nbParCategorieMois[soin.categorieId] || 0) + 1;
+  });
+  const panierParGroupeMois = panierMoyenParGroupe(prestationsMoisCourant);
+  const panierParGroupeTotal = panierMoyenParGroupe(appData.prestations);
+
   // v1.0.7.0 : Nb par groupe de l'annee
   const nbParGroupeAnnee = {};
   prestationsAnnee.forEach(p => {
@@ -454,6 +427,10 @@ if (needsRefresh && isGoogleAdsConnected && selectedCampaigns.length > 0 && !win
     nbParGroupeAnnee,
     revenusParGroupeTotal,
     nbParGroupeTotal,
+    // v1.2.0.0 : onglet par groupe (couts produits, panier moyen)
+    nbParCategorieMois,
+    panierParGroupeMois,
+    panierParGroupeTotal,
     tipsTotal,
     coutsTotal,
     // ROI Google Ads
@@ -587,20 +564,12 @@ function getPrestationsTypeChart(selectedYear = 'current', selectedMonth = '') {
     const soin = DataManager.resolveSoin ? DataManager.resolveSoin(p.soinId || p.type) : null;
     if (soin) {
       const cat = DataManager.getCategorieById ? DataManager.getCategorieById(soin.categorieId) : null;
-      const catNom = cat ? cat.nom : 'Autre';
-      // Si la catégorie est archivée, trouver la catégorie active correspondante
-      if (cat && cat.statut !== 'actif') {
-        // Chercher une catégorie active par défaut
-        const activeCat = categories.find(c => c.id === soin.categorieId) || categories[0];
-        const activeCatNom = activeCat ? activeCat.nom : 'Autre';
-        catCounts[activeCatNom] = (catCounts[activeCatNom] || 0) + 1;
-        catDetails[activeCatNom] = catDetails[activeCatNom] || {};
-        catDetails[activeCatNom][soin.nom] = (catDetails[activeCatNom][soin.nom] || 0) + 1;
-      } else {
-        catCounts[catNom] = (catCounts[catNom] || 0) + 1;
-        catDetails[catNom] = catDetails[catNom] || {};
-        catDetails[catNom][soin.nom] = (catDetails[catNom][soin.nom] || 0) + 1;
-      }
+      // v1.2.0.0 : une categorie archivee est comptee sous son propre nom (« Nom (archivée) »),
+      // plus dans la premiere categorie active venue
+      const catNom = ReglesEcrans.nomCategorieStats(cat);
+      catCounts[catNom] = (catCounts[catNom] || 0) + 1;
+      catDetails[catNom] = catDetails[catNom] || {};
+      catDetails[catNom][soin.nom] = (catDetails[catNom][soin.nom] || 0) + 1;
     } else {
       // Prestation sans soin résolu → regrouper sous "Autre"
       const catNom = 'Autre';
