@@ -445,6 +445,44 @@
   color: var(--text-light);
 }
 
+/* v1.2.0.0 : prospects masques a l'ecran (bouton « Nouveau prospect », onglet de l'Annuaire,
+   tuile « Total prospects ») ; ni le code ni les donnees ne sont supprimes. !important : ces
+   elements ont leur propre display (inline-flex, block) */
+.prospects-masques {
+  display: none !important;
+}
+
+/* v1.2.0.0 : encart « Relances à prévoir », sous les prochains rendez-vous (memes cartes
+   .rdv-list / .rdv-item, titre .rdv-section h2) */
+.relances-prevoir {
+  margin-top: 2rem;
+}
+
+.relances-prevoir-vide {
+  padding: 1.25rem 1rem;
+  text-align: center;
+  color: var(--text-light);
+  font-size: 0.9rem;
+}
+
+.relances-prevoir-lien {
+  display: block;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: none;
+  background: none;
+  color: var(--beige-dore);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: right;
+  cursor: pointer;
+}
+
+.relances-prevoir-lien:hover {
+  background: var(--beige-clair);
+}
+
 /* Calendar */
 .calendar-controls button {
   padding: 0.5rem 1rem;

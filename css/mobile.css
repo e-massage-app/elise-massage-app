@@ -256,6 +256,9 @@
   .rdv-section h2 { font-size: 1rem; margin-bottom: 0.5rem; }
   .rdv-list { max-height: none !important; }
   .rdv-item { padding: 0.6rem; font-size: 0.85rem; }
+  /* v1.2.0.0 : encart « Relances à prévoir » */
+  .relances-prevoir { margin-top: 0.75rem; }
+  .relances-prevoir-lien { padding: 0.6rem; font-size: 0.85rem; }
 
   .dashboard-header {
     flex-direction: row !important;
@@ -331,12 +334,13 @@
     overflow: hidden !important;
     opacity: 0.85;
   }
-  /* Couleurs par defaut si pas de style inline */
-  .calendar-rdv.confirmé,
-  .calendar-rdv.confirme { background-color: #27ae60 !important; }
-  .calendar-rdv.en-attente { background-color: #f39c12 !important; }
-  .calendar-rdv.annulé,
-  .calendar-rdv.annule { background-color: #e74c3c !important; }
+  /* Couleurs par defaut si pas de style inline
+     v1.2.0.0 : vraiment « si pas de style inline » : le !important ecrasait la couleur du soin */
+  .calendar-rdv.confirmé:not([style*="background-color"]),
+  .calendar-rdv.confirme:not([style*="background-color"]) { background-color: #27ae60 !important; }
+  .calendar-rdv.en-attente:not([style*="background-color"]) { background-color: #f39c12 !important; }
+  .calendar-rdv.annulé:not([style*="background-color"]),
+  .calendar-rdv.annule:not([style*="background-color"]) { background-color: #e74c3c !important; }
   .calendar-rdv.prestation { background-color: #d4a574; opacity: 0.5; }
   .calendar-rdv.headspa { background-color: #9b59b6; }
 
