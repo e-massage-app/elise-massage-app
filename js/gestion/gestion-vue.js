@@ -1,4 +1,4 @@
-// ===== GESTION : ECRAN (v1.1.0.0) =====
+// ===== GESTION : ECRAN (v1.1.0.1) =====
 // Onglet « Gestion » : Pro (4 chiffres, detail au clic, courbe), Perso, Reglages.
 // Mots d'Elise, pas de jargon comptable (ni « resultat », ni « provision »).
 // Evenements par delegation (data-ge="action") : aucun onclick global ajoute.
@@ -46,10 +46,8 @@ function pourcent(n) {
   return `${String(n).replace('.', ',')} %`;
 }
 
-const MOIS_COURTS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
-
 function ctx() {
-  return C().contexte(DataManager.getAppData(), D().etat.gestion, D().reglages(), D().etat.ads);
+  return C().contexte(DataManager.getAppData(), D().etat.gestion, D().reglages(), D().etat.ads, D().etat.adsJours);
 }
 
 function notifier(message, type = 'success') {
@@ -163,38 +161,57 @@ function vuePro() {
   const p = C().moisPro(c, m);
   const jourRef = jourDeReference(m);
   const res = C().reserve(c, jourRef);
-  const v = C().jePeuxMeVerser(c, m);
+  const v = C().jePeuxMeVerser(c, m, aujourdhui());
   const enCours = m === moisCourant();
 
   const demarrage = (D().etat.gestion.soldes.length === 0 || R.matelas === null || R.besoinMensuel === null) ? carteDemarrage(R) : '';
 
-  const tuileEncaisse = tuile('encaisse', 'Ce que mes clientes m\'ont payé', euros(p.encaisse),
-    `${enCours ? 'depuis le 1er du mois' : 'en ' + nomMois(m)}${p.encaisseCorrige !== null ? ' · corrigé à la main' : p.logiciel.carte ? ` · dont ${euros(p.logiciel.carte)} par carte` : ''}`);
-  const tuileReste = tuile('frais', 'Ce qu\'il me reste après les frais', euros(p.reste),
+  const tuileEncaisse = tuile('encaisse', `Ce que mes clientes m'ont payé en ${nomMois(m)}`, euros(p.encaisse),
+    `${enCours ? 'depuis le 1er du mois' : 'tout le mois'}${p.encaisseCorrige !== null ? ' · corrigé à la main' : p.logiciel.carte ? ` · dont ${euros(p.logiciel.carte)} par carte` : ''}`);
+  const tuileReste = tuile('frais', `Ce qu'il me reste en ${nomMois(m)} après les frais`, euros(p.reste),
     `${enCours ? 'mois en cours · ' : ''}${euros(p.frais)} de frais${p.adsInconnu ? ' · Google Ads en attente' : ''}`, p.reste < 0 ? 'negatif' : '');
 
   const matelas = C().nombreOuNull(R.matelas);
-  const jauge = (res.montant !== null && matelas)
+  const jaugeMatelas = (res.montant !== null && matelas)
     ? `<span class="ge-jauge" role="img" aria-label="${Math.round(res.montant / matelas * 100)} % du matelas"><span style="width:${Math.max(0, Math.min(100, res.montant / matelas * 100))}%"></span></span>` : '';
-  const tuileReserve = tuile('reserve', 'Ma réserve', res.montant === null ? 'À renseigner' : euros(res.montant),
-    `${matelas ? `matelas ${euros(matelas)}` : 'compte pro + caisse'}${res.incomplet && res.montant !== null ? ' · un solde manque' : ''}`, '', jauge);
+  const aVenir = C().arrondi(v.totalAPayer + v.versesApres + v.resteAVerser);
+  const tuileReserve = tuile('reserve', enCours ? 'Ma réserve aujourd\'hui' : `Ma réserve fin ${nomMois(m)}`, res.montant === null ? 'À renseigner' : euros(res.montant),
+    res.montant === null ? 'compte pro + caisse'
+      : `${aVenir > 0 ? `${euros(-aVenir)} à venir → <strong>${euros(v.reserveApres)}</strong>` : 'rien à venir'}${matelas ? `<br>matelas ${euros(matelas)}` : ''}${res.incomplet ? ' · un solde manque' : ''}`, '', jaugeMatelas);
 
   const statuts = { ok: 'OK', tendu: 'Tendu', alerte: 'Alerte' };
-  const tuileVerser = tuile('verser', 'Je peux me verser', v.recommande === null ? '—' : euros(v.recommande),
-    `${v.statut ? `<strong>${statuts[v.statut]}</strong> · ` : ''}calculé sur ${nomMois(v.base)}${v.provisoire ? ' (pas encore clôturé)' : ''}`, v.statut ? `statut-${v.statut}` : '');
+  const jaugeBesoin = v.besoin
+    ? `<span class="ge-jauge" role="img" aria-label="${euros(v.total)} sur ${euros(v.besoin)}"><span style="width:${Math.round(v.progression * 100)}%"></span></span>` : '';
+  // Verse au-dela du chiffre : « d'avance » tant que le mois tourne, « de trop » une fois termine
+  const depasse = enCours ? 'd\'avance' : 'de trop';
+  const notesVerser = [
+    v.statut ? `<strong>${statuts[v.statut]}</strong>` : '',
+    !v.verse ? '' : !v.enTrop ? `dont ${euros(v.verse)} déjà versés`
+      : v.total ? `${euros(v.verse)} déjà versés, ${euros(v.enTrop)} ${depasse}` : `${euros(v.verse)} déjà versés ${depasse}`,
+    enCours && v.rapporte < 0 ? `encore ${euros(-v.rapporte)} de frais à couvrir` : !v.enTrop && v.limiteParMatelas ? 'limité par le matelas' : ''
+  ].filter(Boolean).join(' · ');
+  const valeurVerser = `${euros(v.total)}${v.besoin ? `<span class="ge-sur"> sur ${euros(v.besoin)}</span>` : ''}`;
+  const tuileVerser = tuile('verser', `Je peux me verser pour ${nomMois(m)}`, valeurVerser, notesVerser, v.statut ? `statut-${v.statut}` : '', jaugeBesoin);
+
+  // Connexion Google Ads perdue : les frais de pub manquent, « Je peux me verser » est trop haut
+  const alerteAds = DataManager.getParametres().googleAdsConnected && D().etat.adsErreur ? `
+    <div class="ge-carte ge-erreur" role="alert">
+      <p><strong>Google Ads n'est plus connecté</strong> : tes frais de pub ne sont pas comptés, donc « Je peux me verser » est trop haut.</p>
+      <div class="ge-actions"><button class="btn-primary" data-ge="reconnecter-ads">Me reconnecter</button></div>
+    </div>` : '';
 
   return `
     ${demarrage}
+    ${alerteAds}
     ${carteADeclarer(c, m)}
     <div class="ge-tuiles">${tuileEncaisse}${tuileReste}${tuileReserve}${tuileVerser}</div>
     <div class="ge-detail" id="ge-detail">${detailPro(c, p, res, v, jourRef)}</div>
     <section class="ge-carte ge-courbe-carte">
-      <h3>Ma réserve, mois par mois</h3>
+      <h3>Ce qu'il me reste en ${nomMois(m)}, jour par jour</h3>
       <div id="ge-courbe" class="ge-courbe"></div>
-      <p class="ge-aide">Trait plein : ta réserve à la fin de chaque mois. Pointillés : la suite jusqu'au printemps, si l'activité ressemble à l'an dernier
-        et que tu te verses ${euros(C().nombreOuNull(R.besoinMensuel) || 0)} par mois.</p>
-    </section>
-    ${blocCloture(m)}`;
+      <p class="ge-aide">Ce que mes clientes m'ont payé, moins les frais (les charges fixes dès le 1er, Google Ads au jour le jour, l'URSSAF avec chaque paiement)
+        et moins ce que je me suis versé. En rouge sous zéro : les frais ne sont pas encore couverts, ou je me suis versé plus que le mois n'a rapporté.</p>
+    </section>`;
 }
 
 function tuile(cle, titre, valeur, note, classe = '', extra = '') {
@@ -228,15 +245,16 @@ function carteDemarrage(R) {
 function carteADeclarer(c, m) {
   const a = C().aDeclarer(c, m);
   const info = a.declare === null
-    ? `<button class="ge-lien" data-ge="declarer" data-valeur="${a.moisConcerne}">Saisir ce que j'ai déclaré</button>`
-    : `Déclaré : <strong>${euros(a.declare)}</strong> <button class="ge-lien" data-ge="declarer" data-valeur="${a.moisConcerne}">modifier</button>`;
+    ? `<button class="ge-lien" data-ge="declarer" data-valeur="${m}">Saisir ce que j'ai déclaré</button>`
+    : `Déclaré : <strong>${euros(a.declare)}</strong> <button class="ge-lien" data-ge="declarer" data-valeur="${m}">modifier</button>`;
   const message = a.resteNonDeclare > 0
-    ? `<p class="ge-info">Il reste ${euros(a.resteNonDeclare)} encaissés en ${nomMois(a.moisConcerne)} non déclarés (environ ${euros(a.cotisationsCorrespondantes)} de cotisations).</p>` : '';
+    ? `<p class="ge-info">Il reste ${euros(a.resteNonDeclare)} encaissés en ${nomMois(m)} non déclarés (environ ${euros(a.cotisationsCorrespondantes)} de cotisations).</p>` : '';
+  const limite = `déclaration avant le ${Number(a.dateLimite.slice(8))} ${nomMois(a.dateLimite.slice(0, 7))}`;
   return `
     <div class="ge-carte ge-declarer">
-      <div><span class="ge-petit">À déclarer en ${nomMois(m)}</span>
+      <div><span class="ge-petit">À déclarer pour ${nomMois(m)}</span>
         <span class="ge-declarer-montant">${euros(a.montant)}</span>
-        <span class="ge-petit">encaissés en ${nomMois(a.moisConcerne)}</span></div>
+        <span class="ge-petit">${m === moisCourant() ? 'mois en cours · ' : ''}${limite}</span></div>
       <div class="ge-declarer-saisie">${info}</div>
       ${message}
     </div>`;
@@ -246,7 +264,7 @@ function detailPro(c, p, res, v, jourRef) {
   switch (vue.detail) {
     case 'encaisse': return detailEncaisse(p);
     case 'frais': return detailFrais(p);
-    case 'reserve': return detailReserve(c, res, jourRef);
+    case 'reserve': return detailReserve(c, res, jourRef, v);
     case 'verser': return detailVerser(v);
     default: return '';
   }
@@ -333,7 +351,20 @@ function detailFrais(p) {
     </div>`;
 }
 
-function detailReserve(c, res, jourRef) {
+// Ce qui va encore sortir de la reserve : ce qui est du (URSSAF, Google Ads…) + ce que je peux encore me verser
+function aVenirReserve(v) {
+  if (v.reserve === null) return '';
+  const lignes = v.aPayer.map(l => ligne(`− ${esc(l.libelle)}`, euros(l.montant), { note: `prélevé le ${dateCourte(l.date)}` })).join('');
+  return `
+      <h3 class="ge-h3-sous">Ce qui va encore sortir</h3>
+      ${lignes}
+      ${v.versesApres ? ligne(`− Versé pour ${nomMois(v.mois)} après le ${dateCourte(v.jour)}`, euros(v.versesApres)) : ''}
+      ${v.resteAVerser ? ligne(`− Ce que je peux encore me verser pour ${nomMois(v.mois)}`, euros(v.resteAVerser)) : ''}
+      ${!lignes && !v.versesApres && !v.resteAVerser ? '<p class="ge-aide">Rien : tout ce qui est dû est déjà payé.</p>' : ''}
+      ${ligne('<strong>Ma réserve une fois tout payé</strong>', `<strong>${euros(v.reserveApres)}</strong>`, { classe: 'ge-total' })}`;
+}
+
+function detailReserve(c, res, jourRef, v) {
   const comptes = res.parts.map(pa => {
     const nom = C().COMPTES[pa.compte];
     if (pa.montant === null) return ligne(nom, 'à renseigner', { action: boutonModifier(`data-ge="solde" data-valeur="${pa.compte}"`, 'Renseigner') });
@@ -362,6 +393,7 @@ function detailReserve(c, res, jourRef) {
       ${comptes}
       ${ligne('<strong>Total</strong>', `<strong>${euros(res.montant)}</strong>`, { classe: 'ge-total' })}
       <p class="ge-aide">Entre deux relevés, j'ajoute ce qui est entré et sorti : prestations, frais, URSSAF et Google Ads à leur date de prélèvement, dépôts, ce que tu te verses.</p>
+      ${aVenirReserve(v)}
       <h3 class="ge-h3-sous">La caisse en ${nomMois(m)}</h3>
       ${journal || '<p class="ge-aide">Aucun mouvement en liquide ce mois-ci.</p>'}
       <div class="ge-actions">
@@ -373,79 +405,99 @@ function detailReserve(c, res, jourRef) {
 
 function detailVerser(v) {
   const R = D().reglages();
-  const dettes = v.dettes.map(d => ligne(`− ${esc(d.libelle)}`, euros(d.montant))).join('');
-  const plafondNote = `moyenne de ${v.moisPlafond.map(m => nomMois(m)).join(', ')}`;
   const explications = {
-    ok: `Tu peux te verser ce dont tu as besoin (${euros(v.besoin)}).`,
+    ok: `${nomMois(v.mois).replace(/^./, x => x.toUpperCase())} t'a permis de te verser ce dont tu as besoin (${euros(v.besoin)}).`,
     tendu: `C'est un peu juste : moins que ton besoin de ${euros(v.besoin)}, mais au moins ${R.seuilTendu} % de celui-ci.`,
     alerte: `Attention : moins de ${R.seuilTendu} % de ton besoin de ${euros(v.besoin)}.`
   };
+  const versements = v.versements.map(l => ligne(esc(l.libelle || l.categorie || (l.sens === 'transfert' ? 'Virement vers le perso' : 'Pris pour moi')), euros(l.montant), {
+    note: l.source === 'recurrent' ? 'tous les mois' : `${dateCourte(l.date)}${l.date.slice(0, 7) !== v.mois ? ` · pour ${nomMois(v.mois)}` : ''}`,
+    action: l.source === 'saisie' && l.id ? boutonModifier(`data-ge="modifier-mouvement" data-valeur="${l.id}"`) : ''
+  })).join('');
+  const limite = v.limiteParMatelas ? `
+      <p class="ge-info">Limité pour garder ton matelas de ${euros(v.matelas)} : ta réserve (${euros(v.reserve)}) moins ce qui est déjà dû
+        (${euros(v.totalAPayer)}) ne laisse que ${euros(Math.max(0, v.marge))} au-dessus du matelas.</p>` : '';
   return `
     <div class="ge-carte">
-      <h3>Ce que je peux me verser</h3>
-      ${v.reserve === null ? '<p class="ge-info">Il me faut tes soldes pour faire ce calcul.</p>' : `
-      ${ligne(`Ma réserve fin ${nomMois(v.base)}`, euros(v.reserve))}
-      ${dettes}
-      ${ligne('− Mon matelas de sécurité', euros(v.matelas))}
-      ${ligne('<strong>Ce que j\'ai de côté</strong>', `<strong>${euros(v.marge)}</strong>`, { classe: 'ge-total' })}
-      ${ligne(`Ce ${C().queMois(v.base)} a rapporté`, euros(v.plafond), { note: v.moisPlafond.length > 1 ? plafondNote : '' })}
-      ${ligne('<strong>Je peux me verser</strong>', `<strong>${euros(v.recommande)}</strong>`, { classe: 'ge-total' })}
-      <p class="ge-aide">Le plus petit des deux : je ne te propose jamais plus que ce que le mois a rapporté, ni de toucher au matelas.</p>
-      ${v.statut ? `<p class="ge-statut statut-${v.statut}">${explications[v.statut]}</p>` : '<p class="ge-aide">Renseigne ton besoin mensuel dans les réglages pour voir OK / Tendu / Alerte.</p>'}
-      ${v.provisoire ? `<p class="ge-info">${nomMois(v.base).replace(/^./, x => x.toUpperCase())} n'est pas clôturé : ce chiffre peut encore bouger.</p>` : ''}
-      `}
-      ${ligne(`Déjà pris pour moi en ${nomMois(vue.mois)}`, euros(v.dejaPris))}
+      <h3>Ce que je peux me verser pour ${nomMois(v.mois)}</h3>
+      ${ligne(`Ce ${C().queMois(v.mois)} m'a rapporté${v.enCours ? ' jusqu\'ici' : ''}`, euros(v.rapporte), { note: 'ce que mes clientes m\'ont payé − tous les frais du mois' })}
+      ${ligne('<strong>Je peux me verser</strong>', `<strong>${euros(v.total)}</strong>`, { classe: 'ge-total' })}
+      ${limite}
+      ${v.reserve === null ? '<p class="ge-aide">Renseigne tes soldes pour que je vérifie aussi ton matelas.</p>' : ''}
+      <h3 class="ge-h3-sous">Déjà versé pour ${nomMois(v.mois)}</h3>
+      ${versements || '<p class="ge-aide">Rien pour l\'instant.</p>'}
+      ${v.verse ? ligne('<strong>Reste à me verser</strong>', `<strong>${euros(v.resteAVerser)}</strong>`, { classe: 'ge-total' }) : ''}
+      ${v.enTrop ? `<p class="ge-info">${v.enCours
+        ? `Tu t'es versé ${euros(v.enTrop)} de plus que ce que ${nomMois(v.mois)} a rapporté jusqu'ici : ils sont pris sur ta réserve en attendant la suite du mois.`
+        : `Tu t'es versé ${euros(v.enTrop)} de plus que ce que ${nomMois(v.mois)} t'a permis : ils ont été pris sur ta réserve.`}</p>` : ''}
+      ${v.statut ? `<p class="ge-statut statut-${v.statut}">${explications[v.statut]}</p>` : ''}
+      <p class="ge-aide">${v.enCours ? 'Ce chiffre bouge tout le mois : il monte à chaque paiement de cliente, il baisse à chaque frais. À la fin du mois, c\'est ce que le mois t\'a vraiment permis de te verser.' : 'Le mois est terminé : c\'est ce qu\'il t\'a permis de te verser.'}
+        Un virement fait début ${nomMois(E().decalerMois(v.mois, 1))} pour ${nomMois(v.mois)} se saisit ici, avec « pour le mois de ${nomMois(v.mois)} ».</p>
       <div class="ge-actions">
         <button class="btn-primary" data-ge="ajouter" data-type="verser">Me verser de l'argent</button>
-        ${v.provisoire && v.base < moisCourant() ? `<button class="btn-secondary" data-ge="cloturer" data-valeur="${v.base}">Clôturer ${nomMois(v.base)}</button>` : ''}
       </div>
     </div>`;
 }
 
-function blocCloture(m) {
-  if (m >= moisCourant()) return '';
-  const info = D().etat.gestion.mois[m];
-  return info?.clotureLe
-    ? `<div class="ge-cloture">${nomMois(m, true).replace(/^./, x => x.toUpperCase())} est clôturé (${dateCourte(info.clotureLe)}). <button class="ge-lien" data-ge="rouvrir" data-valeur="${m}">Rouvrir</button></div>`
-    : `<div class="ge-cloture"><button class="btn-secondary" data-ge="cloturer" data-valeur="${m}">Clôturer ${nomMois(m)}</button>
-        <span class="ge-petit">Une fois tout saisi : « Je peux me verser » partira de ce mois.</span></div>`;
-}
-
 // ----- Courbe -----
+
+// Pas de graduation « rond » (50, 100, 250, 500…) pour environ 4 intervalles
+function pasRond(ecart) {
+  const brut = Math.max(ecart, 1) / 4;
+  const puissance = Math.pow(10, Math.floor(Math.log10(brut)));
+  return [1, 2, 2.5, 5, 10].map(x => x * puissance).find(x => x >= brut);
+}
 
 function dessinerCourbe() {
   const zone = document.getElementById('ge-courbe');
   if (!zone || typeof ApexCharts === 'undefined') return;
-  const c = ctx();
-  const cr = C().courbeReserve(c, aujourdhui());
-  const mois = [...cr.points.map(p => p.mois), ...cr.projection.map(p => p.mois).filter(m => m !== moisCourant())];
-  const reel = mois.map(m => { const p = cr.points.find(x => x.mois === m); return p ? p.reserve : null; });
-  const projetee = mois.map(m => {
-    const p = cr.projection.find(x => x.mois === m);
-    if (p) return p.reserve;
-    // relier la projection au dernier mois reel
-    return m === E().decalerMois(moisCourant(), -1) ? (cr.points.find(x => x.mois === m)?.reserve ?? null) : null;
-  });
-  // On commence au premier mois dont la reserve est connue (pas de mois vides a gauche)
-  const premier = reel.findIndex(v => v !== null);
-  if (premier > 0) { mois.splice(0, premier); reel.splice(0, premier); projetee.splice(0, premier); }
+  const cm = C().courbeDuMois(ctx(), vue.mois, aujourdhui());
   if (vue.courbe) { try { vue.courbe.destroy(); } catch (e) { /* rien */ } vue.courbe = null; }
-  if (reel.every(v => v === null)) {
-    zone.innerHTML = '<p class="ge-aide">La courbe apparaîtra dès que tes soldes de départ seront renseignés.</p>';
-    return;
-  }
+
+  const connues = cm.valeurs.filter(v => v !== null);
+  const haut = Math.max(0, ...connues);
+  const bas = Math.min(0, ...connues);
+  const pas = pasRond(haut - bas);
+  const yMax = Math.max(pas, Math.ceil(haut / pas) * pas);
+  const yMin = Math.floor(bas / pas) * pas;
+  // Dore au-dessus de zero, rouge en dessous : le degrade de l'aire change de couleur au zero
+  const zero = haut === bas ? 100 : Math.round(haut / (haut - bas) * 100);
+  const dore = '#b07a4f';
+  const rouge = '#c0504d';
+
   vue.courbe = new ApexCharts(zone, {
-    chart: { type: 'line', height: 260, toolbar: { show: false }, zoom: { enabled: false }, fontFamily: 'Inter, sans-serif' },
-    series: [{ name: 'Ma réserve', data: reel }, { name: 'Si ça continue', data: projetee }],
-    xaxis: { categories: mois.map(m => `${MOIS_COURTS[Number(m.slice(5, 7)) - 1]} ${m.slice(2, 4)}`), labels: { rotate: 0, hideOverlappingLabels: true } },
-    yaxis: { labels: { formatter: v => v === null ? '' : `${Math.round(v / 100) / 10} k€` } },
-    stroke: { width: [3, 3], dashArray: [0, 6], curve: 'smooth' },
-    colors: ['#b07a4f', '#c9a27e'],
-    markers: { size: [4, 0] },
+    chart: { type: 'area', height: 240, toolbar: { show: false }, zoom: { enabled: false }, animations: { enabled: false }, fontFamily: 'Inter, sans-serif' },
+    series: [{ name: 'Ce qu\'il me reste', data: cm.valeurs }],
+    plotOptions: { area: { fillTo: 'origin' } },
+    xaxis: {
+      categories: cm.jours.map(j => String(Number(j.slice(8, 10)))),
+      tickAmount: 6,
+      labels: { rotate: 0, hideOverlappingLabels: true },
+      tooltip: { enabled: false }
+    },
+    yaxis: { min: yMin, max: yMax, tickAmount: Math.round((yMax - yMin) / pas), forceNiceScale: false, labels: { formatter: v => `${Math.round(v)} €` } },
+    stroke: { width: 2.5, curve: 'straight', colors: ['#7a5236'] },
+    fill: {
+      type: 'gradient',
+      gradient: {
+        type: 'vertical',
+        colorStops: [
+          { offset: 0, color: dore, opacity: 0.55 },
+          { offset: zero, color: dore, opacity: 0.12 },
+          { offset: zero, color: rouge, opacity: 0.35 },
+          { offset: 100, color: rouge, opacity: 0.6 }
+        ]
+      }
+    },
+    colors: [dore],
+    markers: { size: 0 },
     dataLabels: { enabled: false },
-    legend: { position: 'bottom' },
-    tooltip: { y: { formatter: v => v === null ? '' : euros(v) } },
-    annotations: cr.matelas ? { yaxis: [{ y: cr.matelas, borderColor: '#c0504d', strokeDashArray: 3, label: { text: `Matelas ${euros(cr.matelas)}`, style: { color: '#fff', background: '#c0504d' } } }] } : {},
+    legend: { show: false },
+    tooltip: {
+      x: { formatter: (v, o) => { const j = cm.jours[o.dataPointIndex]; return j ? `${Number(j.slice(8, 10))} ${nomMois(j.slice(0, 7))}` : ''; } },
+      y: { formatter: v => v === null || v === undefined ? '' : euros(v) }
+    },
+    annotations: { yaxis: [{ y: 0, borderColor: '#8c7b70', strokeDashArray: 0 }] },
     grid: { borderColor: '#efe6dd' }
   });
   vue.courbe.render();
@@ -531,10 +583,7 @@ function vueReglages() {
       <div class="ge-grille-champs">
         ${champ('matelas', 'Matelas de sécurité (€)', R.matelas, 'L\'argent que je ne touche pas.')}
         ${champ('besoinMensuel', 'Mon besoin chaque mois (€)', R.besoinMensuel, 'Ce qu\'il me faut pour vivre.')}
-        ${champ('seuilTendu', '« Tendu » à partir de (% du besoin)', R.seuilTendu, 'En dessous : Alerte.', 'type="number" step="1" min="0" max="100" inputmode="numeric"')}
-        <label class="ge-champ"><span>« Ce que le mois a rapporté »</span>
-          <select name="moyenneSur"><option value="1" ${Number(R.moyenneSur) !== 3 ? 'selected' : ''}>Le dernier mois clôturé</option><option value="3" ${Number(R.moyenneSur) === 3 ? 'selected' : ''}>La moyenne des 3 derniers mois</option></select>
-          <small>Avec les saisons, la moyenne lisse les mois creux.</small></label>
+        ${champ('seuilTendu', '« Tendu » à partir de (% du besoin)', R.seuilTendu, 'En dessous : Alerte. Affiché une fois le mois terminé.', 'type="number" step="1" min="0" max="100" inputmode="numeric"')}
         ${champ('tauxUrssaf', 'Taux URSSAF (%)', R.tauxUrssaf)}
         ${champ('tauxCarte', 'Commission carte SumUp (%)', R.tauxCarte, 'À changer si la formule ou le prestataire change.')}
         <label class="ge-champ"><span>L'URSSAF est payée depuis</span><select name="compteUrssaf">${optionsComptes(R.compteUrssaf)}</select>
@@ -584,6 +633,10 @@ function formulaireMouvement(type, mv = null, compteForce = null) {
   const choixType = Object.entries(TYPES).filter(([, x]) => x.espace === t.espace)
     .map(([k, x]) => `<option value="${k}" ${k === type ? 'selected' : ''}>${x.titre}</option>`).join('');
   const montant = mv && mv.montant !== '' && mv.montant !== null && mv.montant !== undefined ? Math.abs(Number(mv.montant)) : '';
+  // Un versement compte pour le mois choisi (le salaire d'octobre vire debut novembre), par defaut le mois affiche
+  const moisVerse = mv?.moisConcerne || (mv?.id ? C().moisDuMouvement(mv) : vue.mois);
+  const choixMois = [...new Set([moisVerse, ...[-2, -1, 0].map(n => E().decalerMois(moisCourant(), n))])].sort().reverse()
+    .map(mo => `<option value="${mo}" ${mo === moisVerse ? 'selected' : ''}>${nomMois(mo, true)}</option>`).join('');
   return `
     <h3>${mv?.id ? 'Modifier' : 'Ajouter'}</h3>
     <form class="ge-formulaire" data-ge-form="mouvement" data-id="${mv?.id || ''}">
@@ -593,6 +646,7 @@ function formulaireMouvement(type, mv = null, compteForce = null) {
         <label class="ge-champ"><span>Date</span><input name="date" type="date" required value="${mv?.date || (vue.mois === moisCourant() ? aujourdhui() : E().dernierJourDuMois(vue.mois))}"></label>
         <label class="ge-champ"><span>${t.sens === 'entree' ? 'Arrivé sur' : t.sens === 'transfert' ? 'Depuis' : 'Payé avec'}</span><select name="compte">${comptes}</select></label>
         ${t.vers ? `<label class="ge-champ"><span>Vers</span><input value="${C().COMPTES[t.vers]}" disabled></label>` : ''}
+        ${type === 'verser' ? `<label class="ge-champ"><span>Pour le mois de</span><select name="moisConcerne">${choixMois}</select></label>` : ''}
         ${t.categories ? `<label class="ge-champ"><span>Catégorie</span>${optionsCategories(t.categories, mv?.categorie)}</label>` : ''}
         <label class="ge-champ ge-champ-large"><span>Libellé (facultatif)</span><input name="libelle" type="text" value="${esc(mv?.libelle || '')}"></label>
       </div>
@@ -736,6 +790,7 @@ function lierEvenements() {
         montant: f.elements.montant.value,
         date: f.elements.date.value,
         libelle: f.elements.libelle.value,
+        moisConcerne: f.elements.moisConcerne?.value || null,
         categorie: null,
         compte: null
       }));
@@ -800,10 +855,12 @@ async function action(nom, el) {
       return ouvrir('gestion-modal', formulaireDeclare(v));
     case 'effacer-declare':
       await D().enregistrerMois(v, { caDeclare: null }); fermer(); return rendre();
-    case 'cloturer':
-      await D().enregistrerMois(v, { clotureLe: aujourdhui() }); notifier(`${nomMois(v, true)} clôturé`); return rendre();
-    case 'rouvrir':
-      await D().enregistrerMois(v, { clotureLe: null }); return rendre();
+    case 'reconnecter-ads': {
+      if (typeof racine.connectToGoogleAds === 'function') await racine.connectToGoogleAds();
+      const m = moisCourant();
+      await D().chargerCoutsAds(E().decalerMois(m, -13), m, { forcer: true });
+      return rendre();
+    }
     default:
       return undefined;
   }
@@ -823,6 +880,9 @@ async function soumettre(f) {
     const t = TYPES[type];
     const montant = lireNombre(f, 'montant');
     if (montant === null || montant <= 0) return notifier('Indique un montant', 'warning');
+    // Rattache au mois choisi seulement s'il differe de celui de la date
+    const moisChoisi = f.elements.moisConcerne?.value || null;
+    const moisConcerne = moisChoisi && moisChoisi !== f.elements.date.value.slice(0, 7) ? moisChoisi : null;
     await D().enregistrerMouvement({
       id: f.dataset.id || undefined,
       date: f.elements.date.value,
@@ -832,9 +892,11 @@ async function soumettre(f) {
       compteVers: t.vers || null,
       categorie: f.elements.categorie?.value.trim() || null,
       libelle: f.elements.libelle.value.trim() || null,
+      moisConcerne,
       montant
     });
-    vue.mois = f.elements.date.value.slice(0, 7) <= moisCourant() ? f.elements.date.value.slice(0, 7) : vue.mois;
+    const moisAffiche = moisConcerne || f.elements.date.value.slice(0, 7);
+    vue.mois = moisAffiche <= moisCourant() ? moisAffiche : vue.mois;
   } else if (quoi === 'recurrent') {
     const t = TYPES_RECURRENTS[f.dataset.type];
     const frequence = f.elements.frequence.value;
@@ -878,7 +940,6 @@ async function soumettre(f) {
       matelas: lireNombre(f, 'matelas'),
       besoinMensuel: lireNombre(f, 'besoinMensuel'),
       seuilTendu: lireNombre(f, 'seuilTendu') ?? 70,
-      moyenneSur: Number(f.elements.moyenneSur.value) || 1,
       tauxUrssaf: lireNombre(f, 'tauxUrssaf') ?? 21.4,
       tauxCarte: lireNombre(f, 'tauxCarte') ?? 1.75,
       compteUrssaf: f.elements.compteUrssaf.value,

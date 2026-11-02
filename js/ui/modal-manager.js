@@ -3645,10 +3645,10 @@ async function saveGoogleAdsTokens(tokens) {
     parametres.googleAdsTokens = encryptedTokens;
     parametres.googleAdsConnected = true;
     parametres.googleAdsConnectedAt = new Date().toISOString();
-    
-    DataManager.saveParametres(parametres);
-    await DataManager.saveData();
-    
+
+    // v1.1.0.1 : seulement ces trois cles (voir CLES_PARAMETRES_A_PART, data-manager.js)
+    await DataManager.saveParametresCles(['googleAdsTokens', 'googleAdsConnected', 'googleAdsConnectedAt']);
+
   } catch (error) {
     console.error('❌ Erreur sauvegarde tokens:', error);
     throw error;
@@ -3665,14 +3665,14 @@ async function disconnectFromGoogleAds() {
     
     if (!confirmation) return;
     
+    // v1.1.0.1 : valeurs videes puis enregistrees ; supprimer les cles du cache ne
+    // les retirait pas de la base (un upsert n'efface rien) et la connexion revenait.
     const parametres = DataManager.getParametres();
-    delete parametres.googleAdsTokens;
-    delete parametres.googleAdsConnected;
-    delete parametres.googleAdsConnectedAt;
-    
-    DataManager.saveParametres(parametres);
-    await DataManager.saveData();
-    
+    parametres.googleAdsTokens = '';
+    parametres.googleAdsConnected = false;
+    parametres.googleAdsConnectedAt = '';
+    await DataManager.saveParametresCles(['googleAdsTokens', 'googleAdsConnected', 'googleAdsConnectedAt']);
+
     await updateGoogleAdsStatus();
     showTemporaryMessage('🔓 Déconnecté de Google Ads', 'info');
     
@@ -3995,8 +3995,11 @@ async function updateGoogleAdsStatus() {
   if (!statusDiv) return;
   
   const parametres = DataManager.getParametres();
-  const isConnected = parametres.googleAdsConnected;
-  
+  // v1.1.0.1 : « Connecté » seulement si la connexion marche encore. Avant, une connexion
+  // expiree restait affichee « Connecté » et le bouton pour se reconnecter etait cache.
+  const expiree = !!parametres.googleAdsConnected && !(await getValidTokens());
+  const isConnected = parametres.googleAdsConnected && !expiree;
+
   if (isConnected) {
     const date = new Date(parametres.googleAdsConnectedAt).toLocaleDateString('fr-FR');
     statusDiv.innerHTML = `<span style="color: #27ae60;">✅ Connecté depuis le ${date}</span>`;
@@ -4046,8 +4049,10 @@ async function updateGoogleAdsStatus() {
     }
     
   } else {
-    statusDiv.innerHTML = '<span style="color: #666;">Non connecté</span>';
-    
+    statusDiv.innerHTML = expiree
+      ? '<span style="color: #c0504d; font-weight: 600;">⚠️ Connexion expirée : reconnecte-toi pour que les coûts de pub soient comptés</span>'
+      : '<span style="color: #666;">Non connecté</span>';
+
     // Boutons de connexion
     if (connectBtn) connectBtn.style.display = 'inline-block';
     if (disconnectBtn) disconnectBtn.style.display = 'none';

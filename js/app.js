@@ -163,6 +163,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       syncGoogleAdsCostsOnStartup()
         .then(() => {
           if (typeof UtilsServices?.updateAnalytics === 'function') UtilsServices.updateAnalytics();
+          return signalerDeconnexionGoogleAds();
         })
         .catch(err => console.warn('Sync Google Ads (fond) :', err));
 
@@ -202,6 +203,36 @@ document.addEventListener('DOMContentLoaded', async () => {
     alert('Erreur au démarrage.\n\nDétail : ' + (error && error.message ? error.message : error));
   }
 });
+
+// v1.1.0.1 : une connexion Google Ads perdue se voit tout de suite. Sans elle, les
+// couts de pub ne sont plus comptes (Gestion, Analytics) sans que rien ne le signale.
+async function signalerDeconnexionGoogleAds() {
+  const parametres = DataManager.getParametres();
+  if (!parametres.googleAdsConnected || typeof getValidTokens !== 'function') return;
+  if (await getValidTokens()) return;
+  if (document.getElementById('bandeau-google-ads')) return;
+
+  const bandeau = document.createElement('div');
+  bandeau.id = 'bandeau-google-ads';
+  bandeau.setAttribute('role', 'alert');
+  bandeau.innerHTML = `
+    <span style="flex: 1;">Google Ads s'est déconnecté : tes coûts de pub ne sont plus comptés.</span>
+    <button type="button" data-action="reconnecter" style="padding: 0.45rem 0.9rem; border: none; border-radius: 8px;
+      background: #fff; color: #a23f3c; font-weight: 600; cursor: pointer;">Me reconnecter</button>
+    <button type="button" data-action="fermer" aria-label="Fermer" style="border: none; background: none;
+      color: #fff; font-size: 1.3rem; line-height: 1; cursor: pointer;">×</button>`;
+  bandeau.style.cssText = `
+    position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom));
+    z-index: 9000; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+    padding: 0.75rem 1rem; border-radius: 10px; background: #c0504d; color: #fff;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.2); font-family: Inter, system-ui, sans-serif; font-size: 0.9rem;`;
+  bandeau.querySelector('[data-action="fermer"]').addEventListener('click', () => bandeau.remove());
+  bandeau.querySelector('[data-action="reconnecter"]').addEventListener('click', async () => {
+    if (typeof connectToGoogleAds === 'function') await connectToGoogleAds();
+    if (await getValidTokens()) bandeau.remove();
+  });
+  document.body.appendChild(bandeau);
+}
 
 async function syncGoogleAdsCostsOnStartup() {
   try {

@@ -70,7 +70,7 @@ de faire **Ctrl+Shift+R** (le cache HTTP du navigateur est distinct du cache du 
 
 ## Versioning
 - Format : `X.Y.Z.W` ou X.Y = version PWA, Z.W = heritage version Electron
-- Version actuelle : `1.1.0.0` (onglet Gestion pro + perso, une seule regle d'encaissement pour tous les ecrans)
+- Version actuelle : `1.1.0.1` (Gestion a l'instantane : une vue = son mois, « Je peux me verser » en direct, courbe du mois ; jetons Google Ads proteges)
 - **OBLIGATOIRE** : a chaque modification demandee par l'utilisateur, proposer un bump de version et attendre validation
 - Mettre a jour la version dans 3 endroits : `package.json`, `index.html` (burger menu + footer)
 - Puis **`node scripts/estampiller-version.js`** : repose `?v=X.Y.Z.W` sur tous les

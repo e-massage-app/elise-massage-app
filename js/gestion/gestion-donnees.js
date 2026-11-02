@@ -1,4 +1,4 @@
-// ===== GESTION : DONNEES (v1.1.0.0) =====
+// ===== GESTION : DONNEES (v1.1.0.1) =====
 // Lit et ecrit UNIQUEMENT les tables de l'onglet Gestion (gestion_*) et la cle
 // `gestion` de `parametres`. Prestations, cartes cadeaux et depenses sont lues
 // depuis appData (deja charge par l'app), jamais modifiees ici.
@@ -10,6 +10,7 @@ const etat = {
   charge: false,
   gestion: { mouvements: [], recurrents: [], mois: {}, soldes: [] },
   ads: null,          // { 'YYYY-MM': cout } lu chez Google, null si indisponible
+  adsJours: null,     // { 'YYYY-MM-DD': cout } : la courbe du mois, jour par jour
   adsErreur: null,
   adsCharge: false
 };
@@ -153,19 +154,20 @@ async function enregistrerReglages(nouveaux) {
   return reglages();
 }
 
-// ----- Google Ads : cout du compte, mois par mois -----
+// ----- Google Ads : cout du compte, jour par jour -----
 // Lu directement chez Google (decision de Jordan : « au moins 0 erreur »).
 // Tous les postes de depense des comptes qui portent les campagnes suivies :
 // c'est ce que Google facture, donc ce qui sort du compte pro.
 
-const CLE_CACHE_ADS = 'gestion-ads-v1';
+const CLE_CACHE_ADS = 'gestion-ads-v2';
+const DUREE_CACHE_ADS = 60 * 60 * 1000; // le cout du jour bouge : une heure au plus
 
 async function chargerCoutsAds(moisDebut, moisFin, { forcer = false } = {}) {
   if (!forcer) {
     try {
       const cache = JSON.parse(sessionStorage.getItem(CLE_CACHE_ADS) || 'null');
-      if (cache && cache.debut <= moisDebut && cache.fin >= moisFin) {
-        etat.ads = cache.couts; etat.adsCharge = true; etat.adsErreur = null;
+      if (cache && cache.debut <= moisDebut && cache.fin >= moisFin && Date.now() - cache.le < DUREE_CACHE_ADS) {
+        etat.ads = cache.couts; etat.adsJours = cache.jours; etat.adsCharge = true; etat.adsErreur = null;
         return etat.ads;
       }
     } catch (e) { /* stockage indisponible : on interroge Google */ }
@@ -176,7 +178,7 @@ async function chargerCoutsAds(moisDebut, moisFin, { forcer = false } = {}) {
     const p = DataManager.getParametres();
     const suivies = (p.googleAdsSelectedCampaigns || []).map(String);
     if (!p.googleAdsConnected || typeof getValidTokens !== 'function') {
-      etat.ads = null; etat.adsErreur = 'Google Ads n\'est pas connecté dans les paramètres.';
+      etat.ads = null; etat.adsJours = null; etat.adsErreur = 'Google Ads n\'est pas connecté dans les paramètres.';
       return null;
     }
     const tokens = await getValidTokens();
@@ -187,29 +189,34 @@ async function chargerCoutsAds(moisDebut, moisFin, { forcer = false } = {}) {
     const debut = `${moisDebut}-01`;
     const fin = Encaissements.dernierJourDuMois(moisFin);
     const couts = {};
+    const jours = {};
     for (const customerId of comptes.customers) {
-      const lignes = await requeteCoutsParMois(tokens.access_token, customerId, debut, fin);
+      const lignes = await requeteCoutsParJour(tokens.access_token, customerId, debut, fin);
       // Seulement les comptes qui portent au moins une campagne suivie dans l'app
       if (suivies.length && !lignes.some(l => suivies.includes(l.campagne))) continue;
-      lignes.forEach(l => { couts[l.mois] = GestionCalculs.arrondi((couts[l.mois] || 0) + l.cout); });
+      lignes.forEach(l => {
+        const mois = l.jour.slice(0, 7);
+        couts[mois] = GestionCalculs.arrondi((couts[mois] || 0) + l.cout);
+        jours[l.jour] = GestionCalculs.arrondi((jours[l.jour] || 0) + l.cout);
+      });
     }
     // Un mois sans depense vaut 0 (et non « inconnu »)
     for (let m = moisDebut; m <= moisFin; m = Encaissements.decalerMois(m, 1)) {
       if (couts[m] === undefined) couts[m] = 0;
     }
-    etat.ads = couts; etat.adsErreur = null;
-    try { sessionStorage.setItem(CLE_CACHE_ADS, JSON.stringify({ debut: moisDebut, fin: moisFin, couts })); } catch (e) { /* rien */ }
+    etat.ads = couts; etat.adsJours = jours; etat.adsErreur = null;
+    try { sessionStorage.setItem(CLE_CACHE_ADS, JSON.stringify({ debut: moisDebut, fin: moisFin, couts, jours, le: Date.now() })); } catch (e) { /* rien */ }
     return couts;
   } catch (e) {
     console.error('Gestion : couts Google Ads indisponibles', e);
-    etat.ads = null; etat.adsErreur = e.message || String(e);
+    etat.ads = null; etat.adsJours = null; etat.adsErreur = e.message || String(e);
     return null;
   }
 }
 
-async function requeteCoutsParMois(accessToken, customerId, debut, fin) {
+async function requeteCoutsParJour(accessToken, customerId, debut, fin) {
   const query = `
-    SELECT campaign.id, segments.month, metrics.cost_micros
+    SELECT campaign.id, segments.date, metrics.cost_micros
     FROM campaign
     WHERE segments.date BETWEEN '${debut}' AND '${fin}'
   `;
@@ -227,11 +234,11 @@ async function requeteCoutsParMois(accessToken, customerId, debut, fin) {
   const data = await reponse.json();
   const lignes = [];
   (Array.isArray(data) ? data : []).forEach(lot => (lot.results || []).forEach(r => {
-    const mois = (r.segments?.month || '').slice(0, 7);
-    if (!mois) return;
+    const jour = (r.segments?.date || '').slice(0, 10);
+    if (!jour) return;
     lignes.push({
       campagne: String(r.campaign?.id ?? (r.campaign?.resourceName || '').split('/').pop()),
-      mois,
+      jour,
       cout: (parseInt(r.metrics?.costMicros || 0, 10) || 0) / 1000000
     });
   }));

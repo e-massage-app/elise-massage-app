@@ -21,17 +21,22 @@ est public, aucun montant personnel ne doit etre commite, ni dans le code ni dan
 | Reference | Le logiciel fait foi (l'Excel oubliait des choses) : le but est de tout centraliser |
 | Taux URSSAF | 21,4 %, modifiable |
 | CA du mois | Calcule automatiquement, ET saisie manuelle du montant declare qui prend le dessus |
-| Lissage URSSAF | Chiffre « A declarer ce mois-ci » (= encaisse du mois precedent) + message informatif sur ce qui reste non declare pour ce mois. Pas de cumul, rien retire de « Je peux me verser » : elle paie souvent l'URSSAF depuis un autre compte ou elle a mis de l'argent de cote |
+| Lissage URSSAF | Carte « A declarer pour <mois> » (= encaisse DU mois affiche, declaration avant la fin du mois suivant) + montant declare saisi sur ce meme mois + message informatif sur ce qui reste non declare. Pas de cumul, rien retire de « Je peux me verser » : elle paie souvent l'URSSAF depuis un autre compte ou elle a mis de l'argent de cote |
+| Une page = son mois | Chaque vue de mois ne montre que les chiffres de ce mois, rattaches « a l'instantane » meme s'ils sont payes ou declares le mois suivant (Jordan, 2026-11-02, v1.1.0.1). La v1.1.0.0 affichait sur octobre l'encaisse de septembre et y enregistrait le declare |
 | Rattachement | URSSAF et Google Ads comptent dans le mois qu'ils concernent pour « Ce qu'il me reste » ; les comptes suivent les vraies dates de prelevement |
-| Je peux me verser | Reserve fin du mois cloture − URSSAF a payer sur le declare − facture Ads a venir − matelas ; plafonne a ce que le mois a rapporte ; jamais negatif |
-| Statuts | OK >= besoin ; Tendu >= 70 % du besoin ; Alerte en dessous. Modifiables |
+| Je peux me verser | v1.1.0.1 « a l'instantane » : ce que le mois affiche a rapporte jusqu'ici (encaisse − tous ses frais), reduit seulement si la reserve passerait sous le matelas une fois paye ce qui est deja du ; jamais negatif. Affiche « X € sur <besoin> » + jauge, « dont Y déjà versés ». Remplace le calcul sur le mois precedent cloture (v1.1.0.0) |
+| Statuts | OK >= besoin ; Tendu >= 70 % du besoin ; Alerte en dessous. Modifiables. Seulement sur un mois termine : en debut de mois le chiffre part forcement de zero |
+| Versements | « Me verser de l'argent » porte le mois concerne (`mois_concerne`) : un virement du 3 novembre peut compter pour octobre |
+| Cloture | Supprimee en v1.1.0.1 (elle ne servait qu'a choisir le mois de calcul). La colonne `cloture_le` reste en base, inutilisee |
+| Courbe | v1.1.0.1 : « Ce qu'il me reste en <mois>, jour par jour » = paye − frais − verse, rouge sous zero. Charges fixes le 1er (le mois demarre sous zero), Google Ads au jour le jour, URSSAF et commission avec chaque paiement. Remplace la courbe de la reserve et la projection (qui supposait un versement fixe et faisait peur) |
+| Ma reserve | Tuile : « −X € à venir → Y € » = ce qui est deja du (URSSAF, Ads…) + ce qu'il reste a me verser ; detail « Ce qui va encore sortir » |
 | Comptes | Compte pro, caisse especes, compte perso, epargne. Chaque mouvement dit d'ou part l'argent |
 | Soldes | Recopies depuis l'appli bancaire, actualisables a tout moment ; estimation entre deux saisies |
 | Charges fixes | Pas de « jour de prelevement » : une charge fixe compte pour le mois. Mensuelle ou annuelle (CFE) |
 | HeadSpa | Jenny encaisse puis paie Elise : le prix du logiciel (sa part) est juste |
 | Loyer cabine | Par jour travaille, comme le logiciel le compte ; paye en especes le plus souvent |
 | CFE | Charge annuelle (mois et montant saisis dans l'app), modifiable |
-| Google Ads | Lu directement chez Google (cout du compte par mois), aucune saisie |
+| Google Ads | Lu directement chez Google, jour par jour depuis v1.1.0.1 (`segments.date`, cache d'une heure), aucune saisie. Pas de lissage : le cout de chaque jour tombe ce jour-la |
 | SumUp | 1,75 % des paiements carte, modifiable. CA = montant paye par la cliente, la commission est un frais |
 | Depart | Le mois precedent (octobre 2026) sert de base ; utilisation reelle a partir de novembre |
 | Analytics | Utilise aussi l'encaisse (regle d'Elise), comme tous les ecrans |
@@ -81,6 +86,13 @@ est public, aucun montant personnel ne doit etre commite, ni dans le code ni dan
 - [x] C7. Boucle des mois du graphique et des filtres : plus de mois en double ou sautes
 - [x] C8. « Annee actuelle » qui prenait toutes les annees dans plusieurs blocs d'Analytics
 - [x] C9. Cout Google Ads du mois sur l'accueil : plus d'estimation (total / 12, / 4) ecrite dans le cache
+- [x] C10 (v1.1.0.1). Connexion Google Ads : les jetons s'enregistrent seuls (`saveParametresCles`) et
+      `saveParametresToDb` ne les re-ecrit plus (ni la cle `gestion`) : un onglet ouvert depuis longtemps
+      remettait d'anciens jetons. Parametres : « Connexion expirée » au lieu de « Connecté » quand le
+      renouvellement echoue, bouton de reconnexion visible ; bandeau au demarrage ; alerte dans Gestion.
+      Deconnexion : les cles sont videes en base (avant, elles revenaient au rechargement).
+      Reste cote Google Cloud : passer l'ecran de consentement OAuth en « En production » (en « Test »,
+      Google fait expirer le jeton de renouvellement au bout de 7 jours)
 
 ## Plan
 
@@ -114,3 +126,15 @@ est public, aucun montant personnel ne doit etre commite, ni dans le code ni dan
 - Pre-remplissage valide par Jordan (2026-11-02), ecrit dans SA base uniquement : charges fixes pro
   et perso, soldes au 31 octobre repris de l'Excel (a verifier par Elise), reglages et categories,
   deux frais d'octobre absents du logiciel. Epargne : pas de ligne automatique, Elise adapte chaque mois.
+
+## Revue v1.1.0.1 (2026-11-02)
+
+- Une vue = son mois : carte « À déclarer pour <mois> » (montant declare enregistre sur ce mois).
+  Le declare d'octobre, saisi par erreur sur septembre en v1.1.0.0, a ete deplace (accord de Jordan).
+- « Je peux me verser » a l'instantane, versements rattaches a un mois, cloture supprimee,
+  courbe du mois jour par jour (Google Ads lu par jour), tuile reserve avec ce qui est a venir.
+- `npm test` : 27 tests (dont mois termine / en cours, matelas, versement debut novembre pour
+  octobre, trop verse, debut de mois negatif, courbe jour par jour), donnees fictives uniquement.
+- Banc d'essai Node : un vieil onglet n'ecrase plus les jetons Google ni la cle `gestion`.
+- Apercu (`tests/apercu-gestion.html`) a 375 px et 1280 px : tuiles sans debordement, courbe
+  rouge sous zero, rattachement d'un versement a octobre, alerte Google Ads.

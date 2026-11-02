@@ -447,10 +447,17 @@ async function saveData() {
 }
 
 // ===== SAUVEGARDE PARAMETRES VERS SUPABASE =====
+
+// v1.1.0.1 : cles enregistrees a part (saveParametresCles), jamais re-ecrites ici.
+// saveParametresToDb envoie TOUTES les cles chargees au demarrage : un onglet ou un
+// telephone ouvert depuis longtemps ecrasait les jetons Google Ads tout juste
+// renouveles (et les reglages de la Gestion) avec sa vieille copie.
+const CLES_PARAMETRES_A_PART = ['googleAdsTokens', 'googleAdsConnected', 'googleAdsConnectedAt', 'gestion'];
+
 async function saveParametresToDb() {
   try {
     const userId = await getCurrentUserId();
-    const entries = Object.entries(appData.parametres);
+    const entries = Object.entries(appData.parametres).filter(([cle]) => !CLES_PARAMETRES_A_PART.includes(cle));
 
     // v1.0.7.2 : Promise.all parallele au lieu de boucle sequentielle.
     // 15-20 cles x 500-800ms sequentiel = 10-15s (super lent sur form lambda).
@@ -474,6 +481,18 @@ async function saveParametresToDb() {
     console.error('Erreur sauvegarde parametres:', error);
     return false;
   }
+}
+
+// v1.1.0.1 : enregistre seulement ces cles ; les autres restent telles qu'en base.
+async function saveParametresCles(cles) {
+  const userId = await getCurrentUserId();
+  const lignes = cles
+    .filter(cle => appData.parametres && appData.parametres[cle] !== undefined)
+    .map(cle => ({ user_id: userId, cle, valeur: appData.parametres[cle] }));
+  if (!lignes.length) return true;
+  const { error } = await supabaseClient.from('parametres').upsert(lignes, { onConflict: 'user_id,cle' });
+  if (error) throw error;
+  return true;
 }
 
 // ===== CRUD GENERIQUE =====
@@ -1703,7 +1722,7 @@ window.DataManager = {
   loadData, saveData, getAppData, setAppData,
   setEditingId, getEditingId,
   generateId, formatDate, formatActions, getDureeValue,
-  saveParametres, getParametres,
+  saveParametres, getParametres, saveParametresCles,
   saveDashboardLayoutToCore, loadDashboardLayoutFromCore,
   getAllRdv, getRdvById,
   getAllPrestations, getPrestationById, getSortedPrestations,

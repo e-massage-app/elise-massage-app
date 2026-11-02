@@ -1,4 +1,4 @@
-// ===== GESTION : CALCULS (v1.1.0.0) =====
+// ===== GESTION : CALCULS (v1.1.0.1) =====
 // Fonctions pures : ni DOM, ni Supabase, ni date du jour implicite (on la passe).
 // Testees sous Node : tests/gestion-calculs.test.js.
 //
@@ -31,7 +31,6 @@ const REGLAGES_DEFAUT = {
   matelas: null,
   besoinMensuel: null,
   seuilTendu: 70,
-  moyenneSur: 1,
   compteUrssaf: 'pro',
   compteParCategorie: { Loyer: 'caisse' },
   inclureTransport: false,
@@ -247,21 +246,26 @@ function moisPro(ctx, mois) {
     .forEach(mv => postes.push({ cle: null, libelle: mv.libelle || mv.categorie || 'Frais', categorie: mv.categorie, montant: Math.abs(Number(mv.montant) || 0), source: 'saisie', ref: mv, date: _Enc.jourDe(mv.date) }));
 
   const frais = arrondi(postes.reduce((s, p) => s + (Number(p.montant) || 0), 0));
-  return { ...t, postes, frais, reste: arrondi(t.encaisse - frais), pourMoi: pourMoi(ctx, mois), cloture: !!infoMois.clotureLe };
+  return { ...t, postes, frais, reste: arrondi(t.encaisse - frais), pourMoi: pourMoi(ctx, mois) };
 }
 
-/** Ce qu'elle a pris pour elle ce mois-ci : virements vers le perso + depenses perso payees avec l'argent pro. */
+/** Mois auquel un mouvement saisi est rattache : celui choisi a la saisie, sinon celui de sa date. */
+function moisDuMouvement(mv) {
+  return mv.moisConcerne || _Enc.jourDe(mv.date).slice(0, 7);
+}
+
+/**
+ * Ce qu'elle a pris pour elle au titre du mois : virements vers le perso + depenses perso payees
+ * avec l'argent pro. Un salaire d'octobre vire le 3 novembre compte pour octobre (moisConcerne).
+ */
 function pourMoi(ctx, mois) {
-  const debut = `${mois}-01`;
-  const fin = _Enc.dernierJourDuMois(mois);
   let total = 0;
   const lignes = [];
   const prendre = (mv, m, source) => { total += m; lignes.push({ ...mv, montant: m, source }); };
   const infoMois = ctx.gestion.mois[mois] || {};
 
   (ctx.gestion.mouvements || []).forEach(mv => {
-    const d = _Enc.jourDe(mv.date);
-    if (d < debut || d > fin) return;
+    if (moisDuMouvement(mv) !== mois) return;
     const m = Math.abs(Number(mv.montant) || 0);
     if (mv.sens === 'transfert' && COMPTES_RESERVE.includes(mv.compte) && !COMPTES_RESERVE.includes(mv.compteVers)) prendre(mv, m, 'saisie');
     else if (mv.sens === 'sortie' && mv.espace === 'perso' && COMPTES_RESERVE.includes(mv.compte)) prendre(mv, m, 'saisie');
@@ -313,69 +317,93 @@ function reserve(ctx, jour) {
   };
 }
 
-// ----- Ce que je peux me verser -----
+// ----- Ce que je peux me verser (a l'instantane) -----
 
-function dernierMoisCloture(ctx, avant) {
-  return Object.keys(ctx.gestion.mois)
-    .filter(m => m < avant && ctx.gestion.mois[m]?.clotureLe)
-    .sort()
-    .pop() || null;
+/**
+ * Ce qui est deja du mais pas encore sorti de la reserve au jour J : les frais du mois et du
+ * mois precedent dates apres J (URSSAF prelevee a la fin du mois suivant, Google Ads le 1er,
+ * commission carte en fin de mois). L'URSSAF payee depuis l'epargne n'y est pas.
+ */
+function aPayer(ctx, mois, jour) {
+  const lignes = [];
+  [_Enc.decalerMois(mois, -1), mois].forEach(m => {
+    fluxConcernant(ctx, m)
+      .filter(f => f.type === 'frais' && COMPTES_RESERVE.includes(f.compte) && f.date > jour)
+      .forEach(f => lignes.push({
+        libelle: f.source === 'calcul' || f.source === 'google' ? `${f.categorie} ${deMois(m)}` : [f.categorie, f.libelle].filter(Boolean).join(' · '),
+        montant: arrondi(-f.montant),
+        date: f.date
+      }));
+  });
+  return { lignes, total: arrondi(lignes.reduce((s, l) => s + l.montant, 0)) };
 }
 
 /**
- * Calcul sur le dernier mois cloture avant `mois` (sinon le mois precedent, provisoire).
- * Reserve fin de mois − URSSAF a payer − facture Google Ads a venir − charges annuelles du mois
- * suivant − matelas ; plafonne a ce que le mois a rapporte (ou la moyenne des N derniers) ; >= 0.
- * Le reste a declarer (lissage) n'est PAS retire (decision du 2026-11-02).
+ * Ce que le mois me permet de me verser, recalcule a chaque paiement et a chaque frais
+ * (Jordan, 2026-11-02) : ce que le mois a rapporte jusqu'ici (encaisse − tous ses frais),
+ * reduit seulement si la reserve passerait sous le matelas une fois paye ce qui est deja du.
+ * Le reste a declarer (lissage) n'est PAS retire. Jamais negatif.
+ * Le verdict OK / Tendu / Alerte n'existe que pour un mois termine : en debut de mois,
+ * les charges fixes sont deja comptees et le chiffre part forcement de zero.
  */
-function jePeuxMeVerser(ctx, mois) {
+function jePeuxMeVerser(ctx, mois, aujourdhui) {
   const R = ctx.reglages;
-  const cloture = dernierMoisCloture(ctx, mois);
-  const base = cloture || _Enc.decalerMois(mois, -1);
-  const provisoire = !cloture || base !== _Enc.decalerMois(mois, -1);
-  const finBase = _Enc.dernierJourDuMois(base);
-  const res = reserve(ctx, finBase);
+  const enCours = mois >= aujourdhui.slice(0, 7);
+  const jour = enCours ? aujourdhui : _Enc.dernierJourDuMois(mois);
+  const rapporte = moisPro(ctx, mois).reste;
 
-  const pro = moisPro(ctx, base);
-  const suivant = _Enc.decalerMois(base, 1);
-  const urssafDue = COMPTES_RESERVE.includes(R.compteUrssaf || 'pro') ? pro.urssaf : 0;
-  const annuelles = (ctx.gestion.recurrents || [])
-    .filter(r => r.frequence === 'annuelle' && (r.sens || 'sortie') === 'sortie' && COMPTES_RESERVE.includes(r.compte) && recurrentActif(r, suivant))
-    .map(r => ({ nom: r.nom, montant: montantRecurrent(r, ctx.gestion.mois[suivant]) }));
-  const dettes = [
-    { libelle: `URSSAF ${deMois(base)}`, montant: urssafDue },
-    { libelle: `Google Ads ${deMois(base)}`, montant: pro.ads },
-    ...annuelles.map(a => ({ libelle: a.nom, montant: a.montant }))
-  ].filter(d => d.montant);
-  const totalDettes = arrondi(dettes.reduce((s, d) => s + d.montant, 0));
+  const verse = pourMoi(ctx, mois);
+  // Les versements deja sortis de la reserve a cette date (ceux d'apres n'y sont pas encore)
+  const versesAvant = arrondi(verse.lignes
+    .filter(l => l.source === 'recurrent' || _Enc.jourDe(l.date) <= jour)
+    .reduce((s, l) => s + l.montant, 0));
+
+  const res = reserve(ctx, jour);
+  const du = aPayer(ctx, mois, jour);
   const matelas = nombreOuNull(R.matelas) || 0;
+  const marge = res.montant === null ? null : arrondi(res.montant - du.total - matelas);
 
-  const n = Math.max(1, Number(R.moyenneSur) || 1);
-  const moisPlafond = _Enc.derniersMois(base, n);
-  const plafond = arrondi(moisPlafond.reduce((s, m) => s + moisPro(ctx, m).reste, 0) / n);
-
-  const marge = res.montant === null ? null : arrondi(res.montant - totalDettes - matelas);
-  const recommande = marge === null ? null : arrondi(Math.max(0, Math.min(marge, plafond)));
+  const plafond = Math.max(0, rapporte);
+  const total = arrondi(marge === null ? plafond : Math.max(0, Math.min(plafond, versesAvant + Math.max(0, marge))));
+  const resteAVerser = arrondi(Math.max(0, total - verse.total));
 
   const besoin = nombreOuNull(R.besoinMensuel);
   let statut = null;
-  if (recommande !== null && besoin) {
-    if (recommande >= besoin) statut = 'ok';
-    else if (recommande >= besoin * (Number(R.seuilTendu) || 0) / 100) statut = 'tendu';
+  if (!enCours && besoin) {
+    if (total >= besoin) statut = 'ok';
+    else if (total >= besoin * (Number(R.seuilTendu) || 0) / 100) statut = 'tendu';
     else statut = 'alerte';
   }
 
-  return { base, provisoire, reserve: res.montant, reserveIncomplete: res.incomplet, dettes, totalDettes, matelas, marge, plafond, moisPlafond, recommande, besoin, statut, dejaPris: pourMoi(ctx, mois).total };
+  // Verse pour ce mois mais sorti de la reserve apres J (ex. le 3 novembre pour octobre)
+  const versesApres = arrondi(verse.total - versesAvant);
+
+  return {
+    mois, enCours, jour, rapporte,
+    verse: verse.total, versements: verse.lignes, versesAvant, versesApres,
+    reserve: res.montant, reserveIncomplete: res.incomplet,
+    aPayer: du.lignes, totalAPayer: du.total,
+    matelas, marge, total, resteAVerser,
+    enTrop: arrondi(Math.max(0, verse.total - total)),
+    limiteParMatelas: marge !== null && total < plafond,
+    reserveApres: res.montant === null ? null : arrondi(res.montant - du.total - versesApres - resteAVerser),
+    besoin,
+    progression: besoin ? Math.min(1, total / besoin) : null,
+    statut
+  };
 }
 
 // ----- A declarer (lissage : simple information, pas de cumul) -----
 
+/**
+ * Ce que le mois a encaisse et ce qui en a ete declare. Le mois porte sa propre declaration,
+ * meme si elle se fait le mois suivant : rattachement « a l'instantane » (Jordan, 2026-11-02).
+ */
 function aDeclarer(ctx, mois) {
-  const precedent = _Enc.decalerMois(mois, -1);
-  const t = totauxPro(ctx, precedent);
+  const t = totauxPro(ctx, mois);
   const reste = t.declare !== null ? arrondi(t.encaisse - t.declare) : null;
   return {
-    moisConcerne: precedent,
+    dateLimite: _Enc.dernierJourDuMois(_Enc.decalerMois(mois, 1)),
     montant: t.encaisse,
     declare: t.declare,
     resteNonDeclare: reste !== null && reste > 0 ? reste : 0,
@@ -409,72 +437,71 @@ function moisPerso(ctx, mois) {
   };
 }
 
-// ----- Courbe et projection -----
-
-/** Mois de fin de la projection : mai (fin du printemps) de cette annee ou de la suivante. */
-function moisFinProjection(mois) {
-  const annee = Number(mois.slice(0, 4));
-  const finCetteAnnee = `${annee}-05`;
-  return mois <= finCetteAnnee ? (mois === finCetteAnnee ? `${annee + 1}-05` : finCetteAnnee) : `${annee + 1}-05`;
-}
-
-function premierMoisAvecDonnees(appData) {
-  const dates = (appData.prestations || []).map(p => _Enc.moisDe(p.date)).filter(Boolean).sort();
-  return dates[0] || null;
-}
+// ----- Courbe du mois, jour par jour -----
 
 /**
- * Reserve a la fin de chacun des 12 derniers mois (null avant le premier solde
- * recopie), puis projection jusqu'au printemps.
- * Projection d'un mois : reserve du mois d'avant
- *   + encaisse du meme mois l'an dernier (l'activite suit les saisons ;
- *     a defaut, la moyenne des 12 derniers mois)
- *   − URSSAF et commission carte sur ce montant
- *   − moyenne des frais (Google Ads, depenses du logiciel) des 3 derniers mois
- *   − charges fixes pro du mois (dont annuelles, ex. CFE)
- *   − ce qu'elle se verse (virement recurrent vers le perso, sinon son besoin mensuel).
+ * « Ce qu'il me reste » chaque jour du mois : ce que les clientes ont paye − les frais du mois
+ * − ce que je me suis verse (Jordan, 2026-11-02). Chaque montant tombe le jour ou il arrive :
+ * charges fixes le 1er (le mois commence donc sous zero), Google Ads au jour le jour (lu chez
+ * Google), URSSAF et commission carte avec chaque paiement, au prorata du total du mois.
+ * Un montant date apres le dernier jour trace tombe ce jour-la. Le dernier point vaut
+ * exactement ce que le mois a rapporte moins ce qui est deja verse (corrections comprises).
+ * Retourne { jours: ['YYYY-MM-DD'...] (tout le mois), valeurs: [nombre | null apres aujourd'hui] }.
  */
-function courbeReserve(ctx, aujourdhui) {
-  const R = ctx.reglages;
-  const moisCourant = aujourdhui.slice(0, 7);
-  const passes = _Enc.derniersMois(_Enc.decalerMois(moisCourant, -1), 12);
-  const points = passes.map(m => ({ mois: m, reserve: reserve(ctx, _Enc.dernierJourDuMois(m)).montant, type: 'passe' }));
-  const actuel = reserve(ctx, aujourdhui).montant;
-  points.push({ mois: moisCourant, reserve: actuel, type: 'aujourdhui', jour: aujourdhui });
+function courbeDuMois(ctx, mois, aujourdhui) {
+  const debut = `${mois}-01`;
+  const fin = _Enc.dernierJourDuMois(mois);
+  const dernier = mois >= aujourdhui.slice(0, 7) ? aujourdhui : fin;
+  const p = moisPro(ctx, mois);
+  const verse = pourMoi(ctx, mois);
+  const dansMois = d => d >= debut && d <= fin;
 
-  const debutDonnees = premierMoisAvecDonnees(ctx.appData);
-  const historique = _Enc.derniersMois(_Enc.decalerMois(moisCourant, -1), 12).filter(m => !debutDonnees || m >= debutDonnees);
-  const moyenne12 = historique.length ? historique.reduce((s, m) => s + _Enc.encaisseDuMois(ctx.appData, m).total, 0) / historique.length : 0;
-  const recents = _Enc.derniersMois(_Enc.decalerMois(moisCourant, -1), 3);
-  const fraisMoyens = recents.reduce((s, m) => {
-    const t = totauxPro(ctx, m);
-    return s + t.ads + depensesLogiciel(ctx, m).reduce((x, d) => x + d.montant, 0);
-  }, 0) / recents.length;
-  const totalCarte = historique.reduce((s, m) => s + _Enc.encaisseDuMois(ctx.appData, m).carte, 0);
-  const totalEnc = historique.reduce((s, m) => s + _Enc.encaisseDuMois(ctx.appData, m).total, 0);
-  const partCarte = totalEnc > 0 ? totalCarte / totalEnc : 0;
+  const parJour = {};
+  const ajouter = (date, montant) => {
+    const j = !date || date > dernier ? dernier : date < debut ? debut : date;
+    parJour[j] = (parJour[j] || 0) + montant;
+  };
 
-  const versementRecurrent = m => (ctx.gestion.recurrents || [])
-    .filter(r => r.sens === 'transfert' && COMPTES_RESERVE.includes(r.compte) && !COMPTES_RESERVE.includes(r.compteVers) && recurrentActif(r, m))
-    .reduce((s, r) => s + (Number(r.montant) || 0), 0);
+  // Paiements des clientes, nets de l'URSSAF et de la commission qu'ils entrainent
+  const partUrssaf = p.encaisseCalcule ? p.urssaf / p.encaisseCalcule : 0;
+  const partCarte = p.logiciel.carte ? p.commission / p.logiciel.carte : 0;
+  _Enc.encaissementsEntre(ctx.appData, debut, fin).forEach(l => {
+    ajouter(l.date, l.montant * (1 - partUrssaf) - (l.moyen === 'Carte bleue' ? l.montant * partCarte : 0));
+  });
+  (ctx.gestion.mouvements || [])
+    .filter(mv => (mv.espace || 'pro') === 'pro' && mv.sens === 'entree' && dansMois(_Enc.jourDe(mv.date)))
+    .forEach(mv => ajouter(_Enc.jourDe(mv.date), Math.abs(Number(mv.montant) || 0) * (1 - partUrssaf)));
 
-  const projection = [];
-  let courant = reserve(ctx, _Enc.dernierJourDuMois(_Enc.decalerMois(moisCourant, -1))).montant;
-  const fin = moisFinProjection(moisCourant);
-  if (courant !== null) {
-    for (let m = moisCourant; m <= fin; m = _Enc.decalerMois(m, 1)) {
-      const anDernier = _Enc.decalerMois(m, -12);
-      const prevu = (debutDonnees && anDernier >= debutDonnees) ? _Enc.encaisseDuMois(ctx.appData, anDernier).total : moyenne12;
-      const fixes = (ctx.gestion.recurrents || [])
-        .filter(r => (r.espace || 'pro') === 'pro' && (r.sens || 'sortie') === 'sortie' && COMPTES_RESERVE.includes(r.compte) && recurrentActif(r, m))
-        .reduce((s, r) => s + (Number(r.montant) || 0), 0);
-      const versement = versementRecurrent(m) || nombreOuNull(R.besoinMensuel) || 0;
-      const net = prevu * (1 - R.tauxUrssaf / 100 - partCarte * R.tauxCarte / 100) - fraisMoyens - fixes - versement;
-      courant = arrondi(courant + net);
-      projection.push({ mois: m, reserve: courant, prevu: arrondi(prevu), net: arrondi(net), type: 'projection' });
-    }
+  // Google Ads au jour le jour (une correction du mois est repartie au prorata)
+  const jours = ctx.adsJours || {};
+  const partAds = p.adsGoogle ? p.ads / p.adsGoogle : 0;
+  Object.keys(jours).filter(dansMois).forEach(j => ajouter(j, -jours[j] * partAds));
+
+  // Frais : charges fixes le 1er, depenses a leur date
+  p.postes.forEach(po => {
+    if (po.cle === 'urssaf' || po.cle === 'carte' || po.cle === 'ads') return;
+    ajouter(po.source === 'fixe' ? debut : po.date, -(Number(po.montant) || 0));
+  });
+
+  // Ce que je me suis verse pour ce mois (un virement mensuel automatique compte le 1er)
+  verse.lignes.forEach(l => ajouter(l.source === 'recurrent' ? debut : _Enc.jourDe(l.date), -l.montant));
+
+  // Le reste (correction de l'encaisse, URSSAF sans encaissement, Ads sans detail par jour)
+  const cible = arrondi(p.reste - verse.total);
+  const somme = Object.values(parJour).reduce((s, m) => s + m, 0);
+  if (Math.abs(cible - somme) > 0.004) ajouter(dernier, cible - somme);
+
+  const liste = [];
+  const valeurs = [];
+  let cumul = 0;
+  for (let n = 1; n <= Number(fin.slice(8, 10)); n++) {
+    const j = jourDuMois(mois, n);
+    liste.push(j);
+    if (j > dernier) { valeurs.push(null); continue; }
+    cumul += parJour[j] || 0;
+    valeurs.push(arrondi(cumul));
   }
-  return { points, projection, matelas: nombreOuNull(R.matelas), fin };
+  return { mois, jours: liste, valeurs, dernier };
 }
 
 // ----- Libelles -----
@@ -498,7 +525,7 @@ function queMois(mois) {
   return /^[aeiouyàâéèêîôû]/i.test(nom) ? `qu'${nom}` : `que ${nom}`;
 }
 
-function contexte(appData, gestion, reglages, ads) {
+function contexte(appData, gestion, reglages, ads, adsJours) {
   return {
     appData: appData || {},
     gestion: {
@@ -508,7 +535,8 @@ function contexte(appData, gestion, reglages, ads) {
       soldes: gestion?.soldes || []
     },
     reglages: reglagesComplets(reglages),
-    ads: ads || null
+    ads: ads || null,
+    adsJours: adsJours || null
   };
 }
 
@@ -528,14 +556,14 @@ const GestionCalculs = {
   totauxPro,
   moisPro,
   pourMoi,
+  moisDuMouvement,
   soldeCompte,
   reserve,
-  dernierMoisCloture,
+  aPayer,
   jePeuxMeVerser,
   aDeclarer,
   moisPerso,
-  courbeReserve,
-  moisFinProjection,
+  courbeDuMois,
   nomMois,
   deMois,
   queMois,

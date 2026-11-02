@@ -118,3 +118,19 @@ questions, tu dois tout me mettre ici stp, rien dans un .md ».
 **Règle** — toute question qui attend une réponse de Jordan ou d'Elise est écrite
 en entier dans ma réponse, numérotée. Un fichier peut garder les décisions une fois
 tranchées, jamais la liste des questions à la place du message.
+
+---
+
+## 8. Une vue de mois ne montre que son mois
+
+**Déclencheur** — onglet Gestion v1.1.0.0 (2026-11-02) : la vue d'octobre affichait
+« À déclarer en octobre : encaissés en septembre » (calendrier réel de l'URSSAF) et
+enregistrait le montant déclaré sur septembre, alors que les tuiles du même écran
+utilisaient le déclaré d'octobre. Jordan : « une page n'affiche QUE son mois […] à
+l'instantané, et pas en différé, pour un vrai suivi ».
+
+**Règle** — dans un écran découpé par mois, chaque chiffre est rattaché au mois
+qu'il concerne, même s'il est payé ou déclaré plus tard. Le calendrier réel
+(échéance, prélèvement) peut apparaître en note (« avant le 30 novembre »), jamais
+comme un chiffre d'un autre mois. Avant de livrer, vérifier que tout ce qu'une
+carte saisit s'enregistre sur le mois affiché.

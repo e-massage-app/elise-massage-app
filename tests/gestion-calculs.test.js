@@ -105,54 +105,108 @@ test('un solde recopie remplace l estimation a partir de sa date', () => {
   assert.equal(G.soldeCompte(ctx(d), 'pro', '2026-10-31').montant, 1234.6);
 });
 
-test('je peux me verser : le plus petit entre ce qui reste de cote et ce que le mois a rapporte', () => {
-  const d = base();
+function avecSoldes(d, pro = 2000, caisse = 300) {
   d.gestion.soldes = [
-    { compte: 'pro', date: '2026-09-30', montant: 2000 },
-    { compte: 'caisse', date: '2026-09-30', montant: 300 }
+    { compte: 'pro', date: '2026-09-30', montant: pro },
+    { compte: 'caisse', date: '2026-09-30', montant: caisse }
   ];
-  d.gestion.mois['2026-10'] = { clotureLe: '2026-11-01' };
-  const v = G.jePeuxMeVerser(ctx(d), '2026-11');
-  assert.equal(v.base, '2026-10');
-  assert.equal(v.provisoire, false);
-  // reserve 2494,60 - URSSAF d'octobre 128,40 - Ads d'octobre 60 - matelas 1000 = 1306,20
+  return d;
+}
+
+test('je peux me verser (mois termine) : ce que le mois a rapporte, verdict sur le besoin', () => {
+  const v = G.jePeuxMeVerser(ctx(avecSoldes(base())), '2026-10', '2026-11-02');
+  assert.equal(v.enCours, false);
+  assert.equal(v.rapporte, 320.2);
+  // deja du au 31/10 : URSSAF d'octobre (30/11) 128,40 + Ads d'octobre (01/11) 60
+  assert.equal(v.totalAPayer, 188.4);
+  // reserve 2494,60 - 188,40 - matelas 1000
   assert.equal(v.marge, 1306.2);
-  assert.equal(v.plafond, 320.2);
-  assert.equal(v.recommande, 320.2);
+  assert.equal(v.total, 320.2);
+  assert.equal(v.limiteParMatelas, false);
+  assert.equal(v.reserveApres, 1986);
   assert.equal(v.statut, 'alerte'); // 320,20 < 70 % de 500
 });
 
-test('statuts OK / Tendu selon le besoin', () => {
-  const d = base();
-  d.gestion.soldes = [{ compte: 'pro', date: '2026-09-30', montant: 9000 }];
+test('je peux me verser (mois en cours) : bouge avec le mois, pas de verdict, meme marge qu en fin de mois', () => {
+  const v = G.jePeuxMeVerser(ctx(avecSoldes(base())), '2026-10', '2026-10-15');
+  assert.equal(v.enCours, true);
+  assert.equal(v.jour, '2026-10-15');
+  assert.equal(v.statut, null);
+  assert.equal(v.progression, 0.6404);
+  // reserve au 15/10 : 2070 pro + 690 caisse
+  assert.equal(v.reserve, 2760);
+  // deja du : URSSAF de septembre (31/10) 214 + abonnement (22/10) 50 + commission 1,40 + URSSAF 128,40 + Ads 60
+  assert.equal(v.totalAPayer, 453.8);
+  assert.equal(v.marge, 1306.2);
+  assert.equal(v.total, 320.2);
+});
+
+test('je peux me verser : limite pour garder le matelas', () => {
+  const v = G.jePeuxMeVerser(ctx(avecSoldes(base(), 1000)), '2026-10', '2026-11-02');
+  assert.equal(v.total, 306.2);
+  assert.equal(v.limiteParMatelas, true);
+  assert.equal(v.reserveApres, 1000);
+});
+
+test('deja verse : un virement debut novembre pour octobre compte pour octobre', () => {
+  const d = avecSoldes(base());
+  d.gestion.mouvements = [
+    { id: 'm1', date: '2026-10-05', espace: 'pro', sens: 'transfert', compte: 'pro', compteVers: 'perso', montant: 100 },
+    { id: 'm2', date: '2026-11-03', espace: 'pro', sens: 'transfert', compte: 'pro', compteVers: 'perso', montant: 200, moisConcerne: '2026-10' }
+  ];
+  const v = G.jePeuxMeVerser(ctx(d), '2026-10', '2026-11-05');
+  assert.equal(v.verse, 300);
+  assert.equal(v.versesAvant, 100);
+  assert.equal(v.versesApres, 200);
+  assert.equal(v.total, 320.2);
+  assert.equal(v.resteAVerser, 20.2);
+  assert.equal(v.enTrop, 0);
+  // reserve au 31/10 (2394,60) - du (188,40) - verse le 3/11 (200) - reste a verser (20,20)
+  assert.equal(v.reserveApres, 1986);
+  assert.equal(G.pourMoi(ctx(d), '2026-11').total, 0, 'novembre ne le compte pas');
+});
+
+test('deja verse : plus que ce que le mois permet', () => {
+  const d = avecSoldes(base());
+  d.gestion.mouvements = [{ id: 'm1', date: '2026-10-05', espace: 'pro', sens: 'transfert', compte: 'pro', compteVers: 'perso', montant: 400 }];
+  const v = G.jePeuxMeVerser(ctx(d), '2026-10', '2026-11-02');
+  assert.equal(v.total, 320.2);
+  assert.equal(v.resteAVerser, 0);
+  assert.equal(v.enTrop, 79.8);
+});
+
+test('debut de mois : les charges fixes passent avant, jamais negatif, pas d alerte', () => {
+  const v = G.jePeuxMeVerser(ctx(avecSoldes(base())), '2026-11', '2026-11-02');
+  assert.equal(v.rapporte, -10);
+  assert.equal(v.total, 0);
+  assert.equal(v.statut, null);
+});
+
+test('verdict OK / Tendu sur un mois termine', () => {
+  const d = avecSoldes(base(), 9000);
   d.reglages.besoinMensuel = 300;
-  assert.equal(G.jePeuxMeVerser(ctx(d), '2026-11').statut, 'ok');
+  assert.equal(G.jePeuxMeVerser(ctx(d), '2026-10', '2026-11-02').statut, 'ok');
   d.reglages.besoinMensuel = 400;
-  assert.equal(G.jePeuxMeVerser(ctx(d), '2026-11').statut, 'tendu');
-  assert.equal(G.jePeuxMeVerser(ctx(d), '2026-11').provisoire, true);
+  assert.equal(G.jePeuxMeVerser(ctx(d), '2026-10', '2026-11-02').statut, 'tendu');
 });
 
-test('la charge annuelle du mois suivant est mise de cote', () => {
-  const d = base();
-  d.gestion.soldes = [{ compte: 'pro', date: '2026-06-30', montant: 5000 }];
-  const v = G.jePeuxMeVerser(ctx(d), '2026-07');
-  assert.equal(v.base, '2026-06');
-  assert.ok(v.dettes.some(x => x.libelle === 'Taxe annuelle' && x.montant === 300));
+test('la charge annuelle compte dans son mois', () => {
+  const m = G.moisPro(ctx(base()), '2026-07');
+  assert.ok(m.postes.some(p => p.libelle === 'Taxe annuelle' && p.montant === 300));
 });
 
-test('jamais negatif', () => {
+test('a declarer : chaque mois porte sa propre declaration, le reste non declare a titre d info', () => {
   const d = base();
-  d.gestion.soldes = [{ compte: 'pro', date: '2026-09-30', montant: 100 }];
-  assert.equal(G.jePeuxMeVerser(ctx(d), '2026-11').recommande, 0);
-});
-
-test('a declarer ce mois-ci : l encaisse du mois precedent, et le reste non declare a titre d info', () => {
-  const d = base();
-  assert.equal(G.aDeclarer(ctx(d), '2026-11').montant, 600);
+  const a0 = G.aDeclarer(ctx(d), '2026-10');
+  assert.equal(a0.montant, 600);
+  assert.equal(a0.dateLimite, '2026-11-30');
+  assert.equal(a0.resteNonDeclare, 0);
   d.gestion.mois['2026-10'] = { caDeclare: 450 };
-  const a = G.aDeclarer(ctx(d), '2026-11');
+  const a = G.aDeclarer(ctx(d), '2026-10');
+  assert.equal(a.declare, 450);
   assert.equal(a.resteNonDeclare, 150);
   assert.equal(a.cotisationsCorrespondantes, 32.1);
+  assert.equal(G.aDeclarer(ctx(d), '2026-11').declare, null, 'le mois suivant ne reprend pas la declaration d octobre');
 });
 
 test('pour moi : virement vers le perso + depenses perso payees avec la caisse', () => {
@@ -191,13 +245,39 @@ test('mois perso : revenus, charges fixes, depenses variables, epargne', () => {
   assert.equal(p.totalEpargne, 50);
 });
 
-test('projection jusqu au printemps, a partir du meme mois l an dernier', () => {
+// Google Ads d'octobre (60 €) depense en deux jours
+const ADS_JOURS = { '2026-10-05': 20, '2026-10-20': 40 };
+
+test('courbe du mois : chaque montant le jour ou il arrive, le dernier point = ce que le mois a rapporte', () => {
   const d = base();
-  d.gestion.soldes = [{ compte: 'pro', date: '2026-10-31', montant: 3000 }];
-  const c = G.courbeReserve(ctx(d), '2026-11-02');
-  assert.equal(c.fin, '2027-05');
-  assert.equal(c.projection[0].mois, '2026-11');
-  assert.equal(c.projection[0].prevu, 600); // novembre 2025
-  assert.equal(c.projection[c.projection.length - 1].mois, '2027-05');
-  assert.equal(c.points.length, 13);
+  const c = G.courbeDuMois(G.contexte(d.appData, d.gestion, d.reglages, d.ads, ADS_JOURS), '2026-10', '2026-11-02');
+  assert.equal(c.jours.length, 31);
+  // 1er : carte 80 (- 21,4 % URSSAF - 1,40 commission) - banque 10
+  assert.equal(c.valeurs[0], 51.48);
+  // 2 et 3 : liquide 420 et virement 100, nets d'URSSAF
+  assert.equal(c.valeurs[2], 460.2);
+  assert.equal(c.valeurs[4], 440.2);  // Google Ads du 5
+  assert.equal(c.valeurs[7], 410.2);  // loyer du 8
+  assert.equal(c.valeurs[30], 320.2); // = ce qu'il reste en octobre
+});
+
+test('courbe du mois en cours : s arrete aujourd hui, ce qui est date plus tard tombe aujourd hui', () => {
+  const d = base();
+  const c = G.courbeDuMois(G.contexte(d.appData, d.gestion, d.reglages, d.ads, ADS_JOURS), '2026-10', '2026-10-10');
+  assert.equal(c.valeurs[9], 320.2);
+  assert.equal(c.valeurs[10], null);
+});
+
+test('courbe du mois : ce que je me verse la fait descendre, jusque dans le rouge', () => {
+  const d = base();
+  d.gestion.mouvements = [
+    { id: 'm1', date: '2026-10-15', espace: 'pro', sens: 'transfert', compte: 'pro', compteVers: 'perso', montant: 300 },
+    { id: 'm2', date: '2026-11-03', espace: 'pro', sens: 'transfert', compte: 'pro', compteVers: 'perso', montant: 100, moisConcerne: '2026-10' }
+  ];
+  const c = G.courbeDuMois(G.contexte(d.appData, d.gestion, d.reglages, d.ads, ADS_JOURS), '2026-10', '2026-11-05');
+  assert.equal(c.valeurs[14], 110.2);  // 410,20 - 300
+  assert.equal(c.valeurs[30], -79.8);  // 320,20 - 400 : dans le rouge
+  // debut de mois : les charges fixes passent avant
+  const nov = G.courbeDuMois(ctx(d), '2026-11', '2026-11-02');
+  assert.deepEqual(nov.valeurs.slice(0, 3), [-10, -10, null]);
 });
