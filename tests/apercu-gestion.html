@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="../css/views.css">
   <link rel="stylesheet" href="../css/mobile.css">
   <link rel="stylesheet" href="../css/gestion.css">
-  <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.54.1"></script>
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
   <style>.app-container { opacity: 1; } .bandeau { background: #333; color: #fff; padding: .4rem 1rem; font: 12px Inter, sans-serif; }</style>
 </head>
 <body class="loaded">
@@ -77,7 +77,7 @@
     const executer = () => {
       const lignes = tables[table];
       const garde = r => q.filtres.every(([c, v]) => r[c] === v);
-      if (q.op === 'select') return { data: lignes.filter(garde), error: null };
+      if (q.op === 'select') { const t = lignes.filter(garde); return { data: q.plage ? t.slice(q.plage[0], q.plage[1] + 1) : t, error: null }; }
       if (q.op === 'insert') { lignes.push({ ...q.ligne }); return { data: { ...q.ligne }, error: null }; }
       if (q.op === 'update') { const r = lignes.find(garde); Object.assign(r, q.ligne); return { data: { ...r }, error: null }; }
       if (q.op === 'delete') { tables[table] = lignes.filter(r => !garde(r)); return { data: null, error: null }; }
@@ -89,7 +89,8 @@
       }
     };
     const api = {
-      select() { return api; }, single() { return api; },
+      select() { return api; }, single() { return api; }, order() { return api; },
+      range(debut, fin) { q.plage = [debut, fin]; return api; },
       eq(c, v) { q.filtres.push([c, v]); return api; },
       insert(l) { q.op = 'insert'; q.ligne = l; return api; },
       update(l) { q.op = 'update'; q.ligne = l; return api; },
@@ -112,6 +113,7 @@
   window.closeModal = window.closeModalCompletely;
   </script>
   <script src="../js/core/encaissements.js"></script>
+  <script src="../js/core/persistance.js"></script>
   <script src="../js/gestion/gestion-calculs.js"></script>
   <script src="../js/gestion/gestion-donnees.js"></script>
   <script src="../js/gestion/gestion-vue.js"></script>

@@ -57,7 +57,9 @@ async function utilisateur() {
 async function charger() {
   const userId = await utilisateur();
   const tables = ['gestion_mouvements', 'gestion_recurrents', 'gestion_mois', 'gestion_soldes'];
-  const reponses = await Promise.all(tables.map(t => supabaseClient.from(t).select('*').eq('user_id', userId)));
+  // v1.2.0.0 : par pages de 1000 (plafond Supabase par requete), comme le reste de l'app
+  const reponses = await Promise.all(tables.map(t => racine.Persistance.lirePages((debut, fin) =>
+    supabaseClient.from(t).select('*').eq('user_id', userId).order('id').range(debut, fin))));
   const erreur = reponses.find(r => r.error);
   if (erreur) throw erreur.error;
 
