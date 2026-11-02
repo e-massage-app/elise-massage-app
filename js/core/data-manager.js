@@ -4,16 +4,10 @@
 // Le cache appData en memoire est conserve pour la performance des getters
 
 // ===== DONNEES GLOBALES (CACHE EN MEMOIRE) =====
-let appData = {
-  clients: [],
-  prospects: [],
-  collaborateurs: [],
-  prestations: [],
-  rdv: [],
-  depenses: [],
-  bonsCadeaux: [],
-  relances: [],
-  parametres: {
+// v1.2.0.0 : defauts neufs a chaque chargement (loadData repartait de la copie en memoire :
+// apres un import, les cles absentes du fichier survivaient)
+function parametresParDefaut() {
+  return {
     tarifsMassage: {
       "Massage sur mesure": { 30: 50, 45: 60, 60: 80, 90: 110 },
       "Les Rituels": { 60: 80, 90: 110, 120: 150 },
@@ -25,7 +19,19 @@ let appData = {
       "HeadSpa": 0
     },
     headSpaCollaborateurId: null
-  }
+  };
+}
+
+let appData = {
+  clients: [],
+  prospects: [],
+  collaborateurs: [],
+  prestations: [],
+  rdv: [],
+  depenses: [],
+  bonsCadeaux: [],
+  relances: [],
+  parametres: parametresParDefaut()
 };
 
 let editingId = null;
@@ -342,7 +348,16 @@ async function getCurrentUserId() {
 
 // ===== GESTION DES DONNEES =====
 
+// v1.2.0.0 : toute la table, par pages de 1000 (plafond de Supabase par requete).
+// Tri sur id : sans ordre fixe, deux pages peuvent se chevaucher ou sauter des lignes.
+function lireTable(table, userId) {
+  return Persistance.lirePages((debut, fin) =>
+    supabaseClient.from(table).select('*').eq('user_id', userId).order('id').range(debut, fin));
+}
+
 async function loadData() {
+  // v1.2.0.0 : aucune ecriture de parametres tant que la base n'a pas ete relue
+  parametresCharges = false;
   try {
     const userId = await getCurrentUserId();
 
@@ -358,15 +373,15 @@ async function loadData() {
       relancesRes,
       parametresRes
     ] = await Promise.all([
-      supabaseClient.from('clients').select('*').eq('user_id', userId),
-      supabaseClient.from('prospects').select('*').eq('user_id', userId),
-      supabaseClient.from('collaborateurs').select('*').eq('user_id', userId),
-      supabaseClient.from('rdv').select('*').eq('user_id', userId),
-      supabaseClient.from('prestations').select('*').eq('user_id', userId),
-      supabaseClient.from('depenses').select('*').eq('user_id', userId),
-      supabaseClient.from('bons_cadeaux').select('*').eq('user_id', userId),
-      supabaseClient.from('relances').select('*').eq('user_id', userId),
-      supabaseClient.from('parametres').select('*').eq('user_id', userId)
+      lireTable('clients', userId),
+      lireTable('prospects', userId),
+      lireTable('collaborateurs', userId),
+      lireTable('rdv', userId),
+      lireTable('prestations', userId),
+      lireTable('depenses', userId),
+      lireTable('bons_cadeaux', userId),
+      lireTable('relances', userId),
+      lireTable('parametres', userId)
     ]);
 
     // Verifier les erreurs
@@ -397,7 +412,7 @@ async function loadData() {
     }
 
     // Reconstituer les parametres depuis les lignes cle/valeur
-    const parametresDefaults = appData.parametres; // Garder les defaults
+    const parametresDefaults = parametresParDefaut();
     const parametresFromDb = {};
     (parametresRes.data || []).forEach(row => {
       parametresFromDb[row.cle] = row.valeur;
@@ -407,6 +422,11 @@ async function loadData() {
     appData.parametres = { ...parametresDefaults };
     Object.entries(parametresFromDb).forEach(([cle, valeur]) => {
       appData.parametres[cle] = valeur;
+    });
+    // v1.2.0.0 : copie de reference pour saveParametresToDb (seules les cles modifiees partent)
+    parametresEnBase = {};
+    Object.entries(parametresFromDb).forEach(([cle, valeur]) => {
+      parametresEnBase[cle] = Persistance.jsonStable(valeur);
     });
 
     // Initialiser les champs manquants
@@ -432,6 +452,7 @@ async function loadData() {
       relances: appData.relances.length
     });
 
+    parametresCharges = true;
     return true;
   } catch (error) {
     console.error('Erreur chargement donnees:', error);
@@ -454,29 +475,53 @@ async function saveData() {
 // renouveles (et les reglages de la Gestion) avec sa vieille copie.
 const CLES_PARAMETRES_A_PART = ['googleAdsTokens', 'googleAdsConnected', 'googleAdsConnectedAt', 'gestion', 'calendrier'];
 
-async function saveParametresToDb() {
+// v1.2.0.0 : la v1.1.0.1 ne protegeait que ces cles. Toutes les autres (carte des soins, jours
+// institut, abonnements, fidelite...) etaient re-ecrites depuis la copie en memoire a chaque
+// appel (tableau de bord, Google Ads...) : un vieil onglet les remettait a leur ancienne valeur.
+// Desormais on garde ce que la base contient (cle -> JSON stable, pose au chargement et a chaque
+// ecriture) et seules les cles qui en different partent ; une cle retiree de la memoire est
+// supprimee en base.
+let parametresEnBase = {};
+let parametresCharges = false; // false tant que loadData n'a pas reussi : les defauts ne partent jamais
+let fileParametres = Promise.resolve(); // une ecriture (ou relecture) des parametres a la fois
+
+function enFileParametres(tache) {
+  const resultat = fileParametres.then(tache);
+  fileParametres = resultat.catch(() => {});
+  return resultat;
+}
+
+// Renvoie false si une ecriture a echoue : les appelants annulent alors leur modification.
+function saveParametresToDb() {
+  return enFileParametres(ecrireParametresModifies);
+}
+
+async function ecrireParametresModifies() {
+  if (!parametresCharges) {
+    console.warn('Parametres non charges depuis la base : enregistrement refuse');
+    return false;
+  }
   try {
     const userId = await getCurrentUserId();
-    const entries = Object.entries(appData.parametres).filter(([cle]) => !CLES_PARAMETRES_A_PART.includes(cle));
+    const { aEcrire, aSupprimer } = Persistance.diffParametres(appData.parametres, parametresEnBase, CLES_PARAMETRES_A_PART);
+    if (!aEcrire.length && !aSupprimer.length) return true;
 
-    // v1.0.7.2 : Promise.all parallele au lieu de boucle sequentielle.
-    // 15-20 cles x 500-800ms sequentiel = 10-15s (super lent sur form lambda).
-    // En parallele, 1 seul round-trip latence = 1-2s.
-    const results = await Promise.all(
-      entries.map(([cle, valeur]) =>
-        supabaseClient
-          .from('parametres')
-          .upsert(
-            { user_id: userId, cle, valeur },
-            { onConflict: 'user_id,cle' }
-          )
-          .then(res => ({ cle, error: res.error }))
-      )
-    );
-    results.forEach(({ cle, error }) => {
-      if (error) console.error(`Erreur sauvegarde parametre ${cle}:`, error);
-    });
-    return true;
+    // Une requete par sorte d'operation, en parallele
+    const [ecriture, suppression] = await Promise.all([
+      aEcrire.length
+        ? supabaseClient.from('parametres').upsert(
+            aEcrire.map(({ cle, json }) => ({ user_id: userId, cle, valeur: JSON.parse(json) })),
+            { onConflict: 'user_id,cle' })
+        : { error: null },
+      aSupprimer.length
+        ? supabaseClient.from('parametres').delete().eq('user_id', userId).in('cle', aSupprimer)
+        : { error: null }
+    ]);
+    if (ecriture.error) console.error('Erreur sauvegarde parametres', aEcrire.map(e => e.cle), ecriture.error);
+    else aEcrire.forEach(({ cle, json }) => { parametresEnBase[cle] = json; });
+    if (suppression.error) console.error('Erreur suppression parametres', aSupprimer, suppression.error);
+    else aSupprimer.forEach(cle => { delete parametresEnBase[cle]; });
+    return !ecriture.error && !suppression.error;
   } catch (error) {
     console.error('Erreur sauvegarde parametres:', error);
     return false;
@@ -484,15 +529,41 @@ async function saveParametresToDb() {
 }
 
 // v1.1.0.1 : enregistre seulement ces cles ; les autres restent telles qu'en base.
-async function saveParametresCles(cles) {
-  const userId = await getCurrentUserId();
-  const lignes = cles
-    .filter(cle => appData.parametres && appData.parametres[cle] !== undefined)
-    .map(cle => ({ user_id: userId, cle, valeur: appData.parametres[cle] }));
-  if (!lignes.length) return true;
-  const { error } = await supabaseClient.from('parametres').upsert(lignes, { onConflict: 'user_id,cle' });
-  if (error) throw error;
-  return true;
+function saveParametresCles(cles) {
+  return enFileParametres(async () => {
+    if (!parametresCharges) throw new Error('Parametres non charges depuis la base');
+    const userId = await getCurrentUserId();
+    const lignes = cles
+      .filter(cle => appData.parametres && appData.parametres[cle] !== undefined)
+      .map(cle => ({ user_id: userId, cle, valeur: appData.parametres[cle] }));
+    if (!lignes.length) return true;
+    const { error } = await supabaseClient.from('parametres').upsert(lignes, { onConflict: 'user_id,cle' });
+    if (error) throw error;
+    lignes.forEach(({ cle, valeur }) => { parametresEnBase[cle] = Persistance.jsonStable(valeur); });
+    return true;
+  });
+}
+
+// v1.2.0.0 : relit les parametres en base (app revenue au premier plan apres une longue absence :
+// un autre appareil a pu changer la carte des soins, les jours institut...). Une cle modifiee
+// ici et pas encore enregistree garde sa valeur. Renvoie true si une cle a change en memoire.
+function rafraichirParametres() {
+  return enFileParametres(async () => {
+    if (!parametresCharges) return false;
+    const userId = await getCurrentUserId();
+    const { data, error } = await lireTable('parametres', userId);
+    if (error) {
+      console.warn('Relecture des parametres impossible :', error.message || error);
+      return false;
+    }
+    const distants = {};
+    data.forEach(row => { distants[row.cle] = row.valeur; });
+    const { aPrendre, aRetirer, base } = Persistance.fusionnerParametresDistants(appData.parametres, parametresEnBase, distants);
+    Object.assign(appData.parametres, aPrendre); // sur place : les references deja prises restent valables
+    aRetirer.forEach(cle => { delete appData.parametres[cle]; });
+    parametresEnBase = base;
+    return Object.keys(aPrendre).length + aRetirer.length > 0;
+  });
 }
 
 // ===== CRUD GENERIQUE =====
@@ -575,6 +646,9 @@ async function saveParametres(formData) {
   if (!appData.parametres) {
     appData.parametres = {};
   }
+  // v1.2.0.0 : appele avec l'objet parametres lui-meme (Google Ads, cle API) : rien a recopier ni a
+  // reformater, on enregistre ce que l'appelant a modifie
+  if (formData === appData.parametres) return saveParametresToDb();
 
   if (formData.adresseSalon !== undefined) {
     appData.parametres.adresseSalon = formData.adresseSalon;
@@ -592,10 +666,8 @@ async function saveParametres(formData) {
     appData.parametres.calculPeriode = formData.calculPeriode || 'mois-calendaire';
   }
 
-  // Sauvegarder vers Supabase (await!)
-  await saveParametresToDb();
-
-  return true;
+  // Sauvegarder vers Supabase (await!) ; v1.2.0.0 : false si l'enregistrement a echoue
+  return saveParametresToDb();
 }
 
 function getParametres() {
@@ -931,111 +1003,180 @@ function getHeadSpaCollaborateur() {
 }
 
 // ===== EXPORT/IMPORT (version PWA avec download/upload) =====
-async function exportData() {
-  try {
-    const jsonStr = JSON.stringify(appData, null, 2);
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `elise-massage-backup-${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    return { success: true };
-  } catch (error) {
-    throw error;
+// v1.2.0.0 : la sauvegarde est relue dans la base (la copie en memoire peut etre ancienne) et
+// contient toutes les tables, relances et Gestion comprises. Format : js/core/persistance.js,
+// le meme que l'e-mail du lundi (supabase/functions/sauvegarde-hebdo).
+const MAPPEURS_SAUVEGARDE = {
+  clients: [mapClientFromDb, mapClientToDb],
+  prospects: [mapProspectFromDb, mapProspectToDb],
+  collaborateurs: [mapCollaborateurFromDb, mapCollaborateurToDb],
+  prestations: [mapPrestationFromDb, mapPrestationToDb],
+  rdv: [mapRdvFromDb, mapRdvToDb],
+  depenses: [mapDepenseFromDb, mapDepenseToDb],
+  bonsCadeaux: [mapBonCadeauFromDb, mapBonCadeauToDb],
+  relances: [mapRelanceFromDb, mapRelanceToDb]
+};
+
+function dateLocale(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+async function construireSauvegarde() {
+  const userId = await getCurrentUserId();
+  const tables = [...Persistance.TABLES_SAUVEGARDE.map(def => def.table), 'parametres'];
+  const reponses = await Promise.all(tables.map(table => lireTable(table, userId)));
+  const lignes = {};
+  reponses.forEach(({ data, error }, i) => {
+    if (error) throw new Error(`lecture de la table « ${tables[i]} » impossible (${error.message || error})`);
+    lignes[tables[i]] = data;
+  });
+  return Persistance.assemblerSauvegarde(lignes, (cle, row) => MAPPEURS_SAUVEGARDE[cle][0](row),
+    { le: new Date().toISOString(), source: 'app' });
+}
+
+function telechargerJson(objet, nomFichier) {
+  const blob = new Blob([JSON.stringify(objet, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nomFichier;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function exportData(nomFichier) {
+  const sauvegarde = await construireSauvegarde();
+  const nom = typeof nomFichier === 'string' ? nomFichier : `elise-massage-backup-${dateLocale(new Date())}.json`;
+  telechargerJson(sauvegarde, nom);
+  return { success: true, nomFichier: nom };
+}
+
+function choisirFichierJson() {
+  return new Promise(resolve => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json,application/json';
+    input.onchange = () => resolve(input.files[0] || null);
+    input.addEventListener('cancel', () => resolve(null));
+    input.click();
+  });
+}
+
+async function remplacerTable(def, lignes, userId) {
+  const vidage = await supabaseClient.from(def.table).delete().eq('user_id', userId);
+  if (vidage.error) throw new Error(`suppression impossible (${vidage.error.message})`);
+  const rows = lignes.map(ligne => {
+    const row = def.brut ? { ...ligne } : MAPPEURS_SAUVEGARDE[def.cle][1](ligne);
+    row.user_id = userId;
+    return row;
+  });
+  for (let i = 0; i < rows.length; i += 500) {
+    const { error } = await supabaseClient.from(def.table).insert(rows.slice(i, i + 500));
+    if (error) throw new Error(`ajout impossible (${error.message})`);
   }
 }
 
+// Les cles du fichier remplacent celles de la base ; une cle qu'il ne connait pas (reglage plus
+// recent que le fichier) reste, la connexion Google Ads aussi (elle vit cote serveur).
+async function importerParametres(parametres, userId) {
+  const lignes = Object.entries(parametres)
+    .filter(([cle, valeur]) => valeur !== undefined && !Persistance.CLES_CONNEXION_GOOGLE.includes(cle))
+    .map(([cle, valeur]) => ({ user_id: userId, cle, valeur }));
+  if (!lignes.length) return;
+  const { error } = await supabaseClient.from('parametres').upsert(lignes, { onConflict: 'user_id,cle' });
+  if (error) throw new Error(`enregistrement impossible (${error.message})`);
+}
+
+// v1.2.0.0 : tout le fichier est verifie avant la moindre suppression ; une sauvegarde de l'etat
+// actuel est telechargee d'abord ; puis table par table (vider, remplir), arret a la premiere
+// erreur avec le nom de la table. Avant : suppressions en parallele sans controle, echec
+// d'insertion annonce comme un succes, relances effacees (cascade) et jamais reimportees.
+// Renvoie { success, annule?, error?, nomAvant?, absentes?, relancesIgnorees? }.
 async function importData() {
-  return new Promise((resolve, reject) => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json';
-    input.onchange = async (e) => {
-      try {
-        const file = e.target.files[0];
-        if (!file) {
-          resolve({ success: false, error: 'Aucun fichier selectionne' });
-          return;
-        }
-        const text = await file.text();
-        const importedData = JSON.parse(text);
+  const fichier = await choisirFichierJson();
+  if (!fichier) return { success: false, annule: true };
 
-        // Valider la structure
-        if (!importedData.clients && !importedData.prestations) {
-          resolve({ success: false, error: 'Format de fichier invalide' });
-          return;
-        }
+  let donnees;
+  try {
+    donnees = JSON.parse(await fichier.text());
+  } catch (e) {
+    return { success: false, error: 'Ce fichier n\'est pas une sauvegarde lisible. Rien n\'a été modifié.' };
+  }
 
-        // Importer dans Supabase (effacer et re-inserer)
-        const userId = await getCurrentUserId();
-        const confirm = window.confirm(
-          'Attention : ceci va remplacer TOUTES les donnees actuelles par celles du fichier importe. Continuer ?'
-        );
-        if (!confirm) {
-          resolve({ success: false, error: 'Import annule' });
-          return;
-        }
+  const verif = Persistance.validerSauvegarde(donnees);
+  if (!verif.ok) {
+    const liste = verif.erreurs.slice(0, 8).map(e => '• ' + e).join('\n');
+    const reste = verif.erreurs.length > 8 ? `\n… et ${verif.erreurs.length - 8} autre(s) problème(s)` : '';
+    return { success: false, error: `Fichier refusé, rien n'a été modifié :\n${liste}${reste}` };
+  }
 
-        // Supprimer les donnees existantes
-        await Promise.all([
-          supabaseClient.from('clients').delete().eq('user_id', userId),
-          supabaseClient.from('prospects').delete().eq('user_id', userId),
-          supabaseClient.from('collaborateurs').delete().eq('user_id', userId),
-          supabaseClient.from('rdv').delete().eq('user_id', userId),
-          supabaseClient.from('prestations').delete().eq('user_id', userId),
-          supabaseClient.from('depenses').delete().eq('user_id', userId),
-          supabaseClient.from('bons_cadeaux').delete().eq('user_id', userId),
-          supabaseClient.from('parametres').delete().eq('user_id', userId)
-        ]);
+  const L = Persistance.LIBELLES_TABLES;
+  const resume = verif.presentes.map(cle => `• ${L[cle]} : ${verif.lignes[cle].length}`).join('\n');
+  const gardees = verif.absentes.length
+    ? `\n\nAbsentes du fichier, gardées telles quelles : ${verif.absentes.map(cle => L[cle]).join(', ')}.` : '';
+  const ignorees = verif.relancesIgnorees
+    ? `\n${verif.relancesIgnorees} relance(s) sans fiche cliente dans le fichier seront ignorées.` : '';
+  if (!window.confirm(`Remplacer tes données par celles du fichier ?\n\n${resume}${gardees}${ignorees}\n\n` +
+    'Une sauvegarde de tes données actuelles sera d\'abord téléchargée.')) {
+    return { success: false, annule: true };
+  }
 
-        // Re-inserer les donnees importees
-        const insertBatch = async (table, items, mapFn) => {
-          if (!items || items.length === 0) return;
-          const rows = items.map(item => {
-            const row = mapFn(item);
-            row.user_id = userId;
-            return row;
-          });
-          // Inserer par lots de 500
-          for (let i = 0; i < rows.length; i += 500) {
-            const batch = rows.slice(i, i + 500);
-            const { error } = await supabaseClient.from(table).insert(batch);
-            if (error) console.error(`Erreur insert ${table}:`, error);
-          }
-        };
+  // Sans sauvegarde de l'etat actuel, on ne supprime rien
+  const maintenant = new Date();
+  const nomAvant = `elise-massage-avant-import-${dateLocale(maintenant)}-` +
+    `${String(maintenant.getHours()).padStart(2, '0')}h${String(maintenant.getMinutes()).padStart(2, '0')}.json`;
+  let userId;
+  try {
+    await exportData(nomAvant);
+    userId = await getCurrentUserId();
+    // Fichier sans relances (export d'avant la v1.0.10.0) : vider les clientes les effacerait
+    // (cascade). On remet celles d'aujourd'hui dont la fiche est dans le fichier.
+    if (verif.absentes.includes('relances')) {
+      const actuelles = await lireTable('relances', userId);
+      if (actuelles.error) throw new Error(actuelles.error.message || actuelles.error);
+      const clientes = new Set(donnees.clients.map(c => c.id));
+      verif.lignes.relances = actuelles.data.map(mapRelanceFromDb).filter(r => clientes.has(r.clientId));
+      verif.presentes.push('relances');
+    }
+  } catch (e) {
+    return { success: false, error: `La sauvegarde de tes données actuelles a échoué : import annulé, rien n'a été modifié.\n\nDétail : ${e.message || e}` };
+  }
 
-        await insertBatch('clients', importedData.clients, mapClientToDb);
-        await insertBatch('prospects', importedData.prospects, mapProspectToDb);
-        await insertBatch('collaborateurs', importedData.collaborateurs, mapCollaborateurToDb);
-        await insertBatch('rdv', importedData.rdv, mapRdvToDb);
-        await insertBatch('prestations', importedData.prestations, mapPrestationToDb);
-        await insertBatch('depenses', importedData.depenses, mapDepenseToDb);
-        await insertBatch('bons_cadeaux', importedData.bonsCadeaux, mapBonCadeauToDb);
-
-        // Parametres
-        if (importedData.parametres) {
-          for (const [cle, valeur] of Object.entries(importedData.parametres)) {
-            await supabaseClient.from('parametres').upsert(
-              { user_id: userId, cle, valeur },
-              { onConflict: 'user_id,cle' }
-            );
-          }
-        }
-
-        // Recharger les donnees
-        await loadData();
-
-        resolve({ success: true });
-      } catch (error) {
-        reject(error);
-      }
+  const remplacees = [];
+  let enCours = null;
+  try {
+    for (const def of Persistance.TABLES_SAUVEGARDE) {
+      if (!verif.presentes.includes(def.cle)) continue;
+      enCours = def.cle;
+      await remplacerTable(def, verif.lignes[def.cle], userId);
+      remplacees.push(def.cle);
+    }
+    if (verif.parametres) {
+      enCours = 'parametres';
+      await importerParametres(verif.parametres, userId);
+    }
+  } catch (err) {
+    const recharge = await loadData(); // l'app montre ce que la base contient vraiment
+    if (window.GestionDonnees && GestionDonnees.etat) GestionDonnees.etat.charge = false;
+    const faites = remplacees.length ? remplacees.map(cle => L[cle]).join(', ') : 'aucune';
+    return {
+      success: false,
+      error: `L'import s'est arrêté sur « ${L[enCours]} » : ${err.message || err}\n\n` +
+        `Déjà remplacées : ${faites}. Les suivantes n'ont pas été touchées.\n` +
+        `Pour tout remettre comme avant, importe le fichier « ${nomAvant} » qui vient d'être téléchargé.` +
+        (recharge ? '' : '\n\nRecharge la page pour voir l\'état réel de tes données.')
     };
-    input.click();
-  });
+  }
+
+  const recharge = await loadData();
+  if (window.GestionDonnees && GestionDonnees.etat) GestionDonnees.etat.charge = false;
+  return {
+    success: true, nomAvant, recharge,
+    absentes: verif.absentes.map(cle => L[cle]),
+    relancesIgnorees: verif.relancesIgnorees
+  };
 }
 
 // ===== ANNEES PRESENTES DANS LES DONNEES =====
@@ -1722,7 +1863,7 @@ window.DataManager = {
   loadData, saveData, getAppData, setAppData,
   setEditingId, getEditingId,
   generateId, formatDate, formatActions, getDureeValue,
-  saveParametres, getParametres, saveParametresCles,
+  saveParametres, getParametres, saveParametresCles, rafraichirParametres,
   saveDashboardLayoutToCore, loadDashboardLayoutFromCore,
   getAllRdv, getRdvById,
   getAllPrestations, getPrestationById, getSortedPrestations,

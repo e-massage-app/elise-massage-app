@@ -5,6 +5,18 @@
 window.lastRdvData = null;
 window.lastPrestationData = null;
 
+// v1.2.0.0 : style des ecrans bloquants (hors connexion, donnees non chargees)
+const STYLE_ECRAN_BLOQUANT = `
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(26,26,46,0.97); z-index: 99999;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Segoe UI', system-ui, sans-serif; color: #F5F0E8;
+  `;
+const STYLE_BOUTON_BLOQUANT = `
+        padding: 0.75rem 2rem; background: linear-gradient(135deg, #d4a574, #c4956a);
+        color: #1a1a2e; border: none; border-radius: 8px; font-size: 1rem;
+        font-weight: 600; cursor: pointer;`;
+
 // ===== GESTION OFFLINE =====
 // navigator.onLine est notoirement faux-positif sur mobile (4G dégradée,
 // captive portal, iOS PWA en arrière-plan). On le complète par un ping
@@ -22,21 +34,46 @@ function showOfflineOverlay() {
         L'application necessite une connexion internet pour fonctionner.
         <br>Verifiez votre connexion et rechargez la page.
       </p>
-      <button onclick="window.location.reload()" style="
-        padding: 0.75rem 2rem; background: linear-gradient(135deg, #d4a574, #c4956a);
-        color: #1a1a2e; border: none; border-radius: 8px; font-size: 1rem;
-        font-weight: 600; cursor: pointer;">
+      <button onclick="window.location.reload()" style="${STYLE_BOUTON_BLOQUANT}">
         Recharger
       </button>
     </div>
   `;
-  overlay.style.cssText = `
-    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(26,26,46,0.97); z-index: 99999;
-    display: flex; align-items: center; justify-content: center;
-    font-family: 'Segoe UI', system-ui, sans-serif; color: #F5F0E8;
-  `;
+  overlay.style.cssText = STYLE_ECRAN_BLOQUANT;
   document.body.appendChild(overlay);
+}
+
+// v1.2.0.0 : donnees non chargees = l'app ne s'ouvre pas. Avant, elle s'ouvrait avec les reglages
+// par defaut, que la premiere sauvegarde pouvait ecrire par-dessus les vrais.
+function afficherEchecChargement() {
+  if (document.getElementById('echec-chargement')) return;
+  const ecran = document.createElement('div');
+  ecran.id = 'echec-chargement';
+  ecran.setAttribute('role', 'alertdialog');
+  ecran.innerHTML = `
+    <div style="text-align: center; padding: 2rem; max-width: 28rem;">
+      <div style="font-size: 3rem; margin-bottom: 1rem;">&#9888;&#65039;</div>
+      <h2 style="margin-bottom: 0.5rem; color: #d4a574;">Données non chargées</h2>
+      <p style="margin-bottom: 1.5rem; color: rgba(245,240,232,0.7);">
+        L'application n'a pas pu lire tes données : rien n'a été modifié.
+        <br>Vérifie ta connexion puis réessaie.
+      </p>
+      <button type="button" style="${STYLE_BOUTON_BLOQUANT}">Réessayer</button>
+    </div>
+  `;
+  ecran.style.cssText = STYLE_ECRAN_BLOQUANT;
+  const bouton = ecran.querySelector('button');
+  bouton.addEventListener('click', async () => {
+    bouton.disabled = true;
+    bouton.textContent = 'Chargement…';
+    if (await chargerEtOuvrir()) {
+      ecran.remove();
+    } else {
+      bouton.disabled = false;
+      bouton.textContent = 'Réessayer';
+    }
+  });
+  document.body.appendChild(ecran);
 }
 
 function hideOfflineOverlay() {
@@ -134,73 +171,121 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
+  await chargerEtOuvrir();
+});
+
+// v1.2.0.0 : une etape d'affichage qui casse est notee et n'empeche pas les suivantes
+async function etapeDemarrage(nom, fn) {
+  try {
+    await fn();
+  } catch (err) {
+    console.error(`Demarrage, etape « ${nom} » :`, err);
+  }
+}
+
+let _formulairesPrets = false;
+
+// Charge les donnees puis ouvre l'app ; sinon ecran bloquant « Réessayer » (qui rappelle cette
+// fonction). Renvoie true si l'app est ouverte.
+async function chargerEtOuvrir() {
+  let dataLoaded = false;
   try {
     // Chargement des donnees depuis Supabase
     setLoaderText('Chargement des données…');
-    const dataLoaded = await DataManager.loadData();
-    if (dataLoaded) {
-      console.log('Donnees chargees avec succes');
-
-      // v1.0.7.0 : backfill des groupes sur les categories existantes
-      // (idempotent : ne fait rien si toutes les categories ont deja un groupe)
-      try {
-        await DataManager.migrerCategoriesGroupes();
-      } catch (err) {
-        console.warn('Migration groupes categories : echec non bloquant', err);
-      }
-
-      // v1.0.9.0 : backfill fidelite (marque les paliers deja depasses comme vus)
-      try {
-        await DataManager.migrerFidelite();
-      } catch (err) {
-        console.warn('Migration fidelite : echec non bloquant', err);
-      }
-
-      // v1.0.10.1 : Google Ads en TACHE DE FOND (plus de await).
-      // Cet appel (refresh OAuth + requete API) prenait plusieurs secondes une
-      // fois par jour, pendant lesquelles l'ecran restait blanc. Il rafraichit
-      // desormais les analytics quand il aboutit, sans retarder l'affichage.
-      syncGoogleAdsCostsOnStartup()
-        .then(() => {
-          if (typeof UtilsServices?.updateAnalytics === 'function') UtilsServices.updateAnalytics();
-          return signalerDeconnexionGoogleAds();
-        })
-        .catch(err => console.warn('Sync Google Ads (fond) :', err));
-
-      // Initialiser le dashboard par defaut
-      setLoaderText('Préparation…');
-      ViewManager.updateDashboard();
-
-      // Initialiser les analytics
-      UtilsServices.updateAnalytics();
-
-      // Setup de la recherche clients
-      ClientServices.setupClientSearch();
-
-      // Initialiser les controles de vue de l'annuaire
-      ViewManager.initAnnuaireViewControls();
-
-      UtilsServices.setupDepensesSearch();
-
-      // Generation automatique des depenses d'abonnement
-      if (typeof genererDepensesAbonnements === 'function') {
-        await genererDepensesAbonnements();
-      }
-
-      // Setup des formulaires
-      setupFormListeners();
-
-      revealApp();
-
-    } else {
-      console.error('Erreur lors du chargement des donnees');
-      revealApp(); // sinon : ecran blanc definitif
-      alert('Impossible de charger les données. Vérifie ta connexion et recharge la page.');
-    }
+    dataLoaded = await DataManager.loadData();
   } catch (error) {
     console.error('Erreur d\'initialisation:', error);
+  }
+  if (!dataLoaded) {
+    console.error('Erreur lors du chargement des donnees');
     revealApp(); // sinon : ecran blanc definitif
-    alert('Erreur au démarrage.\n\nDétail : ' + (error && error.message ? error.message : error));
+    afficherEchecChargement();
+    return false;
+  }
+  console.log('Donnees chargees avec succes');
+
+  // v1.2.0.0 : formulaires branches AVANT tout affichage. Branches en dernier, un widget casse
+  // plus haut les laissait partir en envoi natif (rechargement de la page, saisie perdue).
+  if (!_formulairesPrets) {
+    setupFormListeners();
+    _formulairesPrets = true;
+  }
+
+  // v1.0.7.0 : backfill des groupes sur les categories existantes
+  // (idempotent : ne fait rien si toutes les categories ont deja un groupe)
+  await etapeDemarrage('migration groupes categories', () => DataManager.migrerCategoriesGroupes());
+
+  // v1.0.9.0 : backfill fidelite (marque les paliers deja depasses comme vus)
+  await etapeDemarrage('migration fidelite', () => DataManager.migrerFidelite());
+
+  // v1.0.10.1 : Google Ads en TACHE DE FOND (plus de await).
+  // Cet appel (refresh OAuth + requete API) prenait plusieurs secondes une
+  // fois par jour, pendant lesquelles l'ecran restait blanc. Il rafraichit
+  // desormais les analytics quand il aboutit, sans retarder l'affichage.
+  syncGoogleAdsCostsOnStartup()
+    .then(() => {
+      if (typeof UtilsServices?.updateAnalytics === 'function') UtilsServices.updateAnalytics();
+      return signalerDeconnexionGoogleAds();
+    })
+    .catch(err => console.warn('Sync Google Ads (fond) :', err));
+
+  // Initialiser le dashboard par defaut
+  setLoaderText('Préparation…');
+  await etapeDemarrage('tableau de bord', () => ViewManager.updateDashboard());
+
+  // Initialiser les analytics
+  await etapeDemarrage('analytics', () => UtilsServices.updateAnalytics());
+
+  // Setup de la recherche clients
+  await etapeDemarrage('recherche clients', () => ClientServices.setupClientSearch());
+
+  // Initialiser les controles de vue de l'annuaire
+  await etapeDemarrage('annuaire', () => ViewManager.initAnnuaireViewControls());
+
+  await etapeDemarrage('recherche depenses', () => UtilsServices.setupDepensesSearch());
+
+  // Generation automatique des depenses d'abonnement
+  if (typeof genererDepensesAbonnements === 'function') {
+    await etapeDemarrage('abonnements', () => genererDepensesAbonnements());
+  }
+
+  revealApp();
+  return true;
+}
+
+// v1.2.0.0 : de retour apres plus de 5 min en arriere-plan, on relit les parametres en base (un
+// autre appareil a pu changer la carte des soins, les jours institut...) puis on redessine
+// l'onglet affiche. Une modification faite ici et pas encore enregistree est gardee.
+const ABSENCE_AVANT_RELECTURE = 5 * 60 * 1000;
+let _masqueDepuis = null;
+
+const RENDUS_ONGLETS = {
+  dashboard: () => ViewManager.updateDashboard(),
+  calendrier: () => ViewManager.updateCalendar(),
+  prestations: () => ViewManager.updatePrestationsTable(),
+  'bons-cadeaux': () => ViewManager.updateBonsCadeauxDisplay(),
+  clients: () => ViewManager.updateClientsDisplay(),
+  relances: () => ViewManager.updateRelancesDisplay(),
+  analytics: () => UtilsServices.updateAnalytics(),
+  depenses: () => ViewManager.updateDepensesDisplay(),
+  gestion: () => window.GestionVue && GestionVue.afficher()
+};
+
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState === 'hidden') {
+    _masqueDepuis = Date.now();
+    return;
+  }
+  const absence = _masqueDepuis ? Date.now() - _masqueDepuis : 0;
+  _masqueDepuis = null;
+  if (absence < ABSENCE_AVANT_RELECTURE) return;
+  try {
+    if (!(await DataManager.rafraichirParametres())) return;
+    const onglet = document.querySelector('.tab-content.active');
+    const rendu = onglet && RENDUS_ONGLETS[onglet.id];
+    if (rendu) await rendu();
+  } catch (err) {
+    console.warn('Relecture des parametres au retour :', err);
   }
 });
 
