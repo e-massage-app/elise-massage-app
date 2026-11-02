@@ -182,3 +182,20 @@ est public, aucun montant personnel ne doit etre commite, ni dans le code ni dan
   dans `gestion-calculs.js` (`abonnementsAnticipes`), verifie par un test (depenses inchangees).
 - Nouveau releve du compte pro au 02/11 saisi a la demande de Jordan (base propre).
 - `npm test` : 33 tests.
+
+## v1.1.0.6 (2026-11-02) : Google Ads « a venir » et routine du mois
+
+- Google Ads du mois M est debite par carte le 1er du mois M+1 mais peut rester quelques jours dans les
+  « a venir » de la banque. Releve du compte pro saisi du 1er au 5 : question « deja passe ? »
+  (`corrections.adsLe`), comme pour l'URSSAF. Montant reel de la facture Google = depense + ~2 % de
+  frais (ecran de facturation) : saisi a la main pour octobre ; reglage possible plus tard.
+- Tuile « Ma reserve » : « compte pro X + caisse Y − Z deja dus » : le compte pro est le chiffre de
+  l'appli bancaire, a comparer directement.
+
+### Routine d'Elise, une fois par mois apres le 5 (quand URSSAF, Google et salaire sont passes)
+1. Ma reserve > Sur mes comptes > Compte pro > « Mettre a jour » : le solde de l'appli bancaire.
+2. Caisse > « Mettre a jour » : les especes comptees.
+3. Carte « A declarer » du mois precedent > « Saisir ce que j'ai declare ».
+4. Si l'avis URSSAF donne un autre montant : mois concerne > frais > URSSAF > « Corriger ».
+Le reste du mois, rien : URSSAF (2-4 du mois M+2), Google (1er), Planity (22) sont deja prevus ;
+le jour du prelevement le compte baisse, la reserve ne bouge pas.

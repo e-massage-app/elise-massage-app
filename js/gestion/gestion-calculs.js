@@ -1,4 +1,4 @@
-// ===== GESTION : CALCULS (v1.1.0.5) =====
+// ===== GESTION : CALCULS (v1.1.0.6) =====
 // Fonctions pures : ni DOM, ni Supabase, ni date du jour implicite (on la passe).
 // Testees sous Node : tests/gestion-calculs.test.js.
 //
@@ -123,7 +123,9 @@ function fluxConcernant(ctx, mois) {
   const t = totauxPro(ctx, mois);
   if (t.commission) flux.push({ date: fin, compte: 'pro', montant: -t.commission, espace: 'pro', type: 'frais', categorie: 'Commission carte', libelle: '', moisConcerne: mois, source: 'calcul' });
   if (t.urssaf) flux.push({ date: datePrelevementUrssaf(ctx, mois), compte: R.compteUrssaf || 'pro', montant: -t.urssaf, espace: 'pro', type: 'frais', categorie: 'URSSAF', libelle: '', moisConcerne: mois, source: 'calcul' });
-  if (t.ads) flux.push({ date: `${suivant}-01`, compte: 'pro', montant: -t.ads, espace: 'pro', type: 'frais', categorie: 'Google Ads', libelle: '', moisConcerne: mois, source: 'google' });
+  // Google Ads : le 1er du mois suivant, ou la date confirmee avec un releve (encore « a venir » a la banque)
+  const adsLe = infoMois.corrections?.adsLe;
+  if (t.ads) flux.push({ date: adsLe ? _Enc.jourDe(adsLe) : `${suivant}-01`, compte: 'pro', montant: -t.ads, espace: 'pro', type: 'frais', categorie: 'Google Ads', libelle: '', moisConcerne: mois, source: 'google' });
 
   // 3. Depenses du logiciel (hors estimations kilometriques)
   depensesLogiciel(ctx, mois).forEach(d => {
@@ -168,6 +170,20 @@ function urssafAConfirmer(ctx, compte, date) {
   if (jour > dateSupposee) return null;
   const montant = totauxPro(ctx, mois).urssaf;
   return montant > 0 ? { mois, montant, dateSupposee } : null;
+}
+
+/**
+ * Google Ads du mois precedent, debite par carte le 1er : il peut rester quelques jours dans les
+ * « a venir » de la banque. Un releve du compte pro saisi du 1er au 5 : on demande s'il est passe.
+ */
+function adsAConfirmer(ctx, compte, date) {
+  if (!date || compte !== 'pro') return null;
+  const jour = _Enc.jourDe(date);
+  if (Number(jour.slice(8, 10)) > 5) return null;
+  const mois = _Enc.decalerMois(jour.slice(0, 7), -1);
+  if (ctx.gestion.mois[mois]?.corrections?.adsLe) return null;
+  const montant = totauxPro(ctx, mois).ads;
+  return montant > 0 ? { mois, montant, dateSupposee: `${jour.slice(0, 7)}-01` } : null;
 }
 
 function pousserMouvement(flux, mv, moisConcerne, source) {
@@ -502,7 +518,7 @@ function jePeuxMeVerser(ctx, mois, aujourdhui) {
   return {
     mois, enCours, jour, rapporte,
     verse: verse.total, versements: verse.lignes, versesAvant, versesApres,
-    comptes: res.comptes.montant, reserve: res.montant, reserveIncomplete: res.comptes.incomplet,
+    comptes: res.comptes.montant, parts: res.comptes.parts, reserve: res.montant, reserveIncomplete: res.comptes.incomplet,
     aPayer: res.du.lignes, totalAPayer: res.du.total,
     matelas, marge, total, resteAVerser, salaireApres,
     enTrop: arrondi(Math.max(0, verse.total - total)),
@@ -687,6 +703,7 @@ const GestionCalculs = {
   aPayer,
   datePrelevementUrssaf,
   urssafAConfirmer,
+  adsAConfirmer,
   reserveInstantanee,
   bilanReserve,
   jePeuxMeVerser,

@@ -377,3 +377,19 @@ test('abonnement inactif ou mois passe sans depense : rien d anticipe', () => {
   assert.equal(G.abonnementsAnticipes(c, '2026-10').length, 0, 'avant le mois en cours, sans depense : on ne l invente pas');
   assert.equal(G.abonnementsAnticipes(c, '2026-11').length, 1);
 });
+
+test('Google Ads encore « a venir » au releve : la date confirmee le garde du jusqu a son passage', () => {
+  const d = avecSoldes(base());
+  d.gestion.soldes.push({ compte: 'pro', date: '2026-11-02', montant: 1700 });
+  // releve du 02/11 : Google d'octobre (60 €, suppose passe le 01/11) -> la question est posee
+  assert.deepEqual(G.adsAConfirmer(ctx(d), 'pro', '2026-11-02'), { mois: '2026-10', montant: 60, dateSupposee: '2026-11-01' });
+  assert.equal(G.adsAConfirmer(ctx(d), 'pro', '2026-11-06'), null, 'apres le 5 : passe');
+  assert.equal(G.adsAConfirmer(ctx(d), 'caisse', '2026-11-02'), null);
+  // sans reponse : suppose passe le 01/11, compris dans le releve, plus du
+  assert.ok(!G.aPayer(ctx(d), '2026-11', '2026-11-02').lignes.some(l => l.categorie === 'Google Ads'));
+  // « pas encore » : passe le 03/11 -> du le 02, retire du compte le 03
+  d.gestion.mois['2026-10'] = { corrections: { adsLe: '2026-11-03' } };
+  assert.ok(G.aPayer(ctx(d), '2026-11', '2026-11-02').lignes.some(l => l.categorie === 'Google Ads' && l.montant === 60));
+  assert.equal(G.soldeCompte(ctx(d), 'pro', '2026-11-03').montant, 1700 - 60);
+  assert.equal(G.adsAConfirmer(ctx(d), 'pro', '2026-11-02'), null, 'deja confirme');
+});

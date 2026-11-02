@@ -1,4 +1,4 @@
-// ===== GESTION : ECRAN (v1.1.0.5) =====
+// ===== GESTION : ECRAN (v1.1.0.6) =====
 // Onglet « Gestion » : Pro (4 chiffres, detail au clic, courbe), Perso, Reglages.
 // Mots d'Elise, pas de jargon comptable (ni « resultat », ni « provision »).
 // Evenements par delegation (data-ge="action") : aucun onclick global ajoute.
@@ -191,7 +191,10 @@ function vuePro() {
       + (v.salaireApres > 0 ? `<br>si je me verse le salaire ${deMois(m)} : ${variation(v.reserveApres - b.depart)}` : '');
   }
   // A cote : ce que montre la banque, et ce qui est deja du dessus (aucun « frais fantome »)
-  if (v.reserve !== null) noteReserve += `<br>sur mon compte : ${euros(v.comptes)}${v.totalAPayer ? ` · dont ${euros(v.totalAPayer)} dus` : ''}`;
+  if (v.reserve !== null) {
+    const part = cle => v.parts.find(pa => pa.compte === cle)?.montant;
+    noteReserve += `<br>compte pro ${euros(part('pro'))} + caisse ${euros(part('caisse'))}${v.totalAPayer ? ` − ${euros(v.totalAPayer)} déjà dus` : ''}`;
+  }
   if (v.reserveIncomplete && v.reserve !== null) noteReserve += ' · un solde manque';
   const tuileReserve = tuile('reserve', enCours ? 'Ma réserve aujourd\'hui' : `Ma réserve fin ${nomMois(m)}`, v.reserve === null ? 'À renseigner' : euros(v.reserve), noteReserve);
 
@@ -725,7 +728,7 @@ function formulaireSolde(compte, s = null) {
         <label class="ge-champ"><span>Solde (€)</span><input name="montant" type="number" step="0.01" inputmode="decimal" required value="${s ? s.montant : ''}"></label>
         <label class="ge-champ"><span>Date</span><input name="date" type="date" required value="${s?.date || aujourdhui()}" data-ge-change="question-urssaf"></label>
       </div>
-      <div class="ge-question-urssaf">${questionUrssaf(s?.compte || compte, s?.date || aujourdhui())}</div>
+      <div class="ge-question-urssaf">${questionsPrelevements(s?.compte || compte, s?.date || aujourdhui())}</div>
       <div class="modal-actions ge-actions">
         ${s ? `<button type="button" class="btn-secondary ge-danger" data-ge="supprimer-solde" data-valeur="${s.id}">Supprimer</button>` : ''}
         <button type="submit" class="btn-primary">Enregistrer</button>
@@ -733,18 +736,21 @@ function formulaireSolde(compte, s = null) {
     </form>`;
 }
 
-// Entre le 1er et le jour de prelevement suppose, on ne sait pas si l'URSSAF d'il y a deux mois est passee
-function questionUrssaf(compte, date) {
-  const q = C().urssafAConfirmer(ctx(), compte, date);
-  if (!q) return '';
-  return `
+// En debut de mois, on ne sait pas si l'URSSAF d'il y a deux mois et Google Ads du mois dernier sont passes
+function questionsPrelevements(compte, date) {
+  const c = ctx();
+  const questions = [
+    ['urssaf', C().urssafAConfirmer(c, compte, date), q => `L'URSSAF ${deMois(q.mois)} (${euros(q.montant)}) est-elle déjà passée sur ce solde ?`],
+    ['ads', C().adsAConfirmer(c, compte, date), q => `Google Ads ${deMois(q.mois)} (${euros(q.montant)}) est-il déjà passé sur ce solde ? S'il est encore dans les « à venir » de ta banque : pas encore.`]
+  ];
+  return questions.filter(([, q]) => q).map(([cle, q, texte]) => `
     <fieldset class="ge-question">
-      <legend>L'URSSAF ${deMois(q.mois)} (${euros(q.montant)}) est-elle déjà passée sur ce solde ?</legend>
-      <label><input type="radio" name="urssafPassee" value="oui" required> Oui, elle est déjà prélevée</label>
-      <label><input type="radio" name="urssafPassee" value="non" required> Pas encore</label>
-      <input type="hidden" name="urssafMois" value="${q.mois}">
-      <input type="hidden" name="urssafSupposee" value="${q.dateSupposee}">
-    </fieldset>`;
+      <legend>${texte(q)}</legend>
+      <label><input type="radio" name="${cle}Passe" value="oui" required> Oui, c'est passé</label>
+      <label><input type="radio" name="${cle}Passe" value="non" required> Pas encore</label>
+      <input type="hidden" name="${cle}Mois" value="${q.mois}">
+      <input type="hidden" name="${cle}Supposee" value="${q.dateSupposee}">
+    </fieldset>`).join('');
 }
 
 function formulaireSoldesDepart() {
@@ -842,7 +848,7 @@ function lierEvenements() {
       }));
     } else if (el.dataset.geChange === 'question-urssaf') {
       const f = el.closest('form');
-      f.querySelector('.ge-question-urssaf').innerHTML = questionUrssaf(f.elements.compte.value, f.elements.date.value);
+      f.querySelector('.ge-question-urssaf').innerHTML = questionsPrelevements(f.elements.compte.value, f.elements.date.value);
     } else if (el.dataset.geChange === 'frequence') {
       el.closest('form').querySelector('.ge-si-annuelle').hidden = el.value !== 'annuelle';
     }
@@ -971,14 +977,16 @@ async function soumettre(f) {
       date,
       montant: lireNombre(f, 'montant') ?? 0
     });
-    // Reponse a la question URSSAF : la date ou elle part, pour ne jamais la compter deux fois
-    const moisUrssaf = f.elements.urssafMois?.value;
-    if (moisUrssaf && f.elements.urssafPassee?.value) {
-      const supposee = f.elements.urssafSupposee.value;
-      const lendemain = `${date.slice(0, 8)}${String(Number(date.slice(8, 10)) + 1).padStart(2, '0')}`;
-      const urssafLe = f.elements.urssafPassee.value === 'oui' ? date : (supposee > date ? supposee : lendemain);
-      const corrections = { ...(D().etat.gestion.mois[moisUrssaf]?.corrections || {}), urssafLe };
-      await D().enregistrerMois(moisUrssaf, { corrections });
+    // Reponses aux questions : la date ou chaque prelevement part, pour ne jamais le compter deux fois
+    const lendemain = `${date.slice(0, 8)}${String(Number(date.slice(8, 10)) + 1).padStart(2, '0')}`;
+    for (const cle of ['urssaf', 'ads']) {
+      const mois = f.elements[`${cle}Mois`]?.value;
+      const reponse = f.elements[`${cle}Passe`]?.value;
+      if (!mois || !reponse) continue;
+      const supposee = f.elements[`${cle}Supposee`].value;
+      const le = reponse === 'oui' ? date : (supposee > date ? supposee : lendemain);
+      const corrections = { ...(D().etat.gestion.mois[mois]?.corrections || {}), [`${cle}Le`]: le };
+      await D().enregistrerMois(mois, { corrections });
     }
   } else if (quoi === 'soldes-depart') {
     const date = f.dataset.date;
