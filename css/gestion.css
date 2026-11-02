@@ -432,18 +432,17 @@
   font-size: 0.95rem;
   cursor: pointer;
 }
-/* Par-dessus le formulaire : si elle l'agrandissait, la fenetre se recentrerait et le champ
-   sauterait sous le doigt */
+/* Flottante, rattachee a <body> (position calculee par placerChoix) : dans la fenetre, elle
+   l'agrandissait (le champ sautait sous le doigt) ou s'y faisait couper (ascenseur force) */
 .ge-choix-liste {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
-  z-index: 30;
+  position: fixed;
+  z-index: 1100;
+  box-sizing: border-box;
+  font-family: 'Inter', sans-serif;
   list-style: none;
   margin: 0;
   padding: 0.3rem;
-  max-height: 14rem;
+  max-height: 300px;
   overflow-y: auto;
   background: var(--white);
   border: 1px solid #e3d7cc;

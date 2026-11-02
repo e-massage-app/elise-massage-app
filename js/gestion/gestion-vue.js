@@ -1,4 +1,4 @@
-// ===== GESTION : ECRAN (v1.1.2.0) =====
+// ===== GESTION : ECRAN (v1.1.2.2) =====
 // Onglet « Gestion » : Pro (4 chiffres, detail au clic, courbe), Perso, Reglages.
 // Mots d'Elise, pas de jargon comptable (ni « resultat », ni « provision »).
 // Evenements par delegation (data-ge="action") : aucun onclick global ajoute.
@@ -665,22 +665,25 @@ function vueReglages() {
 // ----- Fenetres de saisie -----
 
 function ouvrir(id, html) {
+  fermerChoix();
   showModal(id, html);
 }
 
 function fermer() {
+  fermerChoix();
   if (typeof closeModalCompletely === 'function') closeModalCompletely(); else closeModal();
 }
 
 // v1.1.2.0 : vraie liste de categories. L'ancien <datalist> ne s'ouvrait pas au toucher (ni au
 // clic sur ordinateur) et ne proposait rien sur telephone. Ici : la liste s'ouvre des qu'on touche
 // le champ, se filtre en tapant, et « + Ajouter … » garde une categorie nouvelle dans les reglages.
+// v1.1.2.2 : la liste flotte au-dessus de la page (rattachee a <body>). Posee dans la fenetre, elle
+// en depassait le bas : ascenseur force et liste coupee. Elle s'ouvre vers le haut si la place manque.
 function optionsCategories(cle, valeur) {
   return `<div class="ge-choix" data-ge-choix="${cle}">
       <input name="categorie" value="${esc(valeur || '')}" placeholder="Choisir ou écrire" autocomplete="off"
-        role="combobox" aria-label="Catégorie" aria-expanded="false" aria-autocomplete="list">
+        role="combobox" aria-label="Catégorie" aria-expanded="false" aria-autocomplete="list" aria-controls="ge-choix-liste">
       <button type="button" class="ge-choix-fleche" data-ge-choix-ouvrir tabindex="-1" aria-label="Voir les catégories">▾</button>
-      <ul class="ge-choix-liste" role="listbox" hidden></ul>
     </div>`;
 }
 
@@ -704,31 +707,69 @@ async function retenirCategorie(cle, categorie) {
   await D().enregistrerReglages({ categories: { ...R.categories, [cle]: [...liste, categorie] } });
 }
 
+// Une seule liste pour tout l'ecran, et le champ qu'elle sert en ce moment
+const choix = { boite: null, ul: null };
+
+function listeChoix() {
+  if (!choix.ul) {
+    choix.ul = document.createElement('ul');
+    choix.ul.id = 'ge-choix-liste';
+    choix.ul.className = 'ge-choix-liste';
+    choix.ul.setAttribute('role', 'listbox');
+    choix.ul.hidden = true;
+    document.body.appendChild(choix.ul);
+  }
+  return choix.ul;
+}
+
+/** Sous le champ s'il y a la place, sinon au-dessus ; jamais plus haute que l'espace libre. */
+function placerChoix() {
+  const ul = choix.ul;
+  const champ = choix.boite?.querySelector('input');
+  if (!ul || ul.hidden || !champ) return;
+  if (!champ.isConnected) { fermerChoix(); return; }
+  const r = champ.getBoundingClientRect();
+  const marge = 8;
+  const ecart = 4;
+  const dessous = window.innerHeight - r.bottom - ecart - marge;
+  const dessus = r.top - ecart - marge;
+  const voulue = Math.min(ul.scrollHeight, 300);
+  const versLeHaut = dessous < voulue && dessus > dessous;
+  ul.style.left = `${Math.max(marge, r.left)}px`;
+  ul.style.width = `${r.width}px`;
+  ul.style.maxHeight = `${Math.max(96, Math.min(300, versLeHaut ? dessus : dessous))}px`;
+  ul.style.top = versLeHaut ? 'auto' : `${r.bottom + ecart}px`;
+  ul.style.bottom = versLeHaut ? `${window.innerHeight - r.top + ecart}px` : 'auto';
+}
+
 function remplirChoix(boite, filtre) {
   const liste = D().reglages().categories[boite.dataset.geChoix] || [];
-  const saisie = boite.querySelector('input').value.trim();
+  const champ = boite.querySelector('input');
+  const saisie = champ.value.trim();
   const cherche = sansAccents(filtre);
   const trouvees = liste.filter(c => !cherche || sansAccents(c).includes(cherche));
   const existe = liste.some(c => sansAccents(c) === sansAccents(saisie));
   const items = trouvees.map(c => `<li role="option" data-valeur="${esc(c)}" class="${sansAccents(c) === sansAccents(saisie) ? 'is-choisi' : ''}">${esc(c)}</li>`);
   if (saisie && !existe) items.push(`<li role="option" class="ge-choix-ajout" data-valeur="${esc(saisie)}">+ Ajouter « ${esc(saisie)} »</li>`);
-  const ul = boite.querySelector('.ge-choix-liste');
+  const ul = listeChoix();
+  if (choix.boite && choix.boite !== boite) choix.boite.querySelector('input')?.setAttribute('aria-expanded', 'false');
+  choix.boite = boite;
   ul.innerHTML = items.join('');
   ul.hidden = !items.length;
-  boite.querySelector('input').setAttribute('aria-expanded', String(!ul.hidden));
+  champ.setAttribute('aria-expanded', String(!ul.hidden));
+  placerChoix();
 }
 
-function fermerChoix(boite) {
-  const ul = boite?.querySelector('.ge-choix-liste');
-  if (!ul) return;
-  ul.hidden = true;
-  boite.querySelector('input').setAttribute('aria-expanded', 'false');
+function fermerChoix() {
+  if (choix.ul) choix.ul.hidden = true;
+  choix.boite?.querySelector('input')?.setAttribute('aria-expanded', 'false');
+  choix.boite = null;
 }
 
 function choisirCategorie(li) {
-  const boite = li.closest('.ge-choix');
-  boite.querySelector('input').value = li.dataset.valeur;
-  fermerChoix(boite);
+  const champ = choix.boite?.querySelector('input');
+  if (champ) champ.value = li.dataset.valeur;
+  fermerChoix();
 }
 
 function lierChoixCategories() {
@@ -745,15 +786,16 @@ function lierChoixCategories() {
   document.addEventListener('mousedown', e => {
     const li = e.target.closest('.ge-choix-liste li');
     if (li) { e.preventDefault(); choisirCategorie(li); return; }
+    if (e.target.closest('.ge-choix-liste')) { e.preventDefault(); return; } // barre de defilement
     const fleche = e.target.closest('[data-ge-choix-ouvrir]');
     if (!fleche) return;
     e.preventDefault();
     const boite = fleche.closest('.ge-choix');
-    if (boite.querySelector('.ge-choix-liste').hidden) {
+    if (choix.boite === boite && !listeChoix().hidden) {
+      fermerChoix();
+    } else {
       boite.querySelector('input').focus();
       remplirChoix(boite, '');
-    } else {
-      fermerChoix(boite);
     }
   });
   // Sur telephone, le toucher d'une ligne peut faire perdre le focus avant le choix : on attend
@@ -765,19 +807,25 @@ function lierChoixCategories() {
   document.addEventListener('focusout', e => {
     const boite = e.target.closest('.ge-choix');
     if (!boite) return;
-    setTimeout(() => { if (!boite.contains(document.activeElement)) fermerChoix(boite); }, 150);
+    setTimeout(() => {
+      if (choix.boite === boite && !boite.contains(document.activeElement)) fermerChoix();
+    }, 150);
   });
+  // La fenetre defile (telephone) ou change de taille (clavier) : la liste suit le champ
+  window.addEventListener('resize', placerChoix);
+  document.addEventListener('scroll', e => { if (e.target !== choix.ul) placerChoix(); }, true);
   document.addEventListener('keydown', e => {
     const boite = e.target.closest('.ge-choix');
     if (!boite || !e.target.matches('input')) return;
-    const ul = boite.querySelector('.ge-choix-liste');
+    const ul = listeChoix();
+    const ouverte = choix.boite === boite && !ul.hidden;
     const items = [...ul.querySelectorAll('li')];
     const actif = ul.querySelector('li.is-actif');
-    if (e.key === 'Escape' && !ul.hidden) { e.preventDefault(); fermerChoix(boite); return; }
-    if (e.key === 'Enter' && !ul.hidden && actif) { e.preventDefault(); choisirCategorie(actif); return; }
+    if (e.key === 'Escape' && ouverte) { e.preventDefault(); fermerChoix(); return; }
+    if (e.key === 'Enter' && ouverte && actif) { e.preventDefault(); choisirCategorie(actif); return; }
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
     e.preventDefault();
-    if (ul.hidden) { remplirChoix(boite, ''); return; }
+    if (!ouverte) { remplirChoix(boite, ''); return; }
     const i = items.indexOf(actif);
     const pas = e.key === 'ArrowDown' ? 1 : -1;
     const suivant = items[i < 0 ? (pas > 0 ? 0 : items.length - 1) : (i + pas + items.length) % items.length];
@@ -806,7 +854,7 @@ function formulaireMouvement(type, mv = null, compteForce = null) {
         <label class="ge-champ"><span>${t.sens === 'entree' ? 'Arrivé sur' : t.sens === 'transfert' ? 'Depuis' : 'Payé avec'}</span><select name="compte">${comptes}</select></label>
         ${t.vers ? `<label class="ge-champ"><span>Vers</span><input value="${C().COMPTES[t.vers]}" disabled></label>` : ''}
         ${type === 'verser' ? `<label class="ge-champ"><span>Pour le mois de</span><select name="moisConcerne">${choixMois}</select></label>` : ''}
-        ${t.categories ? `<div class="ge-champ"><span>Catégorie</span>${optionsCategories(t.categories, mv?.categorie)}</div>` : ''}
+        ${t.categories ? `<div class="ge-champ ge-champ-large"><span>Catégorie</span>${optionsCategories(t.categories, mv?.categorie)}</div>` : ''}
         <label class="ge-champ ge-champ-large"><span>Libellé (facultatif)</span><input name="libelle" type="text" value="${esc(mv?.libelle || '')}"></label>
       </div>
       <div class="modal-actions ge-actions">
@@ -829,7 +877,7 @@ function formulaireRecurrent(type, r = null) {
         <label class="ge-champ ge-champ-large"><span>Nom</span><input name="nom" type="text" required value="${esc(r?.nom || '')}"></label>
         <label class="ge-champ"><span>Montant (€)</span><input name="montant" type="number" step="0.01" min="0" inputmode="decimal" required value="${r ? r.montant : ''}"></label>
         <label class="ge-champ"><span>Compte</span><select name="compte">${comptes}</select></label>
-        ${t.categories ? `<div class="ge-champ"><span>Catégorie</span>${optionsCategories(t.categories, r?.categorie)}</div>` : ''}
+        ${t.categories ? `<div class="ge-champ ge-champ-large"><span>Catégorie</span>${optionsCategories(t.categories, r?.categorie)}</div>` : ''}
         <label class="ge-champ"><span>Fréquence</span><select name="frequence" data-ge-change="frequence"><option value="mensuelle" ${annuelle ? '' : 'selected'}>Tous les mois</option><option value="annuelle" ${annuelle ? 'selected' : ''}>Une fois par an</option></select></label>
         <label class="ge-champ ge-si-annuelle" ${annuelle ? '' : 'hidden'}><span>Quel mois ?</span><select name="moisAnnuel">${moisOptions}</select></label>
         <label class="ge-champ"><span>À partir de</span><input name="debut" type="month" required value="${r?.debut || debutDefaut}"></label>

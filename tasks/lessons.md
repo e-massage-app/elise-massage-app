@@ -167,4 +167,7 @@ dore #d4a574, fonds creme, cartes arrondies). Un apercu charge les memes URL de 
 clic et ne proposait rien sur le telephone de Jordan.
 
 **Regle** — pour une liste a choisir (avec ou sans saisie libre), une vraie liste qui s'ouvre au toucher
-(`.ge-choix` dans Gestion), posee PAR-DESSUS le formulaire pour que la fenetre ne se recentre pas.
+(`.ge-choix` dans Gestion). La liste FLOTTE, rattachee a `<body>` en `position: fixed` : dans la
+fenetre, elle la recentrait (posee dans le flux) ou s'y faisait couper avec un ascenseur force (posee
+en absolu dans une fenetre `overflow: auto`, retour de Jordan sur la v1.1.2.1). Mesurer
+`scrollHeight`/`clientHeight` de la fenetre liste ouverte avant de livrer.
