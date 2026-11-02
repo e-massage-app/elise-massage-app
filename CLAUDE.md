@@ -61,10 +61,16 @@ de faire **Ctrl+Shift+R** (le cache HTTP du navigateur est distinct du cache du 
 - `scripts/migrate-data.js` : migration JSON -> Supabase (la service_role key est lue via env var SUPABASE_SERVICE_ROLE_KEY, jamais commitee)
 - `scripts/migration-fix-persistance.sql` : migration SQL idempotente ajoutant les colonnes manquantes (bon_cadeau_id, type, abonnement_nom, societe, parrain, poste)
 - `scripts/schema-supabase.sql` : schema BDD complet
+- `js/core/encaissements.js` : LA regle d'encaissement (ce que les clientes ont paye), utilisee par tous les ecrans
+- `js/gestion/` : onglet Gestion (calculs purs, donnees de ses tables `gestion_*`, ecran) ; plan dans `tasks/todo-tresorerie.md`
+- `scripts/migration-gestion.sql` : tables de l'onglet Gestion (appliquee le 2026-11-02)
+- `tests/` : `npm test` (Node, sans dependance) ; `tests/apercu-gestion.html` = l'onglet avec des donnees fictives
+- `tasks/prive/` : documents avec les chiffres d'Elise, ignores par Git. Le depot est visible publiquement :
+  aucun montant personnel dans le code, les tests ou les commits
 
 ## Versioning
 - Format : `X.Y.Z.W` ou X.Y = version PWA, Z.W = heritage version Electron
-- Version actuelle : `1.0.18.3` (estampille de version sur les JS/CSS : fin du cache HTTP perime)
+- Version actuelle : `1.1.0.0` (onglet Gestion pro + perso, une seule regle d'encaissement pour tous les ecrans)
 - **OBLIGATOIRE** : a chaque modification demandee par l'utilisateur, proposer un bump de version et attendre validation
 - Mettre a jour la version dans 3 endroits : `package.json`, `index.html` (burger menu + footer)
 - Puis **`node scripts/estampiller-version.js`** : repose `?v=X.Y.Z.W` sur tous les

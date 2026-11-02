@@ -146,9 +146,9 @@ function calculateClientRevenue(client) {
   
   let totalRevenue = 0;
   
+  // v1.1.0.0 : regle Encaissements (prix + tips ; tips seuls si carte cadeau)
   clientPrestations.forEach(prestation => {
-    totalRevenue += parseFloat(prestation.prix) || 0;
-    totalRevenue += parseFloat(prestation.tips) || 0;
+    totalRevenue += Encaissements.encaissePrestation(prestation);
   });
   
   return totalRevenue;
@@ -346,7 +346,7 @@ function showAllCampaignsMetrics() {
     c => c.canalAcquisition === 'google-ads' && idsAvecPrestation.has(c.id)
   );
   
-  const totalRevenue = allPrestationsGoogleAds.reduce((sum, p) => sum + (p.prix || 0) + (p.tips || 0), 0);
+  const totalRevenue = allPrestationsGoogleAds.reduce((sum, p) => sum + Encaissements.encaissePrestation(p), 0); // v1.1.0.0 : regle Encaissements
   
   // ✅ Coût = TOUTES les campagnes (même non sélectionnées) : périodes figées + API actif
   let totalCost = 0;
@@ -380,7 +380,7 @@ function showAllCampaignsMetrics() {
   // ✅ clientsData
   const clientsData = allClientsGoogleAds.map(client => {
     const clientPrestations = allPrestationsGoogleAds.filter(p => p.clientId === client.id);
-    const clientRevenue = clientPrestations.reduce((sum, p) => sum + (p.prix || 0) + (p.tips || 0), 0);
+    const clientRevenue = clientPrestations.reduce((sum, p) => sum + Encaissements.encaissePrestation(p), 0);
     return {
       client,
       prestationsCount: clientPrestations.length,
@@ -448,7 +448,7 @@ function filterAnalyticsByCampaign(campaignId) {
     c => c.canalAcquisition === 'google-ads' && idsAvecPrestation.has(c.id)
   );
   
-  const totalRevenue = allPrestationsGoogleAds.reduce((sum, p) => sum + (p.prix || 0) + (p.tips || 0), 0);
+  const totalRevenue = allPrestationsGoogleAds.reduce((sum, p) => sum + Encaissements.encaissePrestation(p), 0); // v1.1.0.0 : regle Encaissements
   
   // ✅ BUG 3 FIX: Coût = périodes figées (frozenCost) + API UNIQUEMENT pour période active
   const periods = DataManager.getCampaignPeriods(campaignId);
@@ -469,7 +469,7 @@ function filterAnalyticsByCampaign(campaignId) {
   // ✅ clientsData
   const clientsData = allClientsGoogleAds.map(client => {
     const clientPrestations = allPrestationsGoogleAds.filter(p => p.clientId === client.id);
-    const clientRevenue = clientPrestations.reduce((sum, p) => sum + (p.prix || 0) + (p.tips || 0), 0);
+    const clientRevenue = clientPrestations.reduce((sum, p) => sum + Encaissements.encaissePrestation(p), 0);
     return {
       client,
       prestationsCount: clientPrestations.length,

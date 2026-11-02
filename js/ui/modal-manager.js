@@ -144,6 +144,11 @@ function updatePrixFromSoin(prefix) {
 
   if (!soinId || !duree) return;
 
+  // v1.1.0.0 : une prestation reglee par carte cadeau n'est pas payee (la carte
+  // l'a ete a sa vente) : son prix reste 0, jamais re-rempli depuis la carte des soins.
+  const moyenSelect = document.getElementById(`${prefix}-moyen-paiement`);
+  if (moyenSelect && moyenSelect.value === 'Bon cadeau') return;
+
   const prix = DataManager.getPrixForSoinVariante(soinId, duree);
 
   if (prix !== null && prixInput) {
@@ -569,7 +574,13 @@ window.PrestationDuplication = {
       
       // 3. Sauvegarder avec vérifications
       if (typeof BusinessServices !== 'undefined' && BusinessServices.createPrestation) {
-        await BusinessServices.createPrestation(formData);
+        const prestation = await BusinessServices.createPrestation(formData);
+        // v1.1.0.0 : meme suite que l'enregistrement simple (app.js) : la carte
+        // cadeau choisie est marquee utilisee, sinon elle restait "active" et
+        // pouvait etre reproposee sur la prestation dupliquee.
+        if (formData.bonCadeauId && prestation && BusinessServices.utiliserBonCadeau) {
+          await BusinessServices.utiliserBonCadeau(formData.bonCadeauId, prestation.id);
+        }
       } else {
         console.warn('⚠️ BusinessServices non disponible');
       }
@@ -621,6 +632,10 @@ window.PrestationDuplication = {
       prix: parseFloat(document.getElementById('prestation-prix').value) || 0,
       tips: parseFloat(document.getElementById('prestation-tips').value) || 0,
       moyenPaiement: document.getElementById('prestation-moyen-paiement').value,
+      // v1.1.0.0 : la carte cadeau choisie suit la prestation (elle etait perdue)
+      bonCadeauId: document.getElementById('prestation-moyen-paiement').value === 'Bon cadeau'
+        ? (document.getElementById('prestation-bon-cadeau')?.value || null)
+        : null,
       notes: document.getElementById('prestation-notes').value,
       adresseMassage: document.getElementById('prestation-adresse-massage').value,
       distanceKm: parseFloat(document.getElementById('prestation-distance').value) || 0,
@@ -955,6 +970,7 @@ function showAddPrestationModal() {
           <option value="">-- Sélectionnez le moyen de paiement --</option>
           <option value="Liquide">💵 Liquide</option>
           <option value="Carte bleue">💳 Carte bleue</option>
+          <option value="Virement">🏦 Virement</option>
           <option value="Bon cadeau">🎁 Bon cadeau</option>
         </select>
       </div>
@@ -1059,7 +1075,7 @@ function showAddPrestationModalWithData(data = {}) {
       <div class="form-row">
         <div class="form-group">
           <label>Prix (€)</label>
-          <input type="number" id="prestation-prix" step="0.01" min="0" required value="${data.prix || ''}">
+          <input type="number" id="prestation-prix" step="0.01" min="0" required value="${data.prix ?? ''}">
         </div>
         <div class="form-group">
           <label>Tips reçus (€)</label>
@@ -1074,6 +1090,7 @@ function showAddPrestationModalWithData(data = {}) {
           <option value="">-- Sélectionnez le moyen de paiement --</option>
           <option value="Liquide" ${data.moyenPaiement === 'Liquide' ? 'selected' : ''}>💵 Liquide</option>
           <option value="Carte bleue" ${data.moyenPaiement === 'Carte bleue' ? 'selected' : ''}>💳 Carte bleue</option>
+          <option value="Virement" ${data.moyenPaiement === 'Virement' ? 'selected' : ''}>🏦 Virement</option>
           <option value="Bon cadeau" ${data.moyenPaiement === 'Bon cadeau' ? 'selected' : ''}>🎁 Bon cadeau</option>
         </select>
       </div>
@@ -2236,6 +2253,27 @@ function editAbonnement(index) {
 // Generation automatique des depenses d'abonnement pour le mois en cours
 // Ne genere la depense QUE si on a atteint ou depasse le jour de prelevement configure
 // Maximum 1 fois par mois par abonnement
+// v1.1.0.0 : rattrapage. Un mois sans ouverture de l'app n'avait jamais sa
+// depense. On cree desormais les mois manquants ENTRE la depense la plus
+// recente de l'abonnement et le mois courant : jamais avant elle, jamais de
+// mois futur, le mois courant seulement une fois le jour de prelevement atteint,
+// et au plus MAX_RATTRAPAGE_ABONNEMENT mois d'un coup (garde-fou : chaque
+// depense est ecrite en base).
+const MAX_RATTRAPAGE_ABONNEMENT = 12;
+
+// Depense deja rattachee a l'abonnement : generee automatiquement (type +
+// abonnementNom), ou saisie a la main avant l'automatisation (sans type, meme
+// categorie, fournisseur ou abonnementNom egal au nom, casse ignoree).
+function estDepenseDeLAbonnement(d, abo) {
+  if (!d || typeof d.date !== 'string') return false;
+  if (d.type === 'abonnement-auto') return d.abonnementNom === abo.nom;
+  if (d.type) return false;
+  const nom = String(abo.nom || '').trim().toLowerCase();
+  if (!nom || d.categorie !== abo.categorie) return false;
+  const egal = v => String(v || '').trim().toLowerCase() === nom;
+  return egal(d.fournisseur) || egal(d.abonnementNom);
+}
+
 async function genererDepensesAbonnements() {
   const appData = DataManager.getAppData();
   const abonnements = appData.parametres?.abonnements || [];
@@ -2255,19 +2293,32 @@ async function genererDepensesAbonnements() {
   actifs.forEach(abo => {
     const jourPrelevement = abo.jourPrelevement || 1;
 
-    // Ne generer que si on a atteint ou depasse le jour de prelevement
-    if (jourActuel < jourPrelevement) return;
+    // Dernier mois deja couvert par une depense de cet abonnement (ou aucun)
+    const moisExistants = appData.depenses
+      .filter(d => estDepenseDeLAbonnement(d, abo))
+      .map(d => d.date.slice(0, 7))
+      .sort();
+    const dernierMois = moisExistants.length > 0 ? moisExistants[moisExistants.length - 1] : null;
 
-    // Verifier si la depense existe deja pour ce mois (max 1 fois)
-    const dejaExiste = appData.depenses.some(d =>
-      d.type === 'abonnement-auto' &&
-      d.abonnementNom === abo.nom &&
-      d.date.startsWith(moisCourant)
-    );
+    // Mois a creer : du mois suivant la derniere depense jusqu'au mois courant.
+    // Sans depense existante : le mois courant seul (comportement d'origine).
+    const moisACreer = [];
+    let mois = dernierMois ? Encaissements.decalerMois(dernierMois, 1) : moisCourant;
+    while (mois <= moisCourant) {
+      // Ne generer le mois courant que si on a atteint ou depasse le jour de prelevement
+      if (mois < moisCourant || jourActuel >= jourPrelevement) moisACreer.push(mois);
+      mois = Encaissements.decalerMois(mois, 1);
+    }
+    if (moisACreer.length > MAX_RATTRAPAGE_ABONNEMENT) {
+      console.warn(`Abonnement ${abo.nom} : ${moisACreer.length} mois manquants, seuls les ${MAX_RATTRAPAGE_ABONNEMENT} derniers sont crees`);
+      moisACreer.splice(0, moisACreer.length - MAX_RATTRAPAGE_ABONNEMENT);
+    }
 
-    if (!dejaExiste) {
-      const jour = String(jourPrelevement).padStart(2, '0');
-      const dateDepense = `${moisCourant}-${jour}`;
+    moisACreer.forEach(moisDepense => {
+      // Jour borne a la fin du mois (jourPrelevement est limite a 28 dans le formulaire)
+      const dernierJour = parseInt(Encaissements.dernierJourDuMois(moisDepense).slice(8), 10);
+      const jour = String(Math.min(jourPrelevement, dernierJour)).padStart(2, '0');
+      const dateDepense = `${moisDepense}-${jour}`;
       const newDepense = {
         id: DataManager.generateId(),
         date: dateDepense,
@@ -2282,7 +2333,7 @@ async function genererDepensesAbonnements() {
       appData.depenses.push(newDepense);
       depensesToInsert.push(newDepense);
       count++;
-    }
+    });
   });
 
   // Persister dans Supabase
@@ -2291,7 +2342,7 @@ async function genererDepensesAbonnements() {
   }
 
   if (count > 0) {
-    console.log(`${count} depense(s) d'abonnement generee(s) pour ${moisCourant}`);
+    console.log(`${count} depense(s) d'abonnement generee(s) (jusqu'a ${moisCourant})`);
   }
 }
 
@@ -6503,12 +6554,20 @@ function toggleBonCadeauSelector() {
 
   if (!moyenPaiement || !bonContainer) return;
 
+  const prixInput = document.getElementById('prestation-prix');
   if (moyenPaiement.value === 'Bon cadeau') {
     bonContainer.style.display = 'block';
     populateBonsCadeauxSelector();
+    // v1.1.0.0 : prix 0, comme la transformation RDV -> prestation : la carte
+    // a ete encaissee a sa vente, la prestation n'est pas payee une 2e fois.
+    if (prixInput) prixInput.value = '0';
   } else {
     bonContainer.style.display = 'none';
     document.getElementById('bon-cadeau-info').innerHTML = '';
+    // Retour a un moyen payant : re-proposer le prix de la carte des soins
+    if (prixInput && (prixInput.value === '0' || prixInput.value === '')) {
+      updatePrixFromSoin('prestation');
+    }
   }
 }
 
@@ -6564,9 +6623,10 @@ function fillFromBonCadeau() {
 
   if (!bon) return;
 
-  // Remplir le prix avec le montant du bon
+  // v1.1.0.0 : prix 0 (et non plus le montant du bon) : la carte a ete encaissee
+  // a sa vente. Le montant reste affiche dans l'encart d'info ci-dessous.
   if (prixInput) {
-    prixInput.value = bon.montant;
+    prixInput.value = '0';
   }
 
   // Afficher les infos du bon

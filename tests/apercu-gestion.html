@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aperçu Gestion (données fictives)</title>
+  <!-- Outil de developpement : l'onglet Gestion avec des donnees FICTIVES en memoire.
+       Aucune connexion a Supabase ni a Google. Ouvrir via le serveur local (elise-pwa). -->
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/components.css">
+  <link rel="stylesheet" href="../css/views.css">
+  <link rel="stylesheet" href="../css/mobile.css">
+  <link rel="stylesheet" href="../css/gestion.css">
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.54.1"></script>
+  <style>.app-container { opacity: 1; } .bandeau { background: #333; color: #fff; padding: .4rem 1rem; font: 12px Inter, sans-serif; }</style>
+</head>
+<body class="loaded">
+  <div class="bandeau">Aperçu avec des données fictives — rien n'est enregistré</div>
+  <div class="app-container">
+    <div id="gestion" class="tab-content active"><div id="gestion-host"></div></div>
+  </div>
+  <div id="modal-overlay" class="modal-overlay"></div>
+
+  <script>
+  // ----- Donnees fictives -----
+  const auj = new Date();
+  const ym = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  const moisDecale = (n) => { const d = new Date(auj.getFullYear(), auj.getMonth() + n, 1); return ym(d); };
+  const prestations = [];
+  const depenses = [];
+  const saison = [0.6, 0.7, 0.8, 1, 1.1, 1.4, 2.6, 2, 1.1, 1, 0.8, 0.9]; // janvier -> decembre
+  for (let n = -13; n <= 0; n++) {
+    const m = moisDecale(n);
+    const facteur = saison[Number(m.slice(5, 7)) - 1];
+    const nb = Math.round(18 * facteur);
+    for (let i = 0; i < nb; i++) {
+      const jour = String(1 + (i * 3) % 27).padStart(2, '0');
+      if (n === 0 && Number(jour) > auj.getDate()) continue;
+      const moyen = ['Liquide', 'Carte bleue', 'Liquide', 'Virement', 'Carte bleue'][i % 5];
+      prestations.push({ id: `p${n}_${i}`, date: `${m}-${jour}`, prix: [80, 60, 30, 110, 15][i % 5], tips: i % 4 === 0 ? 5 : 0, moyenPaiement: i % 13 === 0 ? 'Bon cadeau' : moyen });
+    }
+    for (let j = 0; j < Math.round(8 * facteur); j++) depenses.push({ id: `l${n}_${j}`, date: `${m}-${String(2 + j * 3).padStart(2, '0')}`, categorie: 'Loyer', montant: 30, fournisseur: 'Institut' });
+    depenses.push({ id: `a${n}`, date: `${m}-22`, categorie: 'Abonnement', montant: 59, fournisseur: 'PLATEFORME', abonnementNom: 'PLATEFORME', type: 'abonnement-auto' });
+  }
+  const bonsCadeaux = [
+    { id: 'b1', montant: 110, dateAchat: `${moisDecale(-1)}-12`, moyenPaiement: 'Virement', statut: 'actif' },
+    { id: 'b2', montant: 80, dateAchat: `${moisDecale(-2)}-05`, moyenPaiement: 'Liquide', statut: 'utilise' }
+  ];
+  const appData = { prestations, depenses, bonsCadeaux, clients: [] };
+  const parametres = { gestion: { matelas: 3000, besoinMensuel: 900 }, googleAdsConnected: false };
+
+  const finMoisPrec = (() => { const d = new Date(auj.getFullYear(), auj.getMonth(), 0); return `${ym(d)}-${String(d.getDate()).padStart(2, '0')}`; })();
+  const tables = {
+    gestion_mouvements: [
+      { id: 'mv1', user_id: 'u', date: `${moisDecale(0)}-02`, espace: 'perso', sens: 'sortie', compte: 'caisse', categorie: 'Courses', montant: 24.5, libelle: 'Marché' },
+      { id: 'mv2', user_id: 'u', date: `${moisDecale(0)}-01`, espace: 'pro', sens: 'transfert', compte: 'pro', compte_vers: 'perso', montant: 500, libelle: 'Virement' }
+    ],
+    gestion_recurrents: [
+      { id: 'r1', user_id: 'u', espace: 'pro', sens: 'sortie', compte: 'pro', nom: 'Banque pro', montant: 8, frequence: 'mensuelle', debut: '2026-01' },
+      { id: 'r2', user_id: 'u', espace: 'pro', sens: 'sortie', compte: 'pro', nom: 'Taxe annuelle', montant: 250, frequence: 'annuelle', mois_annuel: 7, debut: '2026-01' },
+      { id: 'r3', user_id: 'u', espace: 'perso', sens: 'sortie', compte: 'perso', nom: 'Logement', categorie: 'Logement', montant: 450, frequence: 'mensuelle', debut: '2026-01' },
+      { id: 'r4', user_id: 'u', espace: 'perso', sens: 'transfert', compte: 'perso', compte_vers: 'epargne', nom: 'Vacances', categorie: 'Vacances', montant: 50, frequence: 'mensuelle', debut: '2026-01' }
+    ],
+    gestion_mois: [],
+    gestion_soldes: [
+      { id: 's1', user_id: 'u', date: finMoisPrec, compte: 'pro', montant: 4200 },
+      { id: 's2', user_id: 'u', date: finMoisPrec, compte: 'caisse', montant: 600 },
+      { id: 's3', user_id: 'u', date: finMoisPrec, compte: 'perso', montant: 350 },
+      { id: 's4', user_id: 'u', date: finMoisPrec, compte: 'epargne', montant: 1200 }
+    ],
+    parametres: []
+  };
+
+  // ----- Faux Supabase en memoire (juste ce que gestion-donnees.js utilise) -----
+  function requete(table) {
+    const q = { table, filtres: [], op: 'select', ligne: null };
+    const executer = () => {
+      const lignes = tables[table];
+      const garde = r => q.filtres.every(([c, v]) => r[c] === v);
+      if (q.op === 'select') return { data: lignes.filter(garde), error: null };
+      if (q.op === 'insert') { lignes.push({ ...q.ligne }); return { data: { ...q.ligne }, error: null }; }
+      if (q.op === 'update') { const r = lignes.find(garde); Object.assign(r, q.ligne); return { data: { ...r }, error: null }; }
+      if (q.op === 'delete') { tables[table] = lignes.filter(r => !garde(r)); return { data: null, error: null }; }
+      if (q.op === 'upsert') {
+        const cles = (q.conflit || 'id').split(',');
+        const r = lignes.find(x => cles.every(c => x[c] === q.ligne[c]));
+        if (r) Object.assign(r, q.ligne); else lignes.push({ ...q.ligne });
+        return { data: { ...(r || q.ligne) }, error: null };
+      }
+    };
+    const api = {
+      select() { return api; }, single() { return api; },
+      eq(c, v) { q.filtres.push([c, v]); return api; },
+      insert(l) { q.op = 'insert'; q.ligne = l; return api; },
+      update(l) { q.op = 'update'; q.ligne = l; return api; },
+      delete() { q.op = 'delete'; return api; },
+      upsert(l, o) { q.op = 'upsert'; q.ligne = l; q.conflit = o?.onConflict; return api; },
+      then(ok, ko) { return Promise.resolve(executer()).then(ok, ko); }
+    };
+    return api;
+  }
+  window.supabaseClient = { from: requete, auth: { getUser: async () => ({ data: { user: { id: 'u' } } }) } };
+  window.DataManager = { getAppData: () => appData, getParametres: () => parametres, generateId: () => 'id_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8) };
+
+  // ----- Fenetres (version simplifiee de modal-manager.js) -----
+  window.showModal = (id, contenu) => {
+    const o = document.getElementById('modal-overlay');
+    o.innerHTML = `<div id="${id}" class="modal active"><div class="modal-content"><button class="modal-close" onclick="closeModalCompletely()">✕</button>${contenu}</div></div>`;
+    o.classList.add('active');
+  };
+  window.closeModalCompletely = () => { const o = document.getElementById('modal-overlay'); o.classList.remove('active'); o.innerHTML = ''; };
+  window.closeModal = window.closeModalCompletely;
+  </script>
+  <script src="../js/core/encaissements.js"></script>
+  <script src="../js/gestion/gestion-calculs.js"></script>
+  <script src="../js/gestion/gestion-donnees.js"></script>
+  <script src="../js/gestion/gestion-vue.js"></script>
+  <script>GestionVue.afficher();</script>
+</body>
+</html>

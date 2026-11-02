@@ -3,3 +3,6 @@ node_modules/
 *.log
 .DS_Store
 Thumbs.db
+
+# Documents prives (chiffres d Elise) : le depot est public, ne jamais les commiter
+tasks/prive/

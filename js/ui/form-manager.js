@@ -127,7 +127,14 @@ function editRdv(rdvId) {
 function editPrestation(prestationId) {
   const prestation = DataManager.getPrestationById(prestationId);
   if (!prestation) return;
-  
+
+  // v1.1.0.0 : "Bon cadeau" est proposee et selectionnee quand la prestation
+  // est reglee par carte cadeau (moyen ou lien bonCadeauId). Avant, seuls
+  // Liquide et Carte bleue existaient : enregistrer la modification
+  // transformait en silence une prestation offerte en prestation payee.
+  const moyenEdition = Encaissements.estPayeeParBonCadeau(prestation) ? 'Bon cadeau' : prestation.moyenPaiement;
+  const estBonCadeau = moyenEdition === 'Bon cadeau';
+
   const modalHTML = `
     <h3>Modifier prestation</h3>
     <form id="prestation-form">
@@ -184,7 +191,7 @@ function editPrestation(prestationId) {
       <div class="form-row">
         <div class="form-group">
           <label>Prix (€)</label>
-          <input type="number" id="prestation-prix" step="0.01" min="0" required value="${prestation.prix || ''}">
+          <input type="number" id="prestation-prix" step="0.01" min="0" ${estBonCadeau ? '' : 'required'} value="${prestation.prix ?? ''}">
         </div>
         <div class="form-group">
           <label>Tips reçus (€)</label>
@@ -195,10 +202,12 @@ function editPrestation(prestationId) {
       
       <div class="form-group">
         <label>💳 Moyen de paiement</label>
-        <select id="prestation-moyen-paiement" required style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px;">
+        <select id="prestation-moyen-paiement" required onchange="FormManager.handleMoyenPaiementChange()" style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px;">
           <option value="">-- Sélectionnez le moyen de paiement --</option>
-          <option value="Liquide" ${prestation.moyenPaiement === 'Liquide' ? 'selected' : ''}>💵 Liquide</option>
-          <option value="Carte bleue" ${prestation.moyenPaiement === 'Carte bleue' ? 'selected' : ''}>💳 Carte bleue</option>
+          <option value="Liquide" ${moyenEdition === 'Liquide' ? 'selected' : ''}>💵 Liquide</option>
+          <option value="Carte bleue" ${moyenEdition === 'Carte bleue' ? 'selected' : ''}>💳 Carte bleue</option>
+          <option value="Virement" ${moyenEdition === 'Virement' ? 'selected' : ''}>🏦 Virement</option>
+          <option value="Bon cadeau" ${estBonCadeau ? 'selected' : ''}>🎁 Bon cadeau</option>
         </select>
       </div>
       
@@ -779,6 +788,7 @@ function transformerEnPrestation(rdvId) {
             <option value="">-- Sélectionnez le moyen de paiement --</option>
             <option value="Liquide">💵 Liquide</option>
             <option value="Carte bleue">💳 Carte bleue</option>
+            <option value="Virement">🏦 Virement</option>
             <option value="Bon cadeau" ${rdv.bonCadeauId ? 'selected' : ''}>🎁 Bon cadeau</option>
           </select>
           <input type="hidden" id="prestation-bon-cadeau-id" value="${rdv.bonCadeauId || ''}">

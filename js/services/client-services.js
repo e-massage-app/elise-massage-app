@@ -10,7 +10,8 @@ function getClientStats(clientId) {
   const totalMassages = prestationsClient.length;
 
   // Calcul des revenus
-  const revenusTotal = prestationsClient.reduce((sum, p) => sum + (p.prix || 0), 0);
+  // v1.1.0.0 : regle Encaissements (prix + tips ; tips seuls si carte cadeau)
+  const revenusTotal = prestationsClient.reduce((sum, p) => sum + Encaissements.encaissePrestation(p), 0);
   const revenuMoyen = totalMassages > 0 ? (revenusTotal / totalMassages) : 0;
 
   // Dernière visite
@@ -2284,7 +2285,7 @@ function getClientsStatsParCanal() {
         
         // Calculer les revenus de ce client
         const prestationsClient = appData.prestations.filter(p => p.clientId === client.id);
-        const revenusClient = prestationsClient.reduce((sum, p) => sum + (p.prix || 0), 0);
+        const revenusClient = prestationsClient.reduce((sum, p) => sum + Encaissements.encaissePrestation(p), 0);
         stats[canal].revenus += revenusClient;
       }
     });
@@ -2338,34 +2339,25 @@ function getCanalAnalyticsFiltered(selectedYear = 'current', selectedMonth = '')
     appData.clients.forEach(client => {
       const canal = client.canalAcquisition || 'non-renseigne';
       if (stats[canal]) {
-        const clientPrestations = appData.prestations.filter(p => {
-          if (p.clientId !== client.id) return false;
-          
-          if (selectedYear === 'current' && selectedMonth === '') return true;
-          
-          const date = new Date(p.date);
-          const year = date.getFullYear();
-          const month = date.getMonth() + 1;
-          
-          if (selectedYear !== 'current' && selectedYear !== '' && year !== parseInt(selectedYear)) {
-            return false;
-          }
-          if (selectedMonth !== '' && month !== parseInt(selectedMonth)) {
-            return false;
-          }
-          return true;
-        });
-        
-        if (selectedYear === 'current' && selectedMonth === '' || clientPrestations.length > 0) {
+        // v1.1.0.0 : 'current' = annee en cours (avant : tout l'historique,
+        // y compris les clientes jamais venues)
+        const clientPrestations = appData.prestations.filter(p =>
+          p.clientId === client.id &&
+          Calculations.estDansPeriodeAnalytics(p.date, selectedYear, selectedMonth)
+        );
+
+        if (clientPrestations.length > 0) {
           stats[canal].clients++;
-          const revenusClient = clientPrestations.reduce((sum, p) => sum + (p.prix || 0), 0);
+          // v1.1.0.0 : regle Encaissements (prix + tips ; tips seuls si carte cadeau)
+          const revenusClient = clientPrestations.reduce((sum, p) => sum + Encaissements.encaissePrestation(p), 0);
           stats[canal].revenus += revenusClient;
         }
       }
     });
   }
-  
-  // Prospects (pas de filtre temporel)
+
+  // Prospects (pas de filtre temporel) : affiches sur la vue par defaut
+  // (annee en cours, sans mois), comme avant
   if (appData.prospects && (selectedYear === 'current' && selectedMonth === '')) {
     appData.prospects.forEach(prospect => {
       const canal = prospect.canalAcquisition || 'non-renseigne';
@@ -2391,26 +2383,14 @@ function getStatsParSexe(selectedYear = 'current', selectedMonth = '') {
   const appData = DataManager.getAppData();
   
   // Filtrer les clients qui ont des prestations dans la période
-  let clientsFiltered = appData.clients;
-  if (selectedYear !== 'current' || selectedMonth !== '') {
-    clientsFiltered = appData.clients.filter(client => {
-      const clientPrestations = appData.prestations.filter(p => p.clientId === client.id);
-      return clientPrestations.some(p => {
-        const date = new Date(p.date);
-        const year = date.getFullYear();
-        const month = date.getMonth() + 1;
-        
-        if (selectedYear !== 'current' && selectedYear !== '' && year !== parseInt(selectedYear)) {
-          return false;
-        }
-        if (selectedMonth !== '' && month !== parseInt(selectedMonth)) {
-          return false;
-        }
-        return true;
-      });
-    });
-  }
-  
+  // v1.1.0.0 : 'current' = annee en cours (avant : tout le fichier clients)
+  const idsVenues = new Set(
+    appData.prestations
+      .filter(p => Calculations.estDansPeriodeAnalytics(p.date, selectedYear, selectedMonth))
+      .map(p => p.clientId)
+  );
+  const clientsFiltered = appData.clients.filter(client => idsVenues.has(client.id));
+
   const stats = {
     hommes: { clients: 0 },
     femmes: { clients: 0 },

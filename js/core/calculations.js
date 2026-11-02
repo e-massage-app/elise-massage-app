@@ -1,6 +1,58 @@
 // ===== js/core/calculations.js =====
 // Tous les calculs : KPI, analytics, statistiques
 
+// ===== OUTILS COMMUNS (v1.1.0.0) =====
+
+// Jour local 'YYYY-MM-DD' (toISOString donnerait le jour UTC, decale la nuit).
+function jourLocal(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// v1.1.0.0 : CA par groupe = lignes d'encaissement des prestations (regle
+// Encaissements : prix + tips, tips seuls pour une carte cadeau). Les ventes de
+// cartes cadeaux ne sont rattachables a aucun groupe : elles sont ignorees ici.
+function repartirEncaissementsParGroupe(lignes) {
+  const parGroupe = {};
+  lignes.forEach(l => {
+    if (l.source !== 'prestation' && l.source !== 'tips-bon') return;
+    const g = getGroupeNameForPrestation(l.ref);
+    parGroupe[g] = (parGroupe[g] || 0) + l.montant;
+  });
+  return parGroupe;
+}
+
+// v1.1.0.0 : filtres annee / mois d'Analytics. "Annee actuelle" ('current')
+// = annee civile en cours. Avant, plusieurs widgets sautaient le filtre et
+// affichaient TOUTES les annees sous ce libelle, contrairement a la tuile CA.
+function bornesAnalytics(selectedYear, selectedMonth) {
+  const annee = (selectedYear === 'current' || !selectedYear)
+    ? new Date().getFullYear()
+    : parseInt(selectedYear, 10);
+  if (selectedMonth !== '' && selectedMonth !== null && selectedMonth !== undefined) {
+    const mois = `${annee}-${String(parseInt(selectedMonth, 10)).padStart(2, '0')}`;
+    return { debut: `${mois}-01`, fin: Encaissements.dernierJourDuMois(mois) };
+  }
+  return { debut: `${annee}-01-01`, fin: `${annee}-12-31` };
+}
+
+function estDansPeriodeAnalytics(dateStr, selectedYear, selectedMonth) {
+  const jour = Encaissements.jourDe(dateStr);
+  if (!jour) return false;
+  const { debut, fin } = bornesAnalytics(selectedYear, selectedMonth);
+  return jour >= debut && jour <= fin;
+}
+
+// v1.1.0.0 : mois 'YYYY-MM' des graphiques "N derniers mois". Avant :
+// new Date(annee, 11, 31) puis setMonth(mois - i) debordait (31 dec ->
+// setMonth(1) = 3 mars) : des mois doubles et d'autres sautes, pour les annees
+// passees et, pour l'annee en cours, les 29-31 du mois.
+function moisDeLaPeriodeAnalytics(period, selectedYear) {
+  const moisFin = (selectedYear === 'current' || !selectedYear)
+    ? jourLocal(new Date()).slice(0, 7)
+    : `${parseInt(selectedYear, 10)}-12`;
+  return Encaissements.derniersMois(moisFin, period);
+}
+
 // ===== CALCULS DASHBOARD =====
 
 function calculateGoogleAdsROI() {
@@ -25,7 +77,8 @@ function calculateGoogleAdsROI() {
   const totalCost = cachedCosts.total || 0;           // 234.158392
   const totalRevenue = cachedCosts.revenue || 0;      // 2240  
   const clientsCount = cachedCosts.clientsCount || 0; // 3
-  const currentMonthCost = cachedCosts.currentMonth || totalCost; // Fallback
+  // v1.1.0.0 : pas de repli sur le cout total (une estimation) : 0 si inconnu.
+  const currentMonthCost = cachedCosts.currentMonth || 0;
 
   // ✅ CALCULER LE ROI AVEC LES DONNÉES CACHÉES
   let roi = 0;
@@ -178,27 +231,28 @@ let googleAdsLastUpdate = null;
 let needsRefresh = false;
 
 // Vérifier l'âge du cache
+// v1.1.0.0 : seul le vrai cout THIS_MONTH de l'API, date par lastUpdateMonth,
+// fait foi. Un currentMonth sans date est une ancienne estimation (cout total
+// / 12 au demarrage, / 4 dans la synchro manuelle) : on ne l'affiche plus. Une
+// valeur datee d'un autre mois n'est pas le cout de ce mois : 0 en attendant.
 if (cachedCosts.lastUpdateMonth) {
   const lastUpdate = new Date(cachedCosts.lastUpdateMonth);
   const now = new Date();
   const hoursSinceUpdate = (now - lastUpdate) / (1000 * 60 * 60);
-  
-  if (hoursSinceUpdate < 6) {
+  const memeMois = lastUpdate.getFullYear() === now.getFullYear() && lastUpdate.getMonth() === now.getMonth();
+
+  if (hoursSinceUpdate < 6 && memeMois) {
     // Cache valide (< 6h)
     googleAdsCostThisMonth = cachedCosts.currentMonth || 0;
     googleAdsLastUpdate = lastUpdate;
   } else {
     // Cache obsolète (> 6h)
     needsRefresh = true;
-    googleAdsCostThisMonth = cachedCosts.currentMonth || 0; // Utiliser l'ancien en attendant
+    googleAdsCostThisMonth = memeMois ? (cachedCosts.currentMonth || 0) : 0; // Utiliser l'ancien en attendant
     googleAdsLastUpdate = lastUpdate;
   }
-} else if (cachedCosts.currentMonth) {
-  // Ancien cache sans date
-  googleAdsCostThisMonth = cachedCosts.currentMonth;
-  needsRefresh = true;
 } else if (isGoogleAdsConnected && selectedCampaigns.length > 0) {
-  // Pas de cache du tout
+  // Pas de cout du mois date (pas de cache, ou ancienne estimation)
   needsRefresh = true;
 }
 
@@ -209,8 +263,10 @@ if (needsRefresh && isGoogleAdsConnected && selectedCampaigns.length > 0 && !win
   if (window.UtilsServices && window.UtilsServices.getGoogleAdsCostsThisMonth) {
     window.UtilsServices.getGoogleAdsCostsThisMonth().then(cost => {
       window.googleAdsApiInProgress = false;
-      
-      if (cost > 0) {
+
+      // v1.1.0.0 : un vrai 0 (aucune depense ce mois) est une valeur et doit
+      // etre enregistre ; null signale un echec de l'API (rien a ecrire).
+      if (typeof cost === 'number' && Number.isFinite(cost) && cost >= 0) {
         // Mettre à jour le cache avec timestamp
         const parametres = DataManager.getParametres();
         if (!parametres.googleAdsCachedCosts) {
@@ -239,47 +295,42 @@ if (needsRefresh && isGoogleAdsConnected && selectedCampaigns.length > 0 && !win
   }
 }
   
-  // Calcul des KPIs financiers AVEC frais de déplacement intégrés ET tips
-  // Revenus prestations (hors bons cadeaux utilisés pour éviter double comptage)
-  const prestationsClassiquesMois = prestationsMoisCourant
-    .filter(p => p.moyenPaiement !== 'Bon cadeau' && !p.bonCadeauId);
-  const revenusPrestations = prestationsClassiquesMois
-    .reduce((sum, p) => sum + (p.prix || 0), 0);
+  // v1.1.0.0 : CA = regle unique Encaissements (js/core/encaissements.js) :
+  // prix + tips de chaque prestation (tips seuls si reglee par carte cadeau),
+  // cartes cadeaux comptees a la vente, remboursements retires au mois du
+  // remboursement. Avant : tips exclus du CA (rajoutes seulement dans la marge)
+  // et cartes remboursees ignorees au mois mais exclues a l'annee.
+  const aujourdhuiStr = jourLocal(now);
+  let debutPeriodeCA, finPeriodeCA;
+  if (calculPeriode === 'mois-calendaire') {
+    debutPeriodeCA = `${aujourdhuiStr.slice(0, 7)}-01`;
+    finPeriodeCA = Encaissements.dernierJourDuMois(aujourdhuiStr.slice(0, 7));
+  } else {
+    // 30 derniers jours, aujourd'hui compris : meme fenetre que les depenses ci-dessus
+    const debut = new Date(now);
+    debut.setDate(debut.getDate() - 29);
+    debutPeriodeCA = jourLocal(debut);
+    finPeriodeCA = aujourdhuiStr;
+  }
+  const encaissementsMois = Encaissements.encaissementsEntre(appData, debutPeriodeCA, finPeriodeCA);
+  const totauxMois = Encaissements.totaliserEncaissements(encaissementsMois);
 
   // v1.0.7.0 : Revenus par groupe (Massages, HeadSpa, Epilation, ...) du mois.
   // L'alias historique Massages/HeadSpa pointe vers le groupe correspondant.
-  const revenusParGroupeMois = {};
-  prestationsClassiquesMois.forEach(p => {
-    const g = getGroupeNameForPrestation(p);
-    revenusParGroupeMois[g] = (revenusParGroupeMois[g] || 0) + (p.prix || 0);
-  });
+  const revenusParGroupeMois = repartirEncaissementsParGroupe(encaissementsMois);
   const revenusMassageMois = revenusParGroupeMois['Massages'] || 0;
   const revenusHeadSpaMois = revenusParGroupeMois['HeadSpa'] || 0;
 
-  // Revenus des bons cadeaux VENDUS ce mois (encaissés à l'achat)
-  const bonsCadeauxVendusMois = (appData.bonsCadeaux || []).filter(bon => {
-    const dateAchat = new Date(bon.dateAchat);
-    if (calculPeriode === 'mois-calendaire') {
-      return dateAchat.getMonth() === currentMonth && dateAchat.getFullYear() === currentYear;
-    } else {
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      return dateAchat >= thirtyDaysAgo && dateAchat <= now;
-    }
-  });
-  const revenusBonsCadeaux = bonsCadeauxVendusMois.reduce((sum, bon) => sum + (bon.montant || 0), 0);
-
-  // Total revenus = prestations classiques + ventes de bons cadeaux
-  const revenus = revenusPrestations + revenusBonsCadeaux;
-  const tips = prestationsMoisCourant.reduce((sum, p) => sum + (p.tips || 0), 0);
+  const revenus = totauxMois.total;
+  const tips = totauxMois.tips; // deja compris dans revenus
   const coutsClassiques = depensesMoisCourant.reduce((sum, d) => sum + (d.montant || 0), 0);
-  
+
   // ✅ CORRECTION : Utiliser les vrais coûts Google Ads du mois si disponibles
   const couts = coutsClassiques + googleAdsCostThisMonth;
-  
-  // La marge finale = revenus + tips - tous les coûts (y compris Google Ads)
-  const marge = revenus + tips - couts;
-  const tauxMarge = (revenus + tips) > 0 ? ((marge / (revenus + tips)) * 100) : 0;
+
+  // v1.1.0.0 : les tips sont dans revenus, on ne les rajoute plus (double compte).
+  const marge = revenus - couts;
+  const tauxMarge = revenus > 0 ? ((marge / revenus) * 100) : 0;
   
   // Client du mois (le plus actif ce mois-ci)
   const currentMonthForClient = now.getMonth();
@@ -326,8 +377,10 @@ if (needsRefresh && isGoogleAdsConnected && selectedCampaigns.length > 0 && !win
   });
   
   // v1.0.7.0 : Compte par groupe (Massages, HeadSpa, Epilation, ...) du mois.
+  // v1.1.0.0 : meme fenetre que revenusParGroupeMois (le panier moyen d'un
+  // groupe = CA / nombre ; identique en mode calendaire, coherent en glissant).
   const nbParGroupeMois = {};
-  prestationsMoisCalendaire.forEach(p => {
+  prestationsMoisCourant.forEach(p => {
     const g = getGroupeNameForPrestation(p);
     nbParGroupeMois[g] = (nbParGroupeMois[g] || 0) + 1;
   });
@@ -343,31 +396,18 @@ if (needsRefresh && isGoogleAdsConnected && selectedCampaigns.length > 0 && !win
   const nbMassagesAnnee = nbParGroupeAnnee['Massages'] || 0;
   const nbHeadSpaAnnee = nbParGroupeAnnee['HeadSpa'] || 0;
 
-  // CA Total Année (prestations classiques + bons cadeaux vendus sur l'année en cours)
-  const prestationsClassiquesAnnee = prestationsAnnee
-    .filter(p => p.moyenPaiement !== 'Bon cadeau' && !p.bonCadeauId);
-  const revenusPrestationsAnnee = prestationsClassiquesAnnee
-    .reduce((sum, p) => sum + (p.prix || 0), 0);
-  const bonsCadeauxVendusAnnee = (appData.bonsCadeaux || []).filter(bon => {
-    const dateAchat = new Date(bon.dateAchat);
-    return dateAchat.getFullYear() === currentYear && bon.statut !== 'rembourse';
-  });
-  const revenusBonsCadeauxAnnee = bonsCadeauxVendusAnnee.reduce((sum, bon) => sum + (bon.montant || 0), 0);
-  const revenusAnnee = revenusPrestationsAnnee + revenusBonsCadeauxAnnee;
+  // CA Total Année : meme regle Encaissements que le mois (v1.1.0.0). Une carte
+  // remboursee est retiree l'annee de son remboursement (avant : exclue d'office
+  // a l'annee mais comptee au mois, d'ou un mois et une annee incoherents).
+  const encaissementsAnnee = Encaissements.encaissementsEntre(appData, `${currentYear}-01-01`, `${currentYear}-12-31`);
+  const revenusAnnee = Encaissements.totaliserEncaissements(encaissementsAnnee).total;
 
-  // Revenus et coûts depuis le début (toutes données) AVEC frais déplacement ET tips
-  // Revenus prestations totaux (hors bons cadeaux utilisés)
-  const prestationsClassiquesTotal = appData.prestations
-    .filter(p => p.moyenPaiement !== 'Bon cadeau' && !p.bonCadeauId);
-  const revenusPrestationsTotal = prestationsClassiquesTotal
-    .reduce((sum, p) => sum + (p.prix || 0), 0);
+  // Revenus depuis le début (toutes données), meme regle
+  const encaissementsTotal = Encaissements.encaissementsEntre(appData, '0000-01-01', '9999-12-31');
+  const totauxTotal = Encaissements.totaliserEncaissements(encaissementsTotal);
 
   // v1.0.7.0 : Revenus par groupe (Massages, HeadSpa, Epilation, ...) all-time.
-  const revenusParGroupeTotal = {};
-  prestationsClassiquesTotal.forEach(p => {
-    const g = getGroupeNameForPrestation(p);
-    revenusParGroupeTotal[g] = (revenusParGroupeTotal[g] || 0) + (p.prix || 0);
-  });
+  const revenusParGroupeTotal = repartirEncaissementsParGroupe(encaissementsTotal);
   const revenusMassageTotal = revenusParGroupeTotal['Massages'] || 0;
   const revenusHeadSpaTotal = revenusParGroupeTotal['HeadSpa'] || 0;
 
@@ -381,19 +421,10 @@ if (needsRefresh && isGoogleAdsConnected && selectedCampaigns.length > 0 && !win
   const nbHeadSpaTotal = nbParGroupeTotal['HeadSpa'] || 0;
 
   // v1.0.7.0 : Revenus par groupe sur l'annee en cours
-  const revenusParGroupeAnnee = {};
-  prestationsClassiquesAnnee.forEach(p => {
-    const g = getGroupeNameForPrestation(p);
-    revenusParGroupeAnnee[g] = (revenusParGroupeAnnee[g] || 0) + (p.prix || 0);
-  });
+  const revenusParGroupeAnnee = repartirEncaissementsParGroupe(encaissementsAnnee);
 
-  // Revenus bons cadeaux vendus (tous, sauf remboursés)
-  const revenusBonsCadeauxTotal = (appData.bonsCadeaux || [])
-    .filter(bon => bon.statut !== 'rembourse')
-    .reduce((sum, bon) => sum + (bon.montant || 0), 0);
-
-  const revenusTotal = revenusPrestationsTotal + revenusBonsCadeauxTotal;
-  const tipsTotal = appData.prestations.reduce((sum, p) => sum + (p.tips || 0), 0);
+  const revenusTotal = totauxTotal.total;
+  const tipsTotal = totauxTotal.tips;
   const coutsTotalClassiques = appData.depenses ? appData.depenses.reduce((sum, d) => sum + (d.montant || 0), 0) : 0;
   
   // Ajouter les coûts Google Ads totaux
@@ -506,7 +537,7 @@ function getCalendarData(year, month) {
 function calculateFilterAmounts() {
   const appData = DataManager.getAppData();
   const amounts = {
-    prestations: appData.prestations.reduce((sum, p) => sum + (p.prix || 0), 0),
+    prestations: appData.prestations.reduce((sum, p) => sum + Encaissements.encaissePrestation(p), 0),
     huiles: 0,
     materiel: 0,
     formation: 0,
@@ -583,17 +614,6 @@ function getRevenueChartData(filters = null, period = 12, selectedYear = 'curren
            (cat === 'Autre' && filters.depensesAutre);
   };
 
-  // Bucketing prestations par groupe pour une periode donnee.
-  // Retourne { Massages: number, HeadSpa: number, Autre: number, ... } pour cette periode.
-  const bucketByGroupe = (prestationsClassiques) => {
-    const bucket = {};
-    prestationsClassiques.forEach(p => {
-      const groupe = getGroupeNameForPrestation(p);
-      bucket[groupe] = (bucket[groupe] || 0) + (p.prix || 0);
-    });
-    return bucket;
-  };
-
   const periods = []; // { dateMatch, label } pour iterer une fois
 
   if (isMoisCourant) {
@@ -606,20 +626,18 @@ function getRevenueChartData(filters = null, period = 12, selectedYear = 'curren
       periods.push({ kind: 'day', match: dateString, label: day.toString() });
     }
   } else {
-    const actualPeriod = period;
-    for (let i = actualPeriod - 1; i >= 0; i--) {
-      const date = selectedYear === 'current' ? new Date() : new Date(parseInt(selectedYear), 11, 31);
-      date.setMonth(date.getMonth() - i);
-      if (selectedMonth !== '' && date.getMonth() + 1 !== parseInt(selectedMonth)) {
-        continue;
+    // v1.1.0.0 : mois calcules sur les chaines (fin du debordement de setMonth)
+    moisDeLaPeriodeAnalytics(period, selectedYear).forEach(monthStr => {
+      const [annee, mois] = monthStr.split('-').map(Number);
+      if (selectedMonth !== '' && mois !== parseInt(selectedMonth)) {
+        return;
       }
-      const monthStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      const label = date.toLocaleDateString('fr-FR', {
+      const label = new Date(annee, mois - 1, 1).toLocaleDateString('fr-FR', {
         month: 'short',
         year: period > 6 ? 'numeric' : undefined
       });
       periods.push({ kind: 'month', match: monthStr, label });
-    }
+    });
   }
 
   // Pre-collect groupes connus pour avoir des series remplies de 0 partout
@@ -633,12 +651,15 @@ function getRevenueChartData(filters = null, period = 12, selectedYear = 'curren
   periods.forEach(({ kind, match, label }) => {
     months.push(label);
 
-    const prestationsPeriode = appData.prestations.filter(p =>
-      kind === 'day' ? p.date === match : (p.date && p.date.startsWith(match))
-    );
-    const prestationsClassiques = prestationsPeriode.filter(p => p.moyenPaiement !== 'Bon cadeau' && !p.bonCadeauId);
+    // v1.1.0.0 : regle Encaissements. Series par groupe = prix + tips des
+    // prestations du groupe (tips seuls si carte cadeau) ; la serie "Tips" en
+    // est le detail ; "Bons Cadeaux" = ventes moins remboursements.
+    const debut = kind === 'day' ? match : `${match}-01`;
+    const fin = kind === 'day' ? match : Encaissements.dernierJourDuMois(match);
+    const lignes = Encaissements.encaissementsEntre(appData, debut, fin);
+    const totaux = Encaissements.totaliserEncaissements(lignes);
 
-    const bucket = bucketByGroupe(prestationsClassiques);
+    const bucket = repartirEncaissementsParGroupe(lignes);
 
     // v1.0.7.2 : on ne pousse de valeurs QUE pour les groupes deja connus (= actifs).
     // Les buckets venant de categories archivees (ex: ancienne categorie "Test" archive)
@@ -651,17 +672,14 @@ function getRevenueChartData(filters = null, period = 12, selectedYear = 'curren
     // Bons cadeaux
     let bcVal = 0;
     if (!filters || filters.bonsCadeaux) {
-      const bons = (appData.bonsCadeaux || []).filter(bon =>
-        kind === 'day' ? bon.dateAchat === match : (bon.dateAchat && bon.dateAchat.startsWith(match))
-      );
-      bcVal = bons.reduce((sum, bon) => sum + (bon.montant || 0), 0);
+      bcVal = totaux.bonsVendus + totaux.bonsRembourses;
     }
     bonsCadeauxRevenues.push(bcVal);
 
     // Tips
     let tipsVal = 0;
     if (!filters || filters.tips) {
-      tipsVal = prestationsPeriode.reduce((sum, p) => sum + (p.tips || 0), 0);
+      tipsVal = totaux.tips;
     }
     tips.push(tipsVal);
 
@@ -688,20 +706,10 @@ function getRevenueChartData(filters = null, period = 12, selectedYear = 'curren
 function getPrestationsTypeChart(selectedYear = 'current', selectedMonth = '') {
   const appData = DataManager.getAppData();
 
-  // Filtrer les prestations selon l'année/mois
-  const prestationsFiltered = appData.prestations.filter(p => {
-    const date = new Date(p.date);
-    const year = date.getFullYear();
-    const month = date.getMonth() + 1;
-
-    if (selectedYear !== 'current' && selectedYear !== '' && year !== parseInt(selectedYear)) {
-      return false;
-    }
-    if (selectedMonth !== '' && month !== parseInt(selectedMonth)) {
-      return false;
-    }
-    return true;
-  });
+  // Filtrer les prestations selon l'année/mois (v1.1.0.0 : 'current' = annee en cours)
+  const prestationsFiltered = appData.prestations.filter(p =>
+    estDansPeriodeAnalytics(p.date, selectedYear, selectedMonth)
+  );
 
   // Regrouper par CATEGORIE (pas par soin individuel)
   const categories = DataManager.getCategories ? DataManager.getCategories() : [];
@@ -752,21 +760,11 @@ function getPrestationsTypeChart(selectedYear = 'current', selectedMonth = '') {
 function getDureesChart(selectedYear = 'current', selectedMonth = '') {
   const appData = DataManager.getAppData();
   
-  // Filtrer les prestations selon l'année/mois
-  const prestationsFiltered = appData.prestations.filter(p => {
-    const date = new Date(p.date);
-    const year = date.getFullYear();
-    const month = date.getMonth() + 1;
-    
-    if (selectedYear !== 'current' && selectedYear !== '' && year !== parseInt(selectedYear)) {
-      return false;
-    }
-    if (selectedMonth !== '' && month !== parseInt(selectedMonth)) {
-      return false;
-    }
-    return true;
-  });
-  
+  // Filtrer les prestations selon l'année/mois (v1.1.0.0 : 'current' = annee en cours)
+  const prestationsFiltered = appData.prestations.filter(p =>
+    estDansPeriodeAnalytics(p.date, selectedYear, selectedMonth)
+  );
+
   const dureesCounts = {};
   prestationsFiltered.forEach(p => {
     const duree = p.duree || 60;
@@ -797,12 +795,17 @@ function calculateFilterAmountsForPeriod(period = 12, selectedYear = 'current') 
   // v1.0.7.0 : groupes en dict dynamique. massages/headspa restent en alias pour la retrocompat.
   const amounts = { massages: 0, headspa: 0, groupes: {}, bonsCadeaux: 0, tips: 0, huiles: 0, materiel: 0, formation: 0, transport: 0, marketing: 0, loyer: 0, autre: 0 };
 
-  const bucketPrestations = (prestations) => {
-    prestations.forEach(p => {
-      const groupe = getGroupeNameForPrestation(p);
-      const prix = p.prix || 0;
-      amounts.groupes[groupe] = (amounts.groupes[groupe] || 0) + prix;
+  // v1.1.0.0 : memes montants que le graphique des revenus (regle Encaissements) :
+  // groupes = prix + tips (tips seuls si carte cadeau), "Tips" en est le detail,
+  // "Bons Cadeaux" = ventes moins remboursements de la periode.
+  const ajouterEncaissements = (debut, fin) => {
+    const lignes = Encaissements.encaissementsEntre(appData, debut, fin);
+    const totaux = Encaissements.totaliserEncaissements(lignes);
+    Object.entries(repartirEncaissementsParGroupe(lignes)).forEach(([groupe, montant]) => {
+      amounts.groupes[groupe] = (amounts.groupes[groupe] || 0) + montant;
     });
+    amounts.bonsCadeaux += totaux.bonsVendus + totaux.bonsRembourses;
+    amounts.tips += totaux.tips;
   };
 
   const bucketDepense = (d) => {
@@ -827,49 +830,27 @@ function calculateFilterAmountsForPeriod(period = 12, selectedYear = 'current') 
     const currentMonth = today.getMonth();
     const todayDate = today.getDate();
 
+    const moisStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
+    ajouterEncaissements(`${moisStr}-01`, `${moisStr}-${String(todayDate).padStart(2, '0')}`);
+
     for (let day = 1; day <= todayDate; day++) {
-      const dateString = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-
-      const prestationsJour = appData.prestations.filter(p => p.date === dateString);
-      const prestationsClassiques = prestationsJour.filter(p => p.moyenPaiement !== 'Bon cadeau' && !p.bonCadeauId);
-
-      bucketPrestations(prestationsClassiques);
-
-      // Bons Cadeaux vendus
-      const bonsJour = (appData.bonsCadeaux || []).filter(bon => bon.dateAchat === dateString);
-      amounts.bonsCadeaux += bonsJour.reduce((sum, bon) => sum + (bon.montant || 0), 0);
-
-      // Tips
-      amounts.tips += prestationsJour.reduce((sum, p) => sum + (p.tips || 0), 0);
-
+      const dateString = `${moisStr}-${String(day).padStart(2, '0')}`;
       if (appData.depenses) {
         appData.depenses.filter(d => d.date === dateString).forEach(bucketDepense);
       }
     }
   } else {
-    const actualPeriod = period;
+    // v1.1.0.0 : mois calcules sur les chaines (fin du debordement de setMonth)
+    const listeMois = moisDeLaPeriodeAnalytics(period, selectedYear);
+    if (listeMois.length > 0) {
+      ajouterEncaissements(`${listeMois[0]}-01`, Encaissements.dernierJourDuMois(listeMois[listeMois.length - 1]));
+    }
 
-    for (let i = actualPeriod - 1; i >= 0; i--) {
-      const date = selectedYear === 'current' ? new Date() : new Date(parseInt(selectedYear), 11, 31);
-      date.setMonth(date.getMonth() - i);
-      const monthStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-
-      const prestationsMois = appData.prestations.filter(p => p.date && p.date.startsWith(monthStr));
-      const prestationsClassiques = prestationsMois.filter(p => p.moyenPaiement !== 'Bon cadeau' && !p.bonCadeauId);
-
-      bucketPrestations(prestationsClassiques);
-
-      // Bons Cadeaux vendus
-      const bonsMois = (appData.bonsCadeaux || []).filter(bon => bon.dateAchat && bon.dateAchat.startsWith(monthStr));
-      amounts.bonsCadeaux += bonsMois.reduce((sum, bon) => sum + (bon.montant || 0), 0);
-
-      // Tips
-      amounts.tips += prestationsMois.reduce((sum, p) => sum + (p.tips || 0), 0);
-
+    listeMois.forEach(monthStr => {
       if (appData.depenses) {
         appData.depenses.filter(d => d.date && d.date.startsWith(monthStr)).forEach(bucketDepense);
       }
-    }
+    });
   }
 
   // Alias legacy : massages = groupe "Massages", headspa = groupe "HeadSpa"
@@ -882,23 +863,11 @@ function calculateFilterAmountsForPeriod(period = 12, selectedYear = 'current') 
 function calculateKeyStats(selectedYear = 'current', selectedMonth = '') {
   const appData = DataManager.getAppData();
   
-  let prestationsFiltered = appData.prestations;
-  if (selectedYear !== 'current' || selectedMonth !== '') {
-    prestationsFiltered = appData.prestations.filter(p => {
-      const date = new Date(p.date);
-      const year = date.getFullYear();
-      const month = date.getMonth() + 1;
-      
-      if (selectedYear !== 'current' && selectedYear !== '' && year !== parseInt(selectedYear)) {
-        return false;
-      }
-      if (selectedMonth !== '' && month !== parseInt(selectedMonth)) {
-        return false;
-      }
-      return true;
-    });
-  }
-  
+  // v1.1.0.0 : 'current' = annee en cours (l'en-tete affiche deja "Cette annee")
+  const prestationsFiltered = appData.prestations.filter(p =>
+    estDansPeriodeAnalytics(p.date, selectedYear, selectedMonth)
+  );
+
   const totalClients = appData.clients.length;
   const totalProspects = appData.prospects.length;
   
@@ -1291,7 +1260,11 @@ window.Calculations = {
   calculateFilterAmountsForPeriod,
   getGroupeNameForPrestation,
   calculateKeyStats,
-  
+  // v1.1.0.0 : filtres annee/mois et mois des graphiques, partages avec les services
+  bornesAnalytics,
+  estDansPeriodeAnalytics,
+  moisDeLaPeriodeAnalytics,
+
   // Distance
   validateAddress,
   calculateRealDistance,

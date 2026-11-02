@@ -183,6 +183,19 @@ async function annulerTransformationRdv(rdvId) {
 async function createPrestation(formData) {
   const appData = DataManager.getAppData();
 
+  const isEdit = formData.id && DataManager.getEditingId();
+
+  // v1.1.0.0 : la carte cadeau suit la prestation (elle etait perdue : la
+  // prestation creee n'avait pas de bon_cadeau_id, et une modification
+  // l'effacait). Le formulaire de modification ne propose pas de choisir la
+  // carte : on garde celle de la prestation tant qu'elle reste reglee par
+  // carte cadeau ; si le moyen de paiement change, le lien est retire.
+  let bonCadeauId = formData.bonCadeauId || null;
+  if (!bonCadeauId && isEdit && formData.moyenPaiement === 'Bon cadeau') {
+    const existante = appData.prestations.find(p => p.id === DataManager.getEditingId());
+    bonCadeauId = (existante && existante.bonCadeauId) || null;
+  }
+
   const prestation = {
     id: formData.id || DataManager.generateId(),
     date: formData.date,
@@ -198,15 +211,21 @@ async function createPrestation(formData) {
     adresseMassage: formData.adresseMassage || '',
     distanceKm: formData.distanceKm || 0,
     fraisDeplacement: formData.fraisDeplacement || 0,
-    moyenPaiement: formData.moyenPaiement || ''
+    moyenPaiement: formData.moyenPaiement || '',
+    bonCadeauId: bonCadeauId
   };
 
-  const isEdit = formData.id && DataManager.getEditingId();
   if (isEdit) {
     const index = appData.prestations.findIndex(p => p.id === DataManager.getEditingId());
     if (index !== -1) {
+      const avant = appData.prestations[index];
       appData.prestations[index] = prestation;
       await _persist('prestations', 'update', prestation, DataManager.mapPrestationToDb);
+      // v1.1.0.0 : la prestation n'est plus reglee par carte cadeau (erreur de
+      // saisie corrigee) : la cliente n'est pas venue avec cette carte.
+      if (Encaissements.estPayeeParBonCadeau(avant) && !Encaissements.estPayeeParBonCadeau(prestation)) {
+        await libererBonsCadeauxDe(avant);
+      }
     }
   } else {
     appData.prestations.push(prestation);
@@ -277,7 +296,13 @@ async function deletePrestationById(prestationId) {
   if (appData.depenses && depensesAssociees.length > 0) {
     appData.depenses = appData.depenses.filter(d => d.prestationId !== prestationId);
   }
+  const supprimee = appData.prestations.find(p => p.id === prestationId);
   appData.prestations = appData.prestations.filter(p => p.id !== prestationId);
+
+  // v1.1.0.0 : une prestation supprimee n'a pas eu lieu : sa carte cadeau redevient active
+  if (supprimee && Encaissements.estPayeeParBonCadeau(supprimee)) {
+    await libererBonsCadeauxDe(supprimee);
+  }
 
   if (window.ViewManager) {
     if (typeof window.ViewManager.updateCalendar === 'function') window.ViewManager.updateCalendar();
@@ -343,6 +368,19 @@ async function createDepense(formData) {
   if (!appData.depenses) appData.depenses = [];
 
   const isEdit = formData.id && DataManager.getEditingId();
+
+  // v1.1.0.0 : le formulaire ne connait pas ces liens. Une modification les
+  // effacait : une depense d'abonnement perdait type/abonnementNom (et le
+  // generateur la recreait au chargement suivant = doublon), une depense
+  // Transport perdait sa prestation. On les reprend de la depense existante.
+  if (isEdit) {
+    const existante = appData.depenses.find(d => d.id === DataManager.getEditingId());
+    ['type', 'abonnementNom', 'prestationId'].forEach(cle => {
+      const valeur = formData[cle] !== undefined ? formData[cle] : (existante ? existante[cle] : undefined);
+      if (valeur !== undefined && valeur !== null) depense[cle] = valeur;
+    });
+  }
+
   if (isEdit) {
     const index = appData.depenses.findIndex(d => d.id === DataManager.getEditingId());
     if (index !== -1) {
@@ -564,6 +602,27 @@ async function forcerUtilisationBonExpire(bonId) {
   bon.forceUtilise = true;
   await _persist('bons_cadeaux', 'update', bon, DataManager.mapBonCadeauToDb);
   return true;
+}
+
+// v1.1.0.0 : regle d'Elise : une carte cadeau est « utilisee » quand la cliente
+// est venue. Si la prestation reglee avec la carte est supprimee, ou corrigee
+// vers un autre moyen de paiement, la carte redevient active. On ne touche
+// qu'aux cartes liees a CETTE prestation (lien porte par la prestation, ou par
+// la carte pour les prestations d'avant la v1.1.0.0).
+async function libererBonsCadeauxDe(prestation) {
+  const appData = DataManager.getAppData();
+  const bons = (appData.bonsCadeaux || []).filter(b =>
+    b.statut === 'utilise' &&
+    (b.id === prestation.bonCadeauId || b.prestationId === prestation.id) &&
+    (!b.prestationId || b.prestationId === prestation.id)
+  );
+  for (const bon of bons) {
+    bon.statut = 'actif';
+    bon.prestationId = null;
+    bon.dateUtilisation = null;
+    await _persist('bons_cadeaux', 'update', bon, DataManager.mapBonCadeauToDb);
+  }
+  return bons.length;
 }
 
 async function utiliserBonCadeau(bonId, prestationId) {

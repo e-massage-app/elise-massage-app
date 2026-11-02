@@ -124,6 +124,10 @@ function showTab(tabName) {
     case 'depenses':
       updateDepensesDisplay();
       break;
+    case 'gestion':
+      // v1.1.0.0 : onglet Gestion (js/gestion/gestion-vue.js)
+      if (window.GestionVue) GestionVue.afficher();
+      break;
   }
 }
 
@@ -1440,12 +1444,17 @@ function updateCalendar() {
   document.getElementById('calendar-grid').innerHTML = calendarHTML;
 }
 
+// v1.1.0.0 : jour ramene au 1er avant setMonth. Le 31, setMonth(mois + 1)
+// debordait (31 janvier -> 3 mars) et le calendrier sautait fevrier.
+// Seuls l'annee et le mois de currentDate sont lus par updateCalendar.
 function previousMonth() {
+  currentDate.setDate(1);
   currentDate.setMonth(currentDate.getMonth() - 1);
   updateCalendar();
 }
 
 function nextMonth() {
+  currentDate.setDate(1);
   currentDate.setMonth(currentDate.getMonth() + 1);
   updateCalendar();
 }
@@ -1699,7 +1708,8 @@ function renderAnnuaire() {
       const prestationsClient = (app.prestations || []).filter(p => p.clientId === client.id);
       const rdvAnnules = (app.rdv || []).filter(r => r.clientId === client.id && r.statut === 'annulé').length;
       const totalMassages = prestationsClient.length;
-      const revenusTotal = prestationsClient.reduce((s, p) => s + (p.prix || 0), 0);
+      // v1.1.0.0 : regle Encaissements (prix + tips ; tips seuls si carte cadeau)
+      const revenusTotal = prestationsClient.reduce((s, p) => s + Encaissements.encaissePrestation(p), 0);
       const parGroupe = {};
       prestationsClient.forEach(p => {
         const g = (DataManager.getGroupeForSoinId ? DataManager.getGroupeForSoinId(p.soinId || p.type) : null) || 'Autre';
@@ -1793,7 +1803,8 @@ function updateClientsList() {
     const prestationsClient = appData.prestations.filter(p => p.clientId === client.id);
     const rdvAnnules = appData.rdv.filter(r => r.clientId === client.id && r.statut === 'annulé').length;
     const totalMassages = prestationsClient.length;
-    const revenusTotal = prestationsClient.reduce((sum, p) => sum + (p.prix || 0), 0);
+    // v1.1.0.0 : regle Encaissements (prix + tips ; tips seuls si carte cadeau)
+    const revenusTotal = prestationsClient.reduce((sum, p) => sum + Encaissements.encaissePrestation(p), 0);
 
     // v1.0.9.2 : repartition des prestations par groupe (Massages, Epilation, HeadSpa...)
     const parGroupe = {};

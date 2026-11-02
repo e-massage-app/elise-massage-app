@@ -216,7 +216,8 @@ async function syncGoogleAdsCostsOnStartup() {
     const costs = await fetchGoogleAdsCostsSilent();
 
     if (costs.success) {
-      parametres.googleAdsCachedCosts = costs.data;
+      // v1.1.0.0 : fusion (voir fusionnerCacheGoogleAds) : garder le vrai cout du mois
+      parametres.googleAdsCachedCosts = fusionnerCacheGoogleAds(parametres.googleAdsCachedCosts, costs.data);
       parametres.googleAdsCostsLastSync = today;
       DataManager.saveParametres(parametres);
       console.log('Couts Google Ads synchronises');
@@ -240,20 +241,16 @@ async function fetchGoogleAdsCostsSilent() {
 
     let totalCost = 0;
     let totalRevenue = 0;
-    let currentMonthCost = 0;
-    const monthlyBreakdown = {};
 
+    // v1.1.0.0 : plus d'estimation du cout du mois (cout total / 12, ecrit dans
+    // currentMonth et monthlyBreakdown) : seul le vrai THIS_MONTH de l'API,
+    // demande par le tableau de bord, renseigne le cout du mois.
     for (const customerId of customersResult.customers) {
       try {
         const campaigns = await getCampaignsForCustomer(tokens.access_token, customerId);
         const selectedCampaignsData = campaigns.filter(c => selectedCampaigns.includes(c.id));
         selectedCampaignsData.forEach(campaign => {
           totalCost += campaign.cost || 0;
-          const now = new Date();
-          const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-          currentMonthCost += (campaign.cost || 0) / 12;
-          if (!monthlyBreakdown[currentMonth]) monthlyBreakdown[currentMonth] = 0;
-          monthlyBreakdown[currentMonth] += (campaign.cost || 0) / 12;
         });
       } catch (error) {
         console.error(`Erreur campagnes ${customerId}:`, error);
@@ -266,12 +263,13 @@ async function fetchGoogleAdsCostsSilent() {
       const client = appData.clients.find(c => c.id === prestation.clientId);
       return client && client.canalAcquisition === 'google-ads';
     });
-    totalRevenue = prestationsGoogleAds.reduce((sum, p) => sum + (p.prix || 0) + (p.tips || 0), 0);
+    // v1.1.0.0 : regle Encaissements (tips seuls pour une prestation carte cadeau)
+    totalRevenue = prestationsGoogleAds.reduce((sum, p) => sum + Encaissements.encaissePrestation(p), 0);
 
     return {
       success: true,
       data: {
-        total: totalCost, currentMonth: currentMonthCost, monthlyBreakdown,
+        total: totalCost,
         revenue: totalRevenue, clientsCount: clientsGoogleAds.length,
         prestationsCount: prestationsGoogleAds.length, lastUpdate: new Date().toISOString()
       }

@@ -372,20 +372,11 @@ function updateCanauxRevenusStats(selectedYear = 'current', selectedMonth = '') 
 
 function updatePrestationsStats(selectedYear = 'current', selectedMonth = '') {
   const appData = DataManager.getAppData();
-  const prestationsFiltered = appData.prestations.filter(p => {
-    const date = new Date(p.date);
-    const year = date.getFullYear();
-    const month = date.getMonth() + 1;
-    
-    if (selectedYear !== 'current' && selectedYear !== '' && year !== parseInt(selectedYear)) {
-      return false;
-    }
-    if (selectedMonth !== '' && month !== parseInt(selectedMonth)) {
-      return false;
-    }
-    return true;
-  });
-  
+  // v1.1.0.0 : 'current' = annee en cours (avant : toutes les annees)
+  const prestationsFiltered = appData.prestations.filter(p =>
+    Calculations.estDansPeriodeAnalytics(p.date, selectedYear, selectedMonth)
+  );
+
   const totalElement = document.querySelector('.total-prestations');
   if (totalElement) {
     totalElement.textContent = `${prestationsFiltered.length} prestations`;
@@ -394,20 +385,11 @@ function updatePrestationsStats(selectedYear = 'current', selectedMonth = '') {
 
 function updateDureesStats(selectedYear = 'current', selectedMonth = '') {
   const appData = DataManager.getAppData();
-  const prestationsFiltered = appData.prestations.filter(p => {
-    const date = new Date(p.date);
-    const year = date.getFullYear();
-    const month = date.getMonth() + 1;
-    
-    if (selectedYear !== 'current' && selectedYear !== '' && year !== parseInt(selectedYear)) {
-      return false;
-    }
-    if (selectedMonth !== '' && month !== parseInt(selectedMonth)) {
-      return false;
-    }
-    return true;
-  });
-  
+  // v1.1.0.0 : 'current' = annee en cours (avant : toutes les annees)
+  const prestationsFiltered = appData.prestations.filter(p =>
+    Calculations.estDansPeriodeAnalytics(p.date, selectedYear, selectedMonth)
+  );
+
   const avgDuration = prestationsFiltered.length > 0 
     ? prestationsFiltered.reduce((sum, p) => sum + (p.duree || 60), 0) / prestationsFiltered.length 
     : 0;
@@ -612,17 +594,13 @@ function calculatePrestationsForPeriod(period, selectedYear) {
     }
     return count;
   } else {
-    const actualPeriod = period;
     let count = 0;
-    
-    for (let i = actualPeriod - 1; i >= 0; i--) {
-      const date = selectedYear === 'current' ? new Date() : new Date(parseInt(selectedYear), 11, 31);
-      date.setMonth(date.getMonth() - i);
-      const monthStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      
-      const prestationsMois = appData.prestations.filter(p => p.date.startsWith(monthStr));
+
+    // v1.1.0.0 : mois calcules sur les chaines (fin du debordement de setMonth)
+    Calculations.moisDeLaPeriodeAnalytics(period, selectedYear).forEach(monthStr => {
+      const prestationsMois = appData.prestations.filter(p => p.date && p.date.startsWith(monthStr));
       count += prestationsMois.length;
-    }
+    });
     return count;
   }
 }
@@ -1092,28 +1070,31 @@ function updateAnaKpis(selectedYear = 'current', selectedMonth = '') {
   if (!hote) return;
 
   const d = DataManager.getAppData();
-  const anneeCible = (selectedYear === 'current' || !selectedYear)
-    ? new Date().getFullYear()
-    : parseInt(selectedYear);
+  const { debut, fin } = Calculations.bornesAnalytics(selectedYear, selectedMonth);
 
-  const prestations = (d.prestations || []).filter(p => {
-    if (!p.date) return false;
-    const [an, mois] = p.date.split('-');
-    if (parseInt(an) !== anneeCible) return false;
-    if (selectedMonth !== '' && selectedMonth !== null && parseInt(mois) !== parseInt(selectedMonth)) return false;
-    return true;
-  });
+  const prestations = (d.prestations || []).filter(p =>
+    Calculations.estDansPeriodeAnalytics(p.date, selectedYear, selectedMonth)
+  );
 
-  const prix = prestations.reduce((t, p) => t + (p.prix || 0), 0);
-  const tips = prestations.reduce((t, p) => t + (p.tips || 0), 0);
-  const ca = prix + tips;
+  // v1.1.0.0 : CA = regle Encaissements, comme le tableau de bord. Avant :
+  // prix + tips de TOUTES les prestations, y compris celles reglees par carte
+  // cadeau (comptees une 2e fois), et sans les ventes de cartes cadeaux.
+  const encaisse = Encaissements.encaisseEntre(d, debut, fin);
+  const tips = encaisse.tips;
+  const ca = encaisse.total;
   const clients = new Set(prestations.map(p => p.clientId)).size;
-  const panier = prestations.length > 0 ? ca / prestations.length : 0;
+  // Panier moyen : ce que paie une cliente par prestation. Les ventes de cartes
+  // cadeaux n'y entrent pas (ce ne sont pas des prestations), ni les prestations
+  // reglees par carte cadeau (rien n'est paye ce jour-la).
+  const payees = prestations.filter(p => !Encaissements.estPayeeParBonCadeau(p));
+  const panier = payees.length > 0
+    ? payees.reduce((t, p) => t + Encaissements.encaissePrestation(p), 0) / payees.length
+    : 0;
   const euro = n => Math.round(n).toLocaleString('fr-FR') + ' \u20ac';
 
   const tuiles = [
     { cle: "Chiffre d'affaires", val: euro(ca),
-      note: tips > 0 ? 'dont ' + euro(tips) + ' de pourboires' : 'prestations encaiss\u00e9es', ton: 'or' },
+      note: tips > 0 ? 'dont ' + euro(tips) + ' de pourboires' : 'encaiss\u00e9 sur la p\u00e9riode', ton: 'or' },
     { cle: 'Prestations', val: String(prestations.length),
       note: clients > 0 ? (prestations.length / clients).toFixed(1) + ' par cliente' : '\u2014', ton: '' },
     { cle: 'Clientes venues', val: String(clients),
@@ -1526,17 +1507,10 @@ function generateBusinessReport() {
     new Date(p.date).getFullYear() === currentYear
   );
 
-  // Revenus prestations (hors bons cadeaux utilisés)
-  const prestationsClassiques = prestationsAnnee.filter(p => p.moyenPaiement !== 'Bon cadeau' && !p.bonCadeauId);
-  const revenusPrestations = prestationsClassiques.reduce((sum, p) => sum + (p.prix || 0), 0);
-
-  // Revenus bons cadeaux vendus cette année
-  const bonsCadeauxAnnee = (appData.bonsCadeaux || []).filter(bon =>
-    new Date(bon.dateAchat).getFullYear() === currentYear && bon.statut !== 'rembourse'
-  );
-  const revenusBonsCadeaux = bonsCadeauxAnnee.reduce((sum, bon) => sum + (bon.montant || 0), 0);
-
-  const revenusTotal = revenusPrestations + revenusBonsCadeaux;
+  // v1.1.0.0 : regle Encaissements (tips compris, carte cadeau a la vente,
+  // remboursement retire l'annee ou il a lieu)
+  const encaissementsAnnee = Encaissements.encaissementsEntre(appData, `${currentYear}-01-01`, `${currentYear}-12-31`);
+  const revenusTotal = Encaissements.totaliserEncaissements(encaissementsAnnee).total;
   const coutsTotal = appData.depenses ?
     appData.depenses.filter(d => new Date(d.date).getFullYear() === currentYear)
                     .reduce((sum, d) => sum + (d.montant || 0), 0) : 0;
@@ -1544,10 +1518,10 @@ function generateBusinessReport() {
   const margeAnnuelle = revenusTotal - coutsTotal;
   const tauxMargeAnnuel = revenusTotal > 0 ? (margeAnnuelle / revenusTotal * 100) : 0;
 
-  // Client le plus rentable (prestations classiques uniquement)
+  // Client le plus rentable (encaisse de ses prestations)
   const clientsRevenus = {};
-  prestationsClassiques.forEach(p => {
-    clientsRevenus[p.clientId] = (clientsRevenus[p.clientId] || 0) + (p.prix || 0);
+  prestationsAnnee.forEach(p => {
+    clientsRevenus[p.clientId] = (clientsRevenus[p.clientId] || 0) + Encaissements.encaissePrestation(p);
   });
 
   const topClientId = Object.keys(clientsRevenus).length > 0
@@ -1555,15 +1529,11 @@ function generateBusinessReport() {
     : null;
   const topClient = topClientId ? appData.clients.find(c => c.id === topClientId) : null;
 
-  // Évolution mensuelle (prestations + bons cadeaux)
+  // Évolution mensuelle (index de mois 0-11, comme avant)
   const evolution = {};
-  prestationsClassiques.forEach(p => {
-    const mois = new Date(p.date).getMonth();
-    evolution[mois] = (evolution[mois] || 0) + (p.prix || 0);
-  });
-  bonsCadeauxAnnee.forEach(bon => {
-    const mois = new Date(bon.dateAchat).getMonth();
-    evolution[mois] = (evolution[mois] || 0) + (bon.montant || 0);
+  encaissementsAnnee.forEach(l => {
+    const mois = parseInt(l.date.slice(5, 7), 10) - 1;
+    evolution[mois] = (evolution[mois] || 0) + l.montant;
   });
   
   return {
@@ -1615,7 +1585,9 @@ function updateMoyensPaiementChart(selectedYear = 'current', selectedMonth = '')
   const categoriesWithValues = sorted.map(s => s.label + '  \u00b7  ' + s.montant.toFixed(0) + ' \u20ac');
 
   const tonsPaiement = ['#d4a574', '#b07d43', '#c2956a', '#e8c4b8', '#9c9187', '#8FA98B'];
-  rendreAnneauAnalytics(el, sorted.map((x, i) => ({
+  // v1.1.0.0 : une carte remboursee sur la periode peut rendre un poste negatif ;
+  // l'anneau ne trace que les parts positives (sinon les proportions debordent).
+  rendreAnneauAnalytics(el, sorted.filter(x => x.montant > 0).map((x, i) => ({
     label: x.label, value: x.montant, couleur: tonsPaiement[i % tonsPaiement.length]
   })), {
     format: v => Math.round(v).toLocaleString('fr-FR') + ' €',
@@ -1680,56 +1652,24 @@ function updateMoyensPaiementChart(selectedYear = 'current', selectedMonth = '')
 function getMoyensPaiementChartData(selectedYear = 'current', selectedMonth = '') {
   const appData = DataManager.getAppData();
 
-  // Filtrage des prestations par année/mois
-  const prestationsFiltered = appData.prestations.filter(p => {
-    const date = new Date(p.date);
-    const year = date.getFullYear();
-    const month = date.getMonth() + 1;
-
-    if (selectedYear !== 'current' && selectedYear !== '' && year !== parseInt(selectedYear)) {
-      return false;
-    }
-    if (selectedMonth !== '' && month !== parseInt(selectedMonth)) {
-      return false;
-    }
-    return true;
-  });
-
-  // Filtrage des bons cadeaux par année/mois (date d'achat)
-  const bonsCadeauxFiltered = (appData.bonsCadeaux || []).filter(b => {
-    const date = new Date(b.dateAchat);
-    const year = date.getFullYear();
-    const month = date.getMonth() + 1;
-
-    if (selectedYear !== 'current' && selectedYear !== '' && year !== parseInt(selectedYear)) {
-      return false;
-    }
-    if (selectedMonth !== '' && month !== parseInt(selectedMonth)) {
-      return false;
-    }
-    return true;
-  });
+  // v1.1.0.0 : memes lignes que le CA (regle Encaissements) sur la periode
+  // choisie ('current' = annee en cours, avant : toutes les annees). Tips
+  // compris ; une carte remboursee est retiree au mois du remboursement ;
+  // les tips d'une prestation reglee par carte cadeau comptent en liquide ;
+  // un moyen non renseigne compte en liquide. Virement et Cheque ont leur part.
+  const { debut, fin } = Calculations.bornesAnalytics(selectedYear, selectedMonth);
+  const lignes = Encaissements.encaissementsEntre(appData, debut, fin);
 
   const moyensCounts = {};
   const moyensMontants = {};
 
-  // Comptabiliser les prestations (hors "Bon cadeau" car c'est une utilisation, pas un paiement)
-  prestationsFiltered.forEach(p => {
-    // Ignorer les prestations payées par bon cadeau (le revenu vient de la vente du bon)
-    if (p.moyenPaiement === 'Bon cadeau' || p.bonCadeauId) {
-      return;
-    }
-    const moyen = p.moyenPaiement || 'Non renseigné';
-    moyensCounts[moyen] = (moyensCounts[moyen] || 0) + 1;
-    moyensMontants[moyen] = (moyensMontants[moyen] || 0) + (parseFloat(p.prix) || 0);
-  });
-
-  // Comptabiliser les bons cadeaux vendus (séparés par moyen de paiement)
-  bonsCadeauxFiltered.forEach(b => {
-    const moyenBon = b.moyenPaiement || 'Non renseigné';
-    const labelBon = `Bon cadeau (${moyenBon})`;
-    moyensCounts[labelBon] = (moyensCounts[labelBon] || 0) + 1;
-    moyensMontants[labelBon] = (moyensMontants[labelBon] || 0) + (parseFloat(b.montant) || 0);
+  lignes.forEach(l => {
+    // Ventes de cartes cadeaux : toujours separees, par moyen de paiement
+    const estBon = l.source === 'bon-vendu' || l.source === 'bon-rembourse';
+    const label = estBon ? `Bon cadeau (${l.moyen})` : l.moyen;
+    if (l.montant > 0) moyensCounts[label] = (moyensCounts[label] || 0) + 1;
+    else if (!(label in moyensCounts)) moyensCounts[label] = 0;
+    moyensMontants[label] = (moyensMontants[label] || 0) + l.montant;
   });
 
   return {
@@ -1836,26 +1776,15 @@ function getCanauxChartData(selectedYear = 'current', selectedMonth = '') {
   const labels = [];
   const data = [];
   
-  let clientsFiltered = appData.clients;
-  if (selectedYear !== 'current' || selectedMonth !== '') {
-    clientsFiltered = appData.clients.filter(client => {
-      const clientPrestations = appData.prestations.filter(p => p.clientId === client.id);
-      return clientPrestations.some(p => {
-        const date = new Date(p.date);
-        const year = date.getFullYear();
-        const month = date.getMonth() + 1;
-        
-        if (selectedYear !== 'current' && selectedYear !== '' && year !== parseInt(selectedYear)) {
-          return false;
-        }
-        if (selectedMonth !== '' && month !== parseInt(selectedMonth)) {
-          return false;
-        }
-        return true;
-      });
-    });
-  }
-  
+  // v1.1.0.0 : clientes venues sur la periode ; 'current' = annee en cours
+  // (avant : tout le fichier clients sous le libelle "Annee actuelle").
+  const idsVenues = new Set(
+    appData.prestations
+      .filter(p => Calculations.estDansPeriodeAnalytics(p.date, selectedYear, selectedMonth))
+      .map(p => p.clientId)
+  );
+  const clientsFiltered = appData.clients.filter(client => idsVenues.has(client.id));
+
   const canalCounts = {};
   clientsFiltered.forEach(client => {
     const canal = client.canalAcquisition || 'non-renseigne';
@@ -2085,10 +2014,8 @@ function updateCanauxRevenusTable(selectedYear = 'current', selectedMonth = '') 
   const tbody = document.querySelector('#canaux-revenus-table tbody');
   if (!tbody) return;
 
-  // UTILISEZ LES DONNÉES FILTRÉES
-  const analytics = selectedYear !== 'current' || selectedMonth !== '' ?
-    ClientServices.getCanalAnalyticsFiltered(selectedYear, selectedMonth) :
-    ClientServices.getCanalAnalytics();
+  // v1.1.0.0 : toujours filtre ; 'current' = annee en cours (avant : tout l'historique)
+  const analytics = ClientServices.getCanalAnalyticsFiltered(selectedYear, selectedMonth);
 
   // Calculer les revenus partenariat séparément
   const headSpaStats = calculatePartnershipRevenue(selectedYear, selectedMonth);
@@ -2173,29 +2100,21 @@ function calculatePartnershipRevenue(selectedYear = 'current', selectedMonth = '
   const appData = DataManager.getAppData();
 
   // Filtrer les prestations partenariat selon l'année/mois
-  const prestationsPartnership = appData.prestations.filter(p => {
-    if (!DataManager.isPartnershipSoin(p.soinId || p.type)) return false;
+  // v1.1.0.0 : 'current' = annee en cours (avant : toutes les annees)
+  const prestationsPartnership = appData.prestations.filter(p =>
+    DataManager.isPartnershipSoin(p.soinId || p.type) &&
+    Calculations.estDansPeriodeAnalytics(p.date, selectedYear, selectedMonth)
+  );
 
-    const date = new Date(p.date);
-    const year = date.getFullYear();
-    const month = date.getMonth() + 1;
-
-    if (selectedYear !== 'current' && selectedYear !== '' && year !== parseInt(selectedYear)) {
-      return false;
-    }
-    if (selectedMonth !== '' && month !== parseInt(selectedMonth)) {
-      return false;
-    }
-    return true;
-  });
-
-  const revenus = prestationsPartnership.reduce((sum, p) => sum + (p.prix || 0), 0);
-  const tips = prestationsPartnership.reduce((sum, p) => sum + (p.tips || 0), 0);
+  // v1.1.0.0 : regle Encaissements (le prix d'une prestation reglee par carte
+  // cadeau ne compte pas, la carte l'a ete a sa vente ; ses tips si)
+  const total = prestationsPartnership.reduce((sum, p) => sum + Encaissements.encaissePrestation(p), 0);
+  const tips = prestationsPartnership.reduce((sum, p) => sum + Encaissements.montant(p.tips), 0);
 
   return {
     prestations: prestationsPartnership.length,
-    revenus: revenus + tips,
-    revenusHT: revenus,
+    revenus: total,
+    revenusHT: total - tips,
     tips: tips
   };
 }
@@ -2475,16 +2394,19 @@ async function loadAndDisplayCampaignsData() {
         const client = appData.clients.find(c => c.id === prestation.clientId);
         return client && client.canalAcquisition === 'google-ads';
       });
-      const totalRevenue = prestationsGoogleAds.reduce((sum, p) => sum + (p.prix || 0) + (p.tips || 0), 0);
-      
+      // v1.1.0.0 : regle Encaissements (tips seuls pour une prestation carte cadeau)
+      const totalRevenue = prestationsGoogleAds.reduce((sum, p) => sum + Encaissements.encaissePrestation(p), 0);
+
       // Mettre à jour le cache dans les paramètres
-      parametres.googleAdsCachedCosts = {
+      // v1.1.0.0 : fusion, et non remplacement : le remplacement effacait le
+      // vrai cout du mois (currentMonth / lastUpdateMonth) pose par le tableau de bord.
+      parametres.googleAdsCachedCosts = fusionnerCacheGoogleAds(parametres.googleAdsCachedCosts, {
         total: realTotalCost,
         revenue: totalRevenue,
         clientsCount: clientsGoogleAds.length,
         prestationsCount: prestationsGoogleAds.length,
         lastUpdate: new Date().toISOString()
-      };
+      });
       DataManager.saveParametres(parametres);
       
       console.log(`✅ Cache mis à jour : Coût ${realTotalCost.toFixed(0)}€`);
@@ -2534,6 +2456,19 @@ async function loadAndDisplayCampaignsData() {
   }
 }
 
+// v1.1.0.0 : les ecritures du cache Google Ads (demarrage, chargement de
+// l'ecran, synchro manuelle) ne portent que sur le total depuis le debut. Le
+// cout du MOIS (currentMonth) n'est pose que par la vraie requete THIS_MONTH
+// du tableau de bord, datee par lastUpdateMonth : on la conserve. Les
+// anciennes estimations (currentMonth non date = cout total / 12 ou / 4, et
+// monthlyBreakdown) sont jetees.
+function fusionnerCacheGoogleAds(ancien, nouveau) {
+  const cache = Object.assign({}, ancien || {}, nouveau);
+  delete cache.monthlyBreakdown;
+  if (!cache.lastUpdateMonth) delete cache.currentMonth;
+  return cache;
+}
+
 // Doublon historique : plus aucun appelant depuis la v1.0.11.0, mais le nom
 // reste expose. Il delegue plutot que de dupliquer un second gabarit qui
 // divergeait silencieusement du vrai (c'est ce qui s'etait produit ici).
@@ -2558,16 +2493,17 @@ function calculateGoogleAdsMetrics() {
     return prestationsGoogleAds.some(p => p.clientId === client.id);
   });
   
-  const totalRevenue = prestationsGoogleAds.reduce((sum, p) => sum + (p.prix || 0) + (p.tips || 0), 0);
+  // v1.1.0.0 : regle Encaissements (tips seuls pour une prestation carte cadeau)
+  const totalRevenue = prestationsGoogleAds.reduce((sum, p) => sum + Encaissements.encaissePrestation(p), 0);
   const cachedCosts = parametres.googleAdsCachedCosts || {};
   const totalCost = cachedCosts.total || 0;
   const roi = totalCost > 0 ? ((totalRevenue - totalCost) / totalCost) * 100 : 0;
   const roiMoney = totalRevenue - totalCost;
-  
+
   // Données par client
   const clientsData = clientsGoogleAds.map(client => {
     const clientPrestations = prestationsGoogleAds.filter(p => p.clientId === client.id);
-    const clientRevenue = clientPrestations.reduce((sum, p) => sum + (p.prix || 0) + (p.tips || 0), 0);
+    const clientRevenue = clientPrestations.reduce((sum, p) => sum + Encaissements.encaissePrestation(p), 0);
     
     return {
       client,
@@ -2825,15 +2761,17 @@ function calculerKpisGoogleAdsPeriode(period, coutPeriode) {
   // v1.0.13.2 : les pourboires comptent dans le CA (decide avec Jordan) mais
   // sont isoles pour rester lisibles - un mois a fort pourboire ne doit pas
   // gonfler le CA sans explication.
-  const totalPrix = prestations.reduce((s, p) => s + (p.prix || 0), 0);
-  const totalTips = prestations.reduce((s, p) => s + (p.tips || 0), 0);
-  const totalRevenue = totalPrix + totalTips;
+  // v1.1.0.0 : regle Encaissements : le prix d'une prestation reglee par carte
+  // cadeau ne compte pas (la carte a ete comptee a sa vente), ses tips si.
+  const totalRevenue = prestations.reduce((s, p) => s + Encaissements.encaissePrestation(p), 0);
+  const totalTips = prestations.reduce((s, p) => s + Encaissements.montant(p.tips), 0);
+  const totalPrix = totalRevenue - totalTips;
   const parClient = {};
   prestations.forEach(p => { (parClient[p.clientId] = parClient[p.clientId] || []).push(p); });
 
   const clientsData = Object.entries(parClient).map(([clientId, ps]) => {
     const client = (appData.clients || []).find(c => c.id === clientId) || { id: clientId, prenom: '?', nom: '' };
-    const revenue = ps.reduce((s, p) => s + (p.prix || 0) + (p.tips || 0), 0);
+    const revenue = ps.reduce((s, p) => s + Encaissements.encaissePrestation(p), 0);
     return {
       client,
       prestationsCount: ps.length,
@@ -3044,8 +2982,9 @@ function calculateGoogleAdsMetricsForPeriod(campaignsData, period) {
     return client && client.canalAcquisition === 'google-ads';
   });
   
-  const totalRevenue = prestationsGoogleAds.reduce((sum, p) => sum + (p.prix || 0) + (p.tips || 0), 0);
-  
+  // v1.1.0.0 : regle Encaissements (tips seuls pour une prestation carte cadeau)
+  const totalRevenue = prestationsGoogleAds.reduce((sum, p) => sum + Encaissements.encaissePrestation(p), 0);
+
   // ✅ CORRECTION : Utiliser les données de campagne pour le coût de la période
   const totalCost = campaignsData ? campaignsData.reduce((sum, c) => sum + (c.cost || 0), 0) : 0;
   
@@ -3055,18 +2994,18 @@ function calculateGoogleAdsMetricsForPeriod(campaignsData, period) {
   // Données par client
   const clientsData = clientsGoogleAds.map(client => {
     const clientPrestations = prestationsGoogleAds.filter(p => p.clientId === client.id);
-    const clientRevenue = clientPrestations.reduce((sum, p) => sum + (p.prix || 0) + (p.tips || 0), 0);
-    
+    const clientRevenue = clientPrestations.reduce((sum, p) => sum + Encaissements.encaissePrestation(p), 0);
+
     return {
       client,
       prestationsCount: clientPrestations.length,
       revenue: clientRevenue,
       avgSession: clientPrestations.length > 0 ? clientRevenue / clientPrestations.length : 0,
-      lastSession: clientPrestations.length > 0 ? 
+      lastSession: clientPrestations.length > 0 ?
         Math.max(...clientPrestations.map(p => new Date(p.date).getTime())) : null
     };
   }).sort((a, b) => b.revenue - a.revenue);
-  
+
   return {
     clientsCount: clientsGoogleAds.length,
     prestationsCount: prestationsGoogleAds.length,
@@ -3346,17 +3285,19 @@ async function syncGoogleAdsCacheOnce() {
         const client = appData.clients.find(c => c.id === prestation.clientId);
         return client && client.canalAcquisition === 'google-ads';
       });
-      const totalRevenue = prestationsGoogleAds.reduce((sum, p) => sum + (p.prix || 0) + (p.tips || 0), 0);
-      
+      // v1.1.0.0 : regle Encaissements (tips seuls pour une prestation carte cadeau)
+      const totalRevenue = prestationsGoogleAds.reduce((sum, p) => sum + Encaissements.encaissePrestation(p), 0);
+
       // METTRE À JOUR LE CACHE avec les vraies données
-      parametres.googleAdsCachedCosts = {
+      // v1.1.0.0 : plus de "currentMonth: totalCost / 4" (cout du mois invente) ;
+      // fusion pour garder le vrai cout du mois s'il est connu.
+      parametres.googleAdsCachedCosts = fusionnerCacheGoogleAds(parametres.googleAdsCachedCosts, {
         total: totalCost, // ✅ VRAIES données API (253€ et quelques)
         revenue: totalRevenue,
         clientsCount: clientsGoogleAds.length,
         prestationsCount: prestationsGoogleAds.length,
-        currentMonth: totalCost / 4,
         lastUpdate: new Date().toISOString()
-      };
+      });
       
       DataManager.saveParametres(parametres);
       await DataManager.saveData();
@@ -3440,43 +3381,52 @@ function calculateUniqueCampaignClients(campaignsData, period = 'all') {
 // ===== ARTEFACT 1 : Fonction à ajouter dans utils-services.js =====
 
 // ✅ Fonction pour récupérer les coûts Google Ads du mois calendaire (THIS_MONTH)
+// v1.1.0.0 : renvoie null quand l'API n'a pas repondu (jetons, comptes, ou
+// toutes les requetes en echec), pour qu'un echec ne soit plus confondu avec
+// un vrai 0 EUR ; le tableau de bord n'enregistre que les vraies valeurs.
 async function getGoogleAdsCostsThisMonth() {
   try {
     console.log('💰 Récupération coûts Google Ads THIS_MONTH...');
-    
+
     const parametres = DataManager.getParametres();
     const selectedCampaigns = parametres.googleAdsSelectedCampaigns || [];
-    
+
     if (selectedCampaigns.length === 0 || !parametres.googleAdsConnected) {
       console.log('❌ Google Ads non connecté ou pas de campagnes');
       return 0;
     }
-    
+
     // Récupérer les tokens
     const tokens = await getValidTokens();
     if (!tokens) {
       console.warn('⚠️ Pas de tokens Google Ads disponibles');
-      return 0;
+      return null;
     }
-    
+
     // Récupérer les comptes
     const customersResult = await testAccessibleCustomers(tokens.access_token);
     if (!customersResult.success) {
       console.warn('⚠️ Comptes Google Ads non accessibles');
-      return 0;
+      return null;
     }
-    
+
     // Récupérer les campagnes avec THIS_MONTH
     const allCampaigns = [];
+    let comptesLus = 0;
     for (const customerId of customersResult.customers) {
       try {
         const campaigns = await getCampaignsForCustomerWithPeriod(tokens.access_token, customerId, 'THIS_MONTH');
         allCampaigns.push(...campaigns);
+        comptesLus++;
       } catch (error) {
         console.error(`❌ Erreur récupération campagnes ${customerId}:`, error);
       }
     }
-    
+    if (comptesLus === 0) {
+      console.warn('⚠️ Aucun compte Google Ads lu : cout du mois inconnu');
+      return null;
+    }
+
     // Filtrer les campagnes sélectionnées
     const selectedCampaignsData = allCampaigns.filter(campaign => 
       selectedCampaigns.includes(campaign.id)
@@ -3491,7 +3441,7 @@ async function getGoogleAdsCostsThisMonth() {
     
   } catch (error) {
     console.error('❌ Erreur getGoogleAdsCostsThisMonth:', error);
-    return 0; // Retourner 0 en cas d'erreur
+    return null; // v1.1.0.0 : echec = valeur inconnue, pas 0
   }
 }
 

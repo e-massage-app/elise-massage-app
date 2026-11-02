@@ -106,3 +106,15 @@ résultat attendu, panneau par panneau.
 **Règle** — quand une maquette est validée, lister ses panneaux et les traiter
 **tous** avant de rendre. Un panneau laissé dans son état d'origine à côté de
 cinq refaits se voit immédiatement, et donne une page à deux vitesses.
+
+---
+
+## 7. Les questions se posent dans le chat, jamais seulement dans un fichier
+
+**Déclencheur** — module trésorerie (2026-11-02) : j'avais rangé 8 questions pour
+Elise dans `tasks/todo-tresorerie.md` et renvoyé Jordan vers le fichier. « Pour les
+questions, tu dois tout me mettre ici stp, rien dans un .md ».
+
+**Règle** — toute question qui attend une réponse de Jordan ou d'Elise est écrite
+en entier dans ma réponse, numérotée. Un fichier peut garder les décisions une fois
+tranchées, jamais la liste des questions à la place du message.
