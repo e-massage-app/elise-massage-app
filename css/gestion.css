@@ -1,4 +1,4 @@
-/* ===== css/gestion.css (v1.1.0.3) ===== */
+/* ===== css/gestion.css (v1.1.0.4) ===== */
 /* Onglet Gestion : mobile d'abord, palette de l'app (beige dore, rose poudre). */
 
 #gestion {
@@ -275,6 +275,26 @@
   font-size: 0.88rem;
   color: var(--text-light);
   padding-left: 0.75rem;
+}
+/* Releve saisi entre le 1er et le 4 : l'URSSAF d'il y a deux mois est-elle deja passee ? */
+.ge-question {
+  margin: 0;
+  border: 1px solid var(--ge-trait);
+  border-radius: 10px;
+  padding: 0.6rem 0.8rem;
+  background: var(--ge-fond-doux);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.ge-question legend {
+  font-weight: 600;
+  padding: 0 0.3rem;
+}
+.ge-question label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 .ge-ligne.ge-total {
   border-top: 1px solid var(--beige-dore);

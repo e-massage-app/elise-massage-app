@@ -1,4 +1,4 @@
-// ===== GESTION : CALCULS (v1.1.0.2) =====
+// ===== GESTION : CALCULS (v1.1.0.4) =====
 // Fonctions pures : ni DOM, ni Supabase, ni date du jour implicite (on la passe).
 // Testees sous Node : tests/gestion-calculs.test.js.
 //
@@ -32,6 +32,7 @@ const REGLAGES_DEFAUT = {
   besoinMensuel: null,
   seuilTendu: 70,
   compteUrssaf: 'pro',
+  jourUrssaf: 4,          // l'URSSAF du mois M part entre le 2 et le 4 du mois M+2 : le plus tard par prudence
   compteParCategorie: { Loyer: 'caisse' },
   inclureTransport: false,
   categories: {
@@ -98,7 +99,9 @@ function estEstimationKilometrique(d) {
 
 /**
  * Tous les flux qui CONCERNENT le mois (rattachement), avec leur vraie date.
- * L'URSSAF et Google Ads d'un mois sont dates au mois suivant (prelevement).
+ * Dates de prelevement (Jordan, 2026-11-02) : l'URSSAF du mois M part entre le 2 et le 4 du mois
+ * M+2 (reglage jourUrssaf, ou date confirmee avec un releve : corrections.urssafLe) ; Google Ads
+ * le 1er du mois suivant.
  * Chaque flux : { date, compte, montant (signe), espace, type, categorie, libelle, moisConcerne, source }
  * type : encaissement | frais | transfert | revenu | depense
  */
@@ -119,7 +122,7 @@ function fluxConcernant(ctx, mois) {
   // 2. Frais calcules : commission carte, URSSAF, Google Ads
   const t = totauxPro(ctx, mois);
   if (t.commission) flux.push({ date: fin, compte: 'pro', montant: -t.commission, espace: 'pro', type: 'frais', categorie: 'Commission carte', libelle: '', moisConcerne: mois, source: 'calcul' });
-  if (t.urssaf) flux.push({ date: _Enc.dernierJourDuMois(suivant), compte: R.compteUrssaf || 'pro', montant: -t.urssaf, espace: 'pro', type: 'frais', categorie: 'URSSAF', libelle: '', moisConcerne: mois, source: 'calcul' });
+  if (t.urssaf) flux.push({ date: datePrelevementUrssaf(ctx, mois), compte: R.compteUrssaf || 'pro', montant: -t.urssaf, espace: 'pro', type: 'frais', categorie: 'URSSAF', libelle: '', moisConcerne: mois, source: 'calcul' });
   if (t.ads) flux.push({ date: `${suivant}-01`, compte: 'pro', montant: -t.ads, espace: 'pro', type: 'frais', categorie: 'Google Ads', libelle: '', moisConcerne: mois, source: 'google' });
 
   // 3. Depenses du logiciel (hors estimations kilometriques)
@@ -140,6 +143,31 @@ function fluxConcernant(ctx, mois) {
   });
 
   return flux;
+}
+
+/** Jour ou part l'URSSAF du mois : celui confirme avec un releve, sinon le jourUrssaf du mois M+2. */
+function datePrelevementUrssaf(ctx, mois) {
+  const confirme = ctx.gestion.mois[mois]?.corrections?.urssafLe;
+  if (confirme) return _Enc.jourDe(confirme);
+  const jour = Math.min(28, Math.max(1, Math.round(Number(ctx.reglages.jourUrssaf) || 4)));
+  return jourDuMois(_Enc.decalerMois(mois, 2), jour);
+}
+
+/**
+ * Un releve du compte qui paie l'URSSAF, saisi entre le 1er et le jour de prelevement suppose :
+ * impossible de savoir si l'URSSAF d'il y a deux mois est deja passee. On le demande.
+ * Retourne { mois, montant, dateSupposee } ou null.
+ */
+function urssafAConfirmer(ctx, compte, date) {
+  const R = ctx.reglages;
+  if (!date || compte !== (R.compteUrssaf || 'pro')) return null;
+  const jour = _Enc.jourDe(date);
+  const mois = _Enc.decalerMois(jour.slice(0, 7), -2);
+  if (ctx.gestion.mois[mois]?.corrections?.urssafLe) return null;
+  const dateSupposee = datePrelevementUrssaf(ctx, mois);
+  if (jour > dateSupposee) return null;
+  const montant = totauxPro(ctx, mois).urssaf;
+  return montant > 0 ? { mois, montant, dateSupposee } : null;
 }
 
 function pousserMouvement(flux, mv, moisConcerne, source) {
@@ -312,7 +340,8 @@ function soldeCompte(ctx, compte, jour) {
 
   const depuis = _Enc.jourDe(releve.date);
   let montant = Number(releve.montant) || 0;
-  const moisDebut = _Enc.decalerMois(depuis.slice(0, 7), -1);
+  // L'URSSAF d'il y a deux mois peut encore partir apres le releve
+  const moisDebut = _Enc.decalerMois(depuis.slice(0, 7), -2);
   const moisFin = jour.slice(0, 7);
   // « estime » des qu'un flux a ete ajoute, meme si leur somme vaut 0
   let flux = 0;
@@ -339,12 +368,12 @@ function reserve(ctx, jour) {
 
 /**
  * Ce qui est deja du mais pas encore sorti de la reserve au jour J : les frais du mois et du
- * mois precedent dates apres J (URSSAF prelevee a la fin du mois suivant, Google Ads le 1er,
+ * deux mois precedents dates apres J (URSSAF prelevee entre le 2 et le 4 du mois M+2, Google Ads le 1er,
  * commission carte en fin de mois). L'URSSAF payee depuis l'epargne n'y est pas.
  */
 function aPayer(ctx, mois, jour) {
   const lignes = [];
-  [_Enc.decalerMois(mois, -1), mois].forEach(m => {
+  [_Enc.decalerMois(mois, -2), _Enc.decalerMois(mois, -1), mois].forEach(m => {
     fluxConcernant(ctx, m)
       .filter(f => f.type === 'frais' && COMPTES_RESERVE.includes(f.compte) && f.date > jour)
       .forEach(f => lignes.push({
@@ -612,6 +641,8 @@ const GestionCalculs = {
   soldeCompte,
   reserve,
   aPayer,
+  datePrelevementUrssaf,
+  urssafAConfirmer,
   reserveInstantanee,
   bilanReserve,
   jePeuxMeVerser,

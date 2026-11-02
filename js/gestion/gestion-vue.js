@@ -1,4 +1,4 @@
-// ===== GESTION : ECRAN (v1.1.0.3) =====
+// ===== GESTION : ECRAN (v1.1.0.4) =====
 // Onglet « Gestion » : Pro (4 chiffres, detail au clic, courbe), Perso, Reglages.
 // Mots d'Elise, pas de jargon comptable (ni « resultat », ni « provision »).
 // Evenements par delegation (data-ge="action") : aucun onclick global ajoute.
@@ -180,7 +180,6 @@ function vuePro() {
 
   // Ma reserve : ce qui compte, c'est si le mois la fait monter ou descendre depuis la fin du mois
   // d'avant (Jordan, 2026-11-02). Ce qui est du en est deja retire ; le salaire, seulement « si je me verse ».
-  const matelas = C().nombreOuNull(R.matelas);
   const b = C().bilanReserve(c, m, aujourdhui());
   const precedent = nomMois(E().decalerMois(m, -1));
   let noteReserve;
@@ -191,7 +190,8 @@ function vuePro() {
     noteReserve = `${variation(v.reserve - b.depart)} depuis fin ${precedent} (${euros(b.depart)})`
       + (v.salaireApres > 0 ? `<br>si je me verse le salaire ${deMois(m)} : ${variation(v.reserveApres - b.depart)}` : '');
   }
-  if (matelas && v.reserve !== null) noteReserve += `<br>matelas ${euros(matelas)}`;
+  // A cote : ce que montre la banque, et ce qui est deja du dessus (aucun « frais fantome »)
+  if (v.reserve !== null) noteReserve += `<br>sur mon compte : ${euros(v.comptes)}${v.totalAPayer ? ` · dont ${euros(v.totalAPayer)} dus` : ''}`;
   if (v.reserveIncomplete && v.reserve !== null) noteReserve += ' · un solde manque';
   const tuileReserve = tuile('reserve', enCours ? 'Ma réserve aujourd\'hui' : `Ma réserve fin ${nomMois(m)}`, v.reserve === null ? 'À renseigner' : euros(v.reserve), noteReserve);
 
@@ -358,7 +358,7 @@ function detailFrais(p) {
       ${lignes}
       ${ligne('<strong>Total des frais</strong>', `<strong>${euros(p.frais)}</strong>`, { classe: 'ge-total' })}
       ${ligne('<strong>Ce qu\'il me reste</strong>', `<strong>${euros(p.reste)}</strong>`, { classe: 'ge-total' })}
-      <p class="ge-aide">L'URSSAF et Google Ads comptent dans le mois qu'ils concernent, même s'ils sont prélevés le mois suivant.
+      <p class="ge-aide">L'URSSAF et Google Ads comptent dans le mois qu'ils concernent, même s'ils sont prélevés plus tard (l'URSSAF deux mois après).
         Les estimations de frais kilométriques du logiciel ne sont pas comptées.</p>
       <div class="ge-actions">
         <button class="btn-secondary" data-ge="ajouter" data-type="pro-sortie">+ Ajouter un frais</button>
@@ -409,7 +409,6 @@ function detailReserve(c, res, jourRef, v) {
   ].sort((a, b) => a.date.localeCompare(b.date))
     .map(l => ligne(`${dateCourte(l.date)} · ${esc(l.libelle)}`, euros(l.montant, { signe: true }), { action: l.id ? boutonModifier(`data-ge="modifier-mouvement" data-valeur="${l.id}"`) : '' })).join('');
 
-  const categoriesDues = [...new Set(v.aPayer.map(l => l.categorie))].join(', ');
   const quand = jourRef === aujourdhui() ? 'aujourd\'hui' : `au ${dateCourte(jourRef)}`;
 
   return `
@@ -421,7 +420,8 @@ function detailReserve(c, res, jourRef, v) {
       <h3 class="ge-h3-sous">Sur mes comptes ${quand}</h3>
       ${comptes}
       ${ligne('<strong>Total sur mes comptes</strong>', `<strong>${euros(res.montant)}</strong>`, { classe: 'ge-total' })}
-      ${v.totalAPayer ? ligne('dont déjà dû, prélevé plus tard', euros(v.totalAPayer), { note: `${esc(categoriesDues)} · déjà retiré de ma réserve` }) : ''}
+      ${v.totalAPayer ? ligne('dont déjà dû, pas encore prélevé', euros(v.totalAPayer), { note: 'déjà retiré de ma réserve' }) : ''}
+      ${v.aPayer.map(l => ligne(esc(l.libelle), euros(l.montant), { classe: 'ge-sous', note: `prélevé vers le ${dateCourte(l.date)}` })).join('')}
       <p class="ge-aide">Entre deux relevés, j'ajoute ce qui est entré et sorti : prestations, frais, URSSAF et Google Ads à leur date de prélèvement, dépôts, ce que tu te verses.</p>
       <h3 class="ge-h3-sous">La caisse en ${nomMois(m)}</h3>
       ${journal || '<p class="ge-aide">Aucun mouvement en liquide ce mois-ci.</p>'}
@@ -615,6 +615,7 @@ function vueReglages() {
         ${champ('seuilTendu', '« Tendu » à partir de (% du besoin)', R.seuilTendu, 'En dessous : Alerte. Affiché une fois le mois terminé.', 'type="number" step="1" min="0" max="100" inputmode="numeric"')}
         ${champ('tauxUrssaf', 'Taux URSSAF (%)', R.tauxUrssaf)}
         ${champ('tauxCarte', 'Commission carte SumUp (%)', R.tauxCarte, 'À changer si la formule ou le prestataire change.')}
+        ${champ('jourUrssaf', 'L\'URSSAF part vers le … du mois M+2', R.jourUrssaf, 'Entre le 2 et le 4 : le 4 par prudence.', 'type="number" step="1" min="1" max="28" inputmode="numeric"')}
         <label class="ge-champ"><span>L'URSSAF est payée depuis</span><select name="compteUrssaf">${optionsComptes(R.compteUrssaf)}</select>
           <small>Si c'est l'épargne, elle ne baisse pas ta réserve.</small></label>
         <label class="ge-champ"><span>Le loyer de la cabine est payé avec</span><select name="compteLoyer">${optionsComptes(R.compteParCategorie.Loyer || 'caisse', ['caisse', 'pro'])}</select></label>
@@ -719,15 +720,30 @@ function formulaireSolde(compte, s = null) {
     <p class="ge-aide">Le solde affiché dans ton appli bancaire (ou l'argent compté dans la caisse), à la date du jour.</p>
     <form class="ge-formulaire" data-ge-form="solde" data-id="${s?.id || ''}">
       <div class="ge-grille-champs">
-        <label class="ge-champ"><span>Compte</span><select name="compte">${options}</select></label>
+        <label class="ge-champ"><span>Compte</span><select name="compte" data-ge-change="question-urssaf">${options}</select></label>
         <label class="ge-champ"><span>Solde (€)</span><input name="montant" type="number" step="0.01" inputmode="decimal" required value="${s ? s.montant : ''}"></label>
-        <label class="ge-champ"><span>Date</span><input name="date" type="date" required value="${s?.date || aujourdhui()}"></label>
+        <label class="ge-champ"><span>Date</span><input name="date" type="date" required value="${s?.date || aujourdhui()}" data-ge-change="question-urssaf"></label>
       </div>
+      <div class="ge-question-urssaf">${questionUrssaf(s?.compte || compte, s?.date || aujourdhui())}</div>
       <div class="modal-actions ge-actions">
         ${s ? `<button type="button" class="btn-secondary ge-danger" data-ge="supprimer-solde" data-valeur="${s.id}">Supprimer</button>` : ''}
         <button type="submit" class="btn-primary">Enregistrer</button>
       </div>
     </form>`;
+}
+
+// Entre le 1er et le jour de prelevement suppose, on ne sait pas si l'URSSAF d'il y a deux mois est passee
+function questionUrssaf(compte, date) {
+  const q = C().urssafAConfirmer(ctx(), compte, date);
+  if (!q) return '';
+  return `
+    <fieldset class="ge-question">
+      <legend>L'URSSAF ${deMois(q.mois)} (${euros(q.montant)}) est-elle déjà passée sur ce solde ?</legend>
+      <label><input type="radio" name="urssafPassee" value="oui" required> Oui, elle est déjà prélevée</label>
+      <label><input type="radio" name="urssafPassee" value="non" required> Pas encore</label>
+      <input type="hidden" name="urssafMois" value="${q.mois}">
+      <input type="hidden" name="urssafSupposee" value="${q.dateSupposee}">
+    </fieldset>`;
 }
 
 function formulaireSoldesDepart() {
@@ -823,6 +839,9 @@ function lierEvenements() {
         categorie: null,
         compte: null
       }));
+    } else if (el.dataset.geChange === 'question-urssaf') {
+      const f = el.closest('form');
+      f.querySelector('.ge-question-urssaf').innerHTML = questionUrssaf(f.elements.compte.value, f.elements.date.value);
     } else if (el.dataset.geChange === 'frequence') {
       el.closest('form').querySelector('.ge-si-annuelle').hidden = el.value !== 'annuelle';
     }
@@ -944,12 +963,22 @@ async function soumettre(f) {
       fin: f.elements.fin.value || null
     });
   } else if (quoi === 'solde') {
+    const date = f.elements.date.value;
     await D().enregistrerSolde({
       id: f.dataset.id || undefined,
       compte: f.elements.compte.value,
-      date: f.elements.date.value,
+      date,
       montant: lireNombre(f, 'montant') ?? 0
     });
+    // Reponse a la question URSSAF : la date ou elle part, pour ne jamais la compter deux fois
+    const moisUrssaf = f.elements.urssafMois?.value;
+    if (moisUrssaf && f.elements.urssafPassee?.value) {
+      const supposee = f.elements.urssafSupposee.value;
+      const lendemain = `${date.slice(0, 8)}${String(Number(date.slice(8, 10)) + 1).padStart(2, '0')}`;
+      const urssafLe = f.elements.urssafPassee.value === 'oui' ? date : (supposee > date ? supposee : lendemain);
+      const corrections = { ...(D().etat.gestion.mois[moisUrssaf]?.corrections || {}), urssafLe };
+      await D().enregistrerMois(moisUrssaf, { corrections });
+    }
   } else if (quoi === 'soldes-depart') {
     const date = f.dataset.date;
     const saisies = Object.keys(C().COMPTES).map(k => ({ compte: k, montant: lireNombre(f, k) })).filter(s => s.montant !== null);
@@ -972,6 +1001,7 @@ async function soumettre(f) {
       tauxUrssaf: lireNombre(f, 'tauxUrssaf') ?? 21.4,
       tauxCarte: lireNombre(f, 'tauxCarte') ?? 1.75,
       compteUrssaf: f.elements.compteUrssaf.value,
+      jourUrssaf: lireNombre(f, 'jourUrssaf') ?? 4,
       compteParCategorie: { ...R.compteParCategorie, Loyer: f.elements.compteLoyer.value },
       categories
     });

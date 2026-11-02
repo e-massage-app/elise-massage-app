@@ -134,3 +134,15 @@ qu'il concerne, même s'il est payé ou déclaré plus tard. Le calendrier réel
 (échéance, prélèvement) peut apparaître en note (« avant le 30 novembre »), jamais
 comme un chiffre d'un autre mois. Avant de livrer, vérifier que tout ce qu'une
 carte saisit s'enregistre sur le mois affiché.
+
+---
+
+## 9. Une date de prelevement se lit sur le releve, pas dans le calendrier legal
+
+**Declencheur** — onglet Gestion (2026-11-02) : j'ai modelise l'URSSAF du mois M « prelevee a la fin
+du mois suivant » (echeance de declaration). Le schema de Jordan et Elise, fait a partir de ses
+releves, montre un prelevement entre le 2 et le 4 du mois M+2. La reserve oubliait donc une URSSAF
+entiere, et toute la tresorerie etait surestimee.
+
+**Regle** — avant de dater un prelevement (URSSAF, Google Ads, abonnement), demander la vraie date
+sur le releve bancaire et la rendre reglable. Une echeance legale ne dit pas quand l'argent part.

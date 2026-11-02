@@ -155,3 +155,19 @@ est public, aucun montant personnel ne doit etre commite, ni dans le code ni dan
   que le mois permet laisse la reserve stable. Premier mois (pas de solde avant) : « point de depart ».
 - Rappel : la carte de la v1.1.0.0 affichait sur octobre l'encaisse de septembre ; les chiffres en base
   n'ont jamais change (verifie le 2026-11-02).
+
+## v1.1.0.4 (2026-11-02) : l'URSSAF part deux mois apres
+
+- Schema de Jordan et Elise : l'URSSAF du mois M est prelevee entre le 2 et le 4 du mois M+2
+  (aout le 02/10, septembre le 02/11, octobre le 02/12). Nous pensions tous « le mois suivant » :
+  la reserve oubliait une URSSAF, d'ou une tresorerie qui baissait sans qu'on comprenne.
+- Date de prelevement : le 4 du mois M+2 (reglage `jourUrssaf`, le plus prudent). Fin de mois,
+  deux URSSAF sont dues et retirees de « Ma reserve ». Aucun solde modifie, aucune fausse depense :
+  la mise en place se fait d'elle-meme, sans ajustement a la main.
+- Releve du compte qui paie l'URSSAF saisi entre le 1er et le 4 : la question « deja passee ? »
+  fixe la vraie date (`corrections.urssafLe` du mois concerne), pour ne jamais la compter deux fois.
+- Tuile « Ma reserve » : « sur mon compte : X € · dont Y € dus » a cote, pour comparer avec la banque.
+  Detail : chaque dette avec sa date de prelevement.
+- Google Ads inchange (cout compte au jour le jour, preleve le 1er du mois suivant).
+- URSSAF de septembre corrigee au vrai montant de l'avis en base (accord de Jordan).
+- `npm test` : 31 tests.

@@ -79,7 +79,7 @@ test('correction d une charge fixe pour un mois (0 = pas ce mois-ci)', () => {
   assert.equal(m.frais, 269.8);
 });
 
-test('solde : dernier solde recopie + flux dates apres lui, URSSAF du mois precedent prelevee', () => {
+test('solde : dernier solde recopie + flux dates apres lui, URSSAF prelevee le 4 du mois M+2', () => {
   const d = base();
   d.gestion.soldes = [
     { compte: 'pro', date: '2026-09-30', montant: 2000 },
@@ -87,12 +87,14 @@ test('solde : dernier solde recopie + flux dates apres lui, URSSAF du mois prece
   ];
   const c = ctx(d);
   // compte pro en octobre : +80 carte +100 virement -10 banque -50 abonnement
-  // -1,40 commission (31/10) -214 URSSAF de septembre (31/10) -100 Ads de septembre (01/10)
-  assert.equal(G.soldeCompte(c, 'pro', '2026-10-31').montant, 1804.6);
+  // -1,40 commission (31/10) -100 Ads de septembre (01/10) ; l'URSSAF de septembre part le 04/11
+  assert.equal(G.soldeCompte(c, 'pro', '2026-10-31').montant, 2018.6);
+  // le 04/11 : - Ads d'octobre (01/11) 60 - banque de novembre (01/11) 10 - URSSAF de septembre 214
+  assert.equal(G.soldeCompte(c, 'pro', '2026-11-04').montant, 1734.6);
   // caisse : +420 liquide -30 loyer
   assert.equal(G.soldeCompte(c, 'caisse', '2026-10-31').montant, 690);
   assert.equal(G.soldeCompte(c, 'perso', '2026-10-31').montant, null);
-  assert.equal(G.reserve(c, '2026-10-31').montant, 2494.6);
+  assert.equal(G.reserve(c, '2026-10-31').montant, 2708.6);
 });
 
 test('un solde recopie remplace l estimation a partir de sa date', () => {
@@ -101,8 +103,8 @@ test('un solde recopie remplace l estimation a partir de sa date', () => {
     { compte: 'pro', date: '2026-09-30', montant: 2000 },
     { compte: 'pro', date: '2026-10-15', montant: 1500 }
   ];
-  // apres le 15 : -50 abonnement (22/10) -1,40 commission -214 URSSAF de septembre (31/10)
-  assert.equal(G.soldeCompte(ctx(d), 'pro', '2026-10-31').montant, 1234.6);
+  // apres le 15 : -50 abonnement (22/10) -1,40 commission
+  assert.equal(G.soldeCompte(ctx(d), 'pro', '2026-10-31').montant, 1448.6);
 });
 
 function avecSoldes(d, pro = 2000, caisse = 300) {
@@ -117,10 +119,10 @@ test('je peux me verser (mois termine) : ce que le mois a rapporte, verdict sur 
   const v = G.jePeuxMeVerser(ctx(avecSoldes(base())), '2026-10', '2026-11-02');
   assert.equal(v.enCours, false);
   assert.equal(v.rapporte, 320.2);
-  // deja du au 31/10 : URSSAF d'octobre (30/11) 128,40 + Ads d'octobre (01/11) 60
-  assert.equal(v.totalAPayer, 188.4);
-  // ma reserve fin octobre : comptes 2494,60 moins ce qui est deja du, tout de suite
-  assert.equal(v.comptes, 2494.6);
+  // deja du au 31/10 : URSSAF de septembre (04/11) 214 + URSSAF d'octobre (04/12) 128,40 + Ads d'octobre (01/11) 60
+  assert.equal(v.totalAPayer, 402.4);
+  // ma reserve fin octobre : comptes 2708,60 moins ce qui est deja du, tout de suite
+  assert.equal(v.comptes, 2708.6);
   assert.equal(v.reserve, 2306.2);
   assert.equal(v.marge, 1306.2); // - matelas 1000
   assert.equal(v.total, 320.2);
@@ -142,7 +144,32 @@ test('ma reserve : l URSSAF d octobre sort fin octobre, novembre part de la sans
   const nov = G.bilanReserve(ctx(d), '2026-11', '2026-11-02');
   assert.equal(nov.depart, oct.arrivee);
   assert.equal(nov.ecart, 0);
-  assert.ok(!G.aPayer(ctx(d), '2026-11', '2026-11-30').lignes.some(l => /octobre/.test(l.libelle)), 'payee le 30/11, plus due apres');
+  const urssafOct = j => G.aPayer(ctx(d), j.slice(0, 7), j).lignes.some(l => l.libelle === 'URSSAF d\'octobre');
+  assert.ok(urssafOct('2026-11-30'), 'encore due fin novembre');
+  assert.ok(!urssafOct('2026-12-05'), 'partie le 04/12');
+});
+
+test('URSSAF : prelevee le 4 du mois M+2 par defaut, reglable, ou a la date confirmee', () => {
+  const d = base();
+  assert.equal(G.datePrelevementUrssaf(ctx(d), '2026-10'), '2026-12-04');
+  d.reglages.jourUrssaf = 2;
+  assert.equal(G.datePrelevementUrssaf(ctx(d), '2026-10'), '2026-12-02');
+  d.gestion.mois['2026-10'] = { corrections: { urssafLe: '2026-12-03' } };
+  assert.equal(G.datePrelevementUrssaf(ctx(d), '2026-10'), '2026-12-03');
+});
+
+test('debut de mois : deux URSSAF encore dues, la question au releve entre le 1er et le 4', () => {
+  const d = avecSoldes(base());
+  const du = G.aPayer(ctx(d), '2026-11', '2026-11-02').lignes.map(l => l.libelle);
+  assert.ok(du.includes('URSSAF de septembre') && du.includes('URSSAF d\'octobre'));
+  assert.deepEqual(G.urssafAConfirmer(ctx(d), 'pro', '2026-11-03'), { mois: '2026-09', montant: 214, dateSupposee: '2026-11-04' });
+  assert.equal(G.urssafAConfirmer(ctx(d), 'pro', '2026-11-05'), null, 'apres le 4 : deja partie');
+  assert.equal(G.urssafAConfirmer(ctx(d), 'caisse', '2026-11-03'), null, 'pas le compte qui paie l URSSAF');
+  d.gestion.mois['2026-09'] = { corrections: { urssafLe: '2026-11-02' } };
+  assert.equal(G.urssafAConfirmer(ctx(d), 'pro', '2026-11-03'), null, 'deja confirmee');
+  // confirmee partie le 02/11 : le releve du 03/11 ne la retire pas une deuxieme fois
+  d.gestion.soldes.push({ compte: 'pro', date: '2026-11-03', montant: 1500 });
+  assert.equal(G.soldeCompte(ctx(d), 'pro', '2026-11-05').montant, 1500);
 });
 
 test('ma reserve : un salaire verse compte a sa vraie date, un releve inattendu apparait en ecart', () => {
