@@ -1,4 +1,4 @@
-/* ===== css/gestion.css (v1.1.0.1) ===== */
+/* ===== css/gestion.css (v1.1.0.3) ===== */
 /* Onglet Gestion : mobile d'abord, palette de l'app (beige dore, rose poudre). */
 
 #gestion {
@@ -195,6 +195,10 @@
   line-height: 1.3;
   margin-top: auto;
 }
+/* Ma reserve : monte ou descend depuis la fin du mois d'avant */
+.ge-variation { font-weight: 600; white-space: nowrap; }
+.ge-variation.hausse { color: var(--ge-ok); }
+.ge-variation.baisse { color: var(--ge-alerte); }
 /* « sur 900 € » sous le montant : tient dans une tuile etroite (2 colonnes sur telephone) */
 .ge-sur {
   display: block;

@@ -1,4 +1,4 @@
-// ===== GESTION : ECRAN (v1.1.0.2) =====
+// ===== GESTION : ECRAN (v1.1.0.3) =====
 // Onglet « Gestion » : Pro (4 chiffres, detail au clic, courbe), Perso, Reglages.
 // Mots d'Elise, pas de jargon comptable (ni « resultat », ni « provision »).
 // Evenements par delegation (data-ge="action") : aucun onclick global ajoute.
@@ -40,6 +40,13 @@ function nomMois(m, annee = false) {
 
 function deMois(m) {
   return C().deMois(m);
+}
+
+// « ▲ +460 € » en vert, « ▼ −200 € » en rouge, « stable » sous 1 €
+function variation(n) {
+  const v = C().arrondi(n);
+  if (Math.abs(v) < 1) return '<span class="ge-variation">stable</span>';
+  return `<span class="ge-variation ${v > 0 ? 'hausse' : 'baisse'}">${v > 0 ? '▲' : '▼'} ${euros(v, { signe: true })}</span>`;
 }
 
 function pourcent(n) {
@@ -171,15 +178,22 @@ function vuePro() {
   const tuileReste = tuile('frais', `Ce qu'il me reste en ${nomMois(m)} après les frais`, euros(p.reste),
     `${enCours ? 'mois en cours · ' : ''}${euros(p.frais)} de frais${p.adsInconnu ? ' · Google Ads en attente' : ''}`, p.reste < 0 ? 'negatif' : '');
 
-  // Ma reserve « a l'instantane » : ce qui est deja du en est deja retire ; le salaire, seulement « si je me verse »
+  // Ma reserve : ce qui compte, c'est si le mois la fait monter ou descendre depuis la fin du mois
+  // d'avant (Jordan, 2026-11-02). Ce qui est du en est deja retire ; le salaire, seulement « si je me verse ».
   const matelas = C().nombreOuNull(R.matelas);
-  const jaugeMatelas = (v.reserve !== null && matelas)
-    ? `<span class="ge-jauge" role="img" aria-label="${Math.round(v.reserve / matelas * 100)} % du matelas"><span style="width:${Math.max(0, Math.min(100, v.reserve / matelas * 100))}%"></span></span>` : '';
-  const siJeMeVerse = v.salaireApres > 0
-    ? `${euros(-v.salaireApres)} si je me verse le salaire ${deMois(m)} → <strong>${euros(v.reserveApres)}</strong><br>` : '';
-  const tuileReserve = tuile('reserve', enCours ? 'Ma réserve aujourd\'hui' : `Ma réserve fin ${nomMois(m)}`, v.reserve === null ? 'À renseigner' : euros(v.reserve),
-    v.reserve === null ? 'compte pro + caisse'
-      : `${siJeMeVerse}${matelas ? `matelas ${euros(matelas)}` : ''}${v.reserveIncomplete ? ' · un solde manque' : ''}`, '', jaugeMatelas);
+  const b = C().bilanReserve(c, m, aujourdhui());
+  const precedent = nomMois(E().decalerMois(m, -1));
+  let noteReserve;
+  if (v.reserve === null) noteReserve = 'compte pro + caisse';
+  else if (b.depart === null) {
+    noteReserve = `point de départ : tes soldes recopiés${v.salaireApres > 0 ? `<br>${euros(-v.salaireApres)} si je me verse le salaire ${deMois(m)} → ${euros(v.reserveApres)}` : ''}`;
+  } else {
+    noteReserve = `${variation(v.reserve - b.depart)} depuis fin ${precedent} (${euros(b.depart)})`
+      + (v.salaireApres > 0 ? `<br>si je me verse le salaire ${deMois(m)} : ${variation(v.reserveApres - b.depart)}` : '');
+  }
+  if (matelas && v.reserve !== null) noteReserve += `<br>matelas ${euros(matelas)}`;
+  if (v.reserveIncomplete && v.reserve !== null) noteReserve += ' · un solde manque';
+  const tuileReserve = tuile('reserve', enCours ? 'Ma réserve aujourd\'hui' : `Ma réserve fin ${nomMois(m)}`, v.reserve === null ? 'À renseigner' : euros(v.reserve), noteReserve);
 
   const statuts = { ok: 'OK', tendu: 'Tendu', alerte: 'Alerte' };
   const jaugeBesoin = v.besoin

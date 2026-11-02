@@ -147,3 +147,11 @@ est public, aucun montant personnel ne doit etre commite, ni dans le code ni dan
   le 3 novembre, releve inattendu = ecart).
 - Script `date-fns` retire de index.html : il plantait au chargement depuis avril (format CommonJS),
   rien ne pouvait s'en servir. Verifie : plus d'erreur `require is not defined`, tous les modules chargent.
+
+## v1.1.0.3 (2026-11-02)
+
+- Tuile « Ma reserve » : ce qui compte est le sens (Jordan) : « ▲ +X € depuis fin <mois precedent> (Y €) »
+  en vert, « ▼ » en rouge, puis « si je me verse le salaire : ▲ / ▼ / stable ». Se verser exactement ce
+  que le mois permet laisse la reserve stable. Premier mois (pas de solde avant) : « point de depart ».
+- Rappel : la carte de la v1.1.0.0 affichait sur octobre l'encaisse de septembre ; les chiffres en base
+  n'ont jamais change (verifie le 2026-11-02).
