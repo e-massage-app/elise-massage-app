@@ -733,11 +733,11 @@ function placerChoix() {
   const ecart = 4;
   const dessous = window.innerHeight - r.bottom - ecart - marge;
   const dessus = r.top - ecart - marge;
-  const voulue = Math.min(ul.scrollHeight, 300);
+  const voulue = Math.min(ul.scrollHeight, 320);
   const versLeHaut = dessous < voulue && dessus > dessous;
   ul.style.left = `${Math.max(marge, r.left)}px`;
   ul.style.width = `${r.width}px`;
-  ul.style.maxHeight = `${Math.max(96, Math.min(300, versLeHaut ? dessus : dessous))}px`;
+  ul.style.maxHeight = `${Math.max(96, Math.min(320, versLeHaut ? dessus : dessous))}px`;
   ul.style.top = versLeHaut ? 'auto' : `${r.bottom + ecart}px`;
   ul.style.bottom = versLeHaut ? `${window.innerHeight - r.top + ecart}px` : 'auto';
 }
