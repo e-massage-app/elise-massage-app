@@ -6,7 +6,7 @@
 -- ---------------------------------------------------------------------
 -- 1. TABLE relances
 --    client_id en TEXT (clients.id est TEXT, PAS uuid — verifie en base
---    le 05/08/2026 ; scripts/schema-supabase.sql est perime sur ce point)
+--    le 05/08/2026 ; scripts/schema-supabase.sql est a jour depuis le 2026-11-02)
 --    Dates en TEXT : convention de l'app (prestations.date est deja TEXT)
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS relances (

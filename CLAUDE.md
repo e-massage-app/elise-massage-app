@@ -60,7 +60,8 @@ de faire **Ctrl+Shift+R** (le cache HTTP du navigateur est distinct du cache du 
 - `js/app.js` : initialisation, auth check, offline detection
 - `scripts/migrate-data.js` : migration JSON -> Supabase (la service_role key est lue via env var SUPABASE_SERVICE_ROLE_KEY, jamais commitee)
 - `scripts/migration-fix-persistance.sql` : migration SQL idempotente ajoutant les colonnes manquantes (bon_cadeau_id, type, abonnement_nom, societe, parrain, poste)
-- `scripts/schema-supabase.sql` : schema BDD complet
+- `scripts/schema-supabase.sql` : schema BDD complet, releve sur la vraie base le 2026-11-02 et essaye a blanc
+  (reconstruit les 14 tables, la securite RLS et les declencheurs) ; a reprendre apres chaque migration
 - `js/core/encaissements.js` : LA regle d'encaissement (ce que les clientes ont paye), utilisee par tous les ecrans
 - `js/gestion/` : onglet Gestion (calculs purs, donnees de ses tables `gestion_*`, ecran) ; plan dans `tasks/todo-tresorerie.md`
 - `scripts/migration-gestion.sql` : tables de l'onglet Gestion (appliquee le 2026-11-02)
