@@ -167,6 +167,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         })
         .catch(err => console.warn('Sync Google Ads (fond) :', err));
 
+      // Generation automatique des depenses d'abonnement
+      // v1.2.0.0 : AVANT le premier affichage : le tableau de bord et les analytics
+      // du demarrage ne voyaient pas les depenses du mois qui venaient d'etre creees.
+      if (typeof genererDepensesAbonnements === 'function') {
+        await genererDepensesAbonnements();
+      }
+
       // Initialiser le dashboard par defaut
       setLoaderText('Préparation…');
       ViewManager.updateDashboard();
@@ -181,11 +188,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       ViewManager.initAnnuaireViewControls();
 
       UtilsServices.setupDepensesSearch();
-
-      // Generation automatique des depenses d'abonnement
-      if (typeof genererDepensesAbonnements === 'function') {
-        await genererDepensesAbonnements();
-      }
 
       // Setup des formulaires
       setupFormListeners();
@@ -382,7 +384,8 @@ function setupFormListeners() {
           sexe: document.getElementById('rdv-sexe').value || ''
         };
         captureFormData('rdv');
-        await BusinessServices.createRdv(formData);
+        // v1.2.0.0 : null = echec deja signale ; la fenetre reste ouverte
+        if (!(await BusinessServices.createRdv(formData))) return;
         ModalManager.closeModal();
         ViewManager.updateCalendar();
         ViewManager.updateDashboard();
@@ -438,7 +441,7 @@ function setupFormListeners() {
         notes: document.getElementById('client-notes')?.value || '',
         parrain: document.getElementById('client-parrain')?.value || null,
         canalAcquisition: document.getElementById('client-canal-acquisition')?.value || 'non-renseigne',
-        dateAcquisition: document.getElementById('client-id').value ? undefined : new Date().toISOString().split('T')[0]
+        dateAcquisition: document.getElementById('client-id').value ? undefined : jourLocal(new Date())
       };
 
       if (type === 'client') {
@@ -466,13 +469,10 @@ function setupFormListeners() {
         const collection = type === 'client' ? appData.clients : appData.prospects;
         const existingPerson = collection.find(p => p.id === editingId);
         if (existingPerson) {
-          const originalTags = existingPerson.tags || [];
-          Object.assign(existingPerson, formData);
-          existingPerson.tags = originalTags;
-          // Sauvegarder vers Supabase
-          const table = type === 'client' ? 'clients' : 'prospects';
-          const mapFn = type === 'client' ? DataManager.mapClientToDb : DataManager.mapProspectToDb;
-          await DataManager.updateEntity(table, editingId, existingPerson, mapFn);
+          // v1.2.0.0 : base d'abord, cache ensuite, champs renseignes seulement
+          // (Object.assign modifiait la fiche avant la base et effacait la date
+          // d'acquisition). Un echec remonte a withButtonLoading.
+          await ClientServices.createClient(formData, type);
           DataManager.setEditingId(null);
           ModalManager.closeModal();
           ViewManager.updateClientsDisplay();
@@ -505,6 +505,15 @@ function setupFormListeners() {
         submitBtn.style.opacity = '0.7';
         submitBtn.style.cursor = 'wait';
       }
+      // Re-enable le bouton pour permettre une nouvelle tentative
+      const reactiverBouton = () => {
+        if (submitBtn && originalBtnHTML !== null) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = originalBtnHTML;
+          submitBtn.style.opacity = '';
+          submitBtn.style.cursor = '';
+        }
+      };
 
       try {
         const rdvSourceId = document.getElementById('prestation-form').getAttribute('data-rdv-source');
@@ -532,18 +541,25 @@ function setupFormListeners() {
           distanceKm: parseFloat(document.getElementById('prestation-distance').value) || 0,
           fraisDeplacement: parseFloat(document.getElementById('prestation-frais').value) || 0,
           moyenPaiement: moyenPaiement,
-          bonCadeauId: bonCadeauId
+          bonCadeauId: bonCadeauId,
+          rdvId: rdvSourceId || null // v1.2.0.0 : lien stable prestation -> RDV
         };
 
+        // v1.2.0.0 : la prestation d'abord. Si son enregistrement echoue (deja
+        // signale), on s'arrete : RDV non marque transforme, carte non utilisee.
+        captureFormData('prestation');
+        const prestation = await BusinessServices.createPrestation(formData);
+        if (!prestation) {
+          reactiverBouton();
+          return;
+        }
+
         if (rdvSourceId) {
-          await BusinessServices.transformRdvToPrestation(rdvSourceId);
+          await BusinessServices.transformRdvToPrestation(rdvSourceId, prestation.id);
           document.getElementById('prestation-form').removeAttribute('data-rdv-source');
         }
 
-        captureFormData('prestation');
-        const prestation = await BusinessServices.createPrestation(formData);
-
-        if (bonCadeauId && prestation) {
+        if (bonCadeauId) {
           await BusinessServices.utiliserBonCadeau(bonCadeauId, prestation.id);
         }
 
@@ -569,13 +585,7 @@ function setupFormListeners() {
         if (typeof alert !== 'undefined') {
           alert('Erreur lors de l\'enregistrement de la prestation. Verifiez votre connexion et reessayez.\n\nDetail : ' + (err && err.message ? err.message : err));
         }
-        // Re-enable le bouton pour permettre une nouvelle tentative
-        if (submitBtn && originalBtnHTML !== null) {
-          submitBtn.disabled = false;
-          submitBtn.innerHTML = originalBtnHTML;
-          submitBtn.style.opacity = '';
-          submitBtn.style.cursor = '';
-        }
+        reactiverBouton();
       }
     }
 

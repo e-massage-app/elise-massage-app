@@ -224,7 +224,9 @@ function mapPrestationFromDb(row) {
     distanceKm: row.distance_km,
     fraisDeplacement: row.frais_deplacement,
     moyenPaiement: row.moyen_paiement,
-    bonCadeauId: row.bon_cadeau_id
+    bonCadeauId: row.bon_cadeau_id,
+    // v1.2.0.0 : RDV dont la prestation est nee (scripts/migration-rdv-id.sql)
+    rdvId: row.rdv_id || null
   };
 }
 
@@ -244,7 +246,8 @@ function mapPrestationToDb(obj) {
     distance_km: obj.distanceKm || null,
     frais_deplacement: obj.fraisDeplacement || null,
     moyen_paiement: obj.moyenPaiement || null,
-    bon_cadeau_id: obj.bonCadeauId || null
+    bon_cadeau_id: obj.bonCadeauId || null,
+    rdv_id: obj.rdvId || null
   };
   if (obj.id) row.id = obj.id;
   return row;
@@ -261,7 +264,9 @@ function mapDepenseFromDb(row) {
     notes: row.notes || '',
     prestationId: row.prestation_id,
     type: row.type,
-    abonnementNom: row.abonnement_nom
+    abonnementNom: row.abonnement_nom,
+    // v1.2.0.0 : abonnement qui a genere la depense (scripts/migration-rdv-id.sql)
+    abonnementId: row.abonnement_id || null
   };
 }
 
@@ -275,7 +280,8 @@ function mapDepenseToDb(obj) {
     notes: obj.notes || null,
     prestation_id: obj.prestationId || null,
     type: obj.type || null,
-    abonnement_nom: obj.abonnementNom || null
+    abonnement_nom: obj.abonnementNom || null,
+    abonnement_id: obj.abonnementId || null
   };
   if (obj.id) row.id = obj.id;
   return row;
@@ -1148,31 +1154,33 @@ function getSortedBonsCadeaux() {
   return appData.bonsCadeaux.sort((a, b) => new Date(b.dateAchat) - new Date(a.dateAchat));
 }
 
+// v1.2.0.0 : statut reel du jour (BonsCadeaux.statutEffectif), pour TOUS les ecrans :
+// tableau de bord, onglet Bons, listes de choix. Aucun getter n'ecrit plus dans le cache.
+function statutBonCadeau(bon) {
+  return BonsCadeaux.statutEffectif(bon, jourLocal(new Date()));
+}
+
 function getBonsCadeauxActifs() {
   if (!appData.bonsCadeaux) return [];
-  const today = new Date().toISOString().split('T')[0];
-  return appData.bonsCadeaux.filter(bon => {
-    if (bon.statut !== 'actif') return false;
-    return bon.dateExpiration >= today;
-  }).sort((a, b) => new Date(a.dateExpiration) - new Date(b.dateExpiration));
+  return appData.bonsCadeaux.filter(bon => statutBonCadeau(bon) === 'actif')
+    .sort((a, b) => String(a.dateExpiration).localeCompare(String(b.dateExpiration)));
 }
 
 function getBonsCadeauxExpirantBientot(joursAvant = 30) {
   if (!appData.bonsCadeaux) return [];
-  const today = new Date();
+  const today = jourLocal(new Date());
   const limitDate = new Date();
   limitDate.setDate(limitDate.getDate() + joursAvant);
-  return appData.bonsCadeaux.filter(bon => {
-    if (bon.statut !== 'actif') return false;
-    const expiration = new Date(bon.dateExpiration);
-    return expiration >= today && expiration <= limitDate;
-  }).sort((a, b) => new Date(a.dateExpiration) - new Date(b.dateExpiration));
+  const limite = jourLocal(limitDate);
+  return appData.bonsCadeaux.filter(bon =>
+    statutBonCadeau(bon) === 'actif' && bon.dateExpiration >= today && bon.dateExpiration <= limite
+  ).sort((a, b) => String(a.dateExpiration).localeCompare(String(b.dateExpiration)));
 }
 
 function getMontantBonsCadeauxNonUtilises() {
   if (!appData.bonsCadeaux) return 0;
   return appData.bonsCadeaux
-    .filter(bon => bon.statut === 'actif')
+    .filter(bon => statutBonCadeau(bon) === 'actif')
     .reduce((total, bon) => total + (bon.montant || 0), 0);
 }
 
@@ -1180,16 +1188,10 @@ function getStatistiquesBonsCadeaux() {
   if (!appData.bonsCadeaux) {
     return { actifs: 0, utilises: 0, expires: 0, rembourses: 0, montantActifs: 0, montantTotal: 0 };
   }
-  const today = new Date().toISOString().split('T')[0];
-  appData.bonsCadeaux.forEach(bon => {
-    if (bon.statut === 'actif' && bon.dateExpiration < today) {
-      bon.statut = 'expire';
-    }
-  });
   const stats = { actifs: 0, utilises: 0, expires: 0, rembourses: 0, montantActifs: 0, montantTotal: 0 };
   appData.bonsCadeaux.forEach(bon => {
     stats.montantTotal += bon.montant || 0;
-    switch (bon.statut) {
+    switch (statutBonCadeau(bon)) {
       case 'actif': stats.actifs++; stats.montantActifs += bon.montant || 0; break;
       case 'utilise': stats.utilises++; break;
       case 'expire': stats.expires++; break;
@@ -1199,11 +1201,11 @@ function getStatistiquesBonsCadeaux() {
   return stats;
 }
 
+// v1.2.0.0 : calcul sur la chaine 'YYYY-MM-DD' (new Date + toISOString donnait la
+// veille pour les achats de novembre a mars, et 31 aout + 6 mois = 3 mars).
 function calculerDateExpiration(dateDebut) {
   const validiteMois = appData.parametres?.validiteBonsCadeauxMois || 6;
-  const date = new Date(dateDebut);
-  date.setMonth(date.getMonth() + validiteMois);
-  return date.toISOString().split('T')[0];
+  return BonsCadeaux.ajouterMois(dateDebut, validiteMois);
 }
 
 function getValiditeBonsCadeauxMois() { return appData.parametres?.validiteBonsCadeauxMois || 6; }
@@ -1742,7 +1744,7 @@ window.DataManager = {
   isJourInstitut, getJoursInstitut,
   getAllBonsCadeaux, getBonCadeauById, getSortedBonsCadeaux, getBonsCadeauxActifs,
   getBonsCadeauxExpirantBientot, getMontantBonsCadeauxNonUtilises, getStatistiquesBonsCadeaux,
-  calculerDateExpiration, getValiditeBonsCadeauxMois, setValiditeBonsCadeauxMois,
+  calculerDateExpiration, getValiditeBonsCadeauxMois, setValiditeBonsCadeauxMois, statutBonCadeau,
   getDefaultCarteSoins, getCarteSoins, getCategories, getCategorieById, getSoins, getSoinById, resolveSoin,
   getVariantesForSoin, getPrixForSoinVariante, getPrixTotalForSoinVariante, getCoutHuilesForSoin,
   isPartnershipSoin, isComboSoin, getCalendarColorForSoin, getDisplayNameForType, getPartenaireCollaborateurId,

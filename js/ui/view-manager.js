@@ -1329,14 +1329,11 @@ function updateCalendar() {
     const prestationsDuJour = DataManager.getPrestationsForDate(dateStr);
     
     // Filtrer les prestations pour éviter les doublons avec les RDV
-    const prestationsDirectes = prestationsDuJour.filter(prestation => {
-      // Vérifier qu'il n'y a pas de RDV sur le même créneau (date + heure + client)
-      const rdvCorrespondant = rdvDuJour.find(rdv => 
-        rdv.heure === prestation.heure && 
-        rdv.clientId === prestation.clientId
-      );
-      return !rdvCorrespondant; // Garder seulement si pas de RDV correspondant
-    });
+    // v1.2.0.0 : la prestation retrouve son RDV par rdvId (heure du RDV modifiee =
+    // plus de doublon), sinon meme creneau (date + heure + client) comme avant.
+    const prestationsDirectes = prestationsDuJour.filter(prestation =>
+      !RdvPrestations.rdvDeLaPrestation(prestation, rdvDuJour)
+    );
     
     // ✅ NOUVEAU : Vérifier si ce jour est coché "Institut"
     const isInstitut = DataManager.isJourInstitut(dateStr);
@@ -1363,7 +1360,8 @@ function updateCalendar() {
       // OU si le RDV est lié à un bon cadeau (planifié)
       let rdvIcon = '';
       if (rdv.transformeEnPrestation) {
-        const prestation = appData.prestations.find(p => p.rdvId === rdv.id);
+        // v1.2.0.0 : rdvId n'existait pas encore : l'icone etait toujours ✓, meme reglee par carte
+        const prestation = RdvPrestations.prestationsDuRdv(rdv, appData.prestations)[0];
         const isBonCadeau = prestation && (prestation.moyenPaiement === 'Bon cadeau' || prestation.bonCadeauId);
         rdvIcon = isBonCadeau ? ' 🎁' : ' ✓';
       } else if (rdv.bonCadeauId) {
@@ -2483,7 +2481,7 @@ function updateBonsCadeauxDisplay() {
     if (filterValue === 'expire-bientot') {
       bons = bonsExpirantBientot;
     } else {
-      bons = bons.filter(bon => bon.statut === filterValue);
+      bons = bons.filter(bon => DataManager.statutBonCadeau(bon) === filterValue); // v1.2.0.0 : statut du jour
     }
   }
 
@@ -2521,13 +2519,15 @@ function updateBonsCadeauxDisplay() {
 function generateBonCadeauCard(bon, bonsExpirantBientot = []) {
   const isExpireBientot = bonsExpirantBientot.some(b => b.id === bon.id);
   const joursRestants = Math.ceil((new Date(bon.dateExpiration) - new Date()) / (1000 * 60 * 60 * 24));
+  // v1.2.0.0 : statut du jour (expiration, utilisation forcee), jamais ecrit dans le cache
+  const statut = DataManager.statutBonCadeau(bon);
 
   // Déterminer le statut d'affichage
-  let statutClass = `statut-${bon.statut}`;
+  let statutClass = `statut-${statut}`;
   let statutLabel = '';
   let statutBadge = '';
 
-  switch(bon.statut) {
+  switch(statut) {
     case 'actif':
       statutLabel = '🟢 Actif';
       if (isExpireBientot) {
@@ -2548,7 +2548,7 @@ function generateBonCadeauCard(bon, bonsExpirantBientot = []) {
 
   // Classe d'expiration
   let expirationClass = '';
-  if (bon.statut === 'actif') {
+  if (statut === 'actif') {
     if (joursRestants <= 7) expirationClass = 'danger';
     else if (joursRestants <= 30) expirationClass = 'warning';
   }
@@ -2569,7 +2569,7 @@ function generateBonCadeauCard(bon, bonsExpirantBientot = []) {
 
   // Info utilisation si utilisé
   let utilisationInfo = '';
-  if (bon.statut === 'utilise' && bon.prestationId) {
+  if (statut === 'utilise' && bon.prestationId) {
     const prestation = appData.prestations.find(p => p.id === bon.prestationId);
     if (prestation) {
       utilisationInfo = `
@@ -2583,7 +2583,7 @@ function generateBonCadeauCard(bon, bonsExpirantBientot = []) {
 
   // Vérifier s'il y a un RDV planifié pour ce bon
   let rdvInfo = '';
-  if (bon.statut === 'actif') {
+  if (statut === 'actif') {
     const rdvPlanifie = appData.rdv?.find(r => r.bonCadeauId === bon.id && r.statut === 'planifie');
     if (rdvPlanifie) {
       const clientRdv = appData.clients.find(c => c.id === rdvPlanifie.clientId);
@@ -2598,14 +2598,14 @@ function generateBonCadeauCard(bon, bonsExpirantBientot = []) {
 
   // Boutons d'action selon le statut
   let actionsHtml = '';
-  if (bon.statut === 'actif') {
+  if (statut === 'actif') {
     actionsHtml = `
       <button class="btn-primary" onclick="attribuerRdvBonCadeau('${bon.id}')" style="background: var(--beige-dore);">📅 Attribuer RDV</button>
       <button class="btn-secondary" onclick="editBonCadeau('${bon.id}')">✏️</button>
       <button class="btn-secondary" onclick="rembourserBonCadeau('${bon.id}')">💸</button>
       <button class="btn-secondary" onclick="supprimerBonCadeau('${bon.id}')" style="color: #dc3545;" title="Supprimer">🗑️</button>
     `;
-  } else if (bon.statut === 'expire') {
+  } else if (statut === 'expire') {
     actionsHtml = `
       <button class="btn-primary" onclick="forcerUtilisationBonCadeau('${bon.id}')" style="background: #ffc107; color: #000;">⚠️ Forcer utilisation</button>
       <button class="btn-secondary" onclick="editBonCadeau('${bon.id}')">✏️</button>
@@ -2624,7 +2624,7 @@ function generateBonCadeauCard(bon, bonsExpirantBientot = []) {
 
       <div class="bon-cadeau-header">
         <div class="bon-cadeau-montant">${bon.montant.toFixed(2)} €</div>
-        <span class="bon-cadeau-statut ${bon.statut}">${statutLabel}</span>
+        <span class="bon-cadeau-statut ${statut}">${statutLabel}</span>
       </div>
 
       <div class="bon-cadeau-description">🎁 ${bon.description || 'Bon cadeau'}</div>
@@ -2639,8 +2639,8 @@ function generateBonCadeauCard(bon, bonsExpirantBientot = []) {
       <div class="bon-cadeau-dates">
         <span>Acheté le ${DataManager.formatDate(bon.dateAchat)}</span>
         <span class="bon-cadeau-expiration ${expirationClass}">
-          ${bon.statut === 'actif' ? `Expire le ${DataManager.formatDate(bon.dateExpiration)}` :
-            bon.statut === 'expire' ? `Expiré le ${DataManager.formatDate(bon.dateExpiration)}` :
+          ${statut === 'actif' ? `Expire le ${DataManager.formatDate(bon.dateExpiration)}` :
+            statut === 'expire' ? `Expiré le ${DataManager.formatDate(bon.dateExpiration)}` :
             `Valide jusqu'au ${DataManager.formatDate(bon.dateExpiration)}`}
         </span>
       </div>
