@@ -1,7 +1,7 @@
 /* ===== css/base.css ===== */
 /* Variables CSS, typographie et layout global */
 
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Inter:wght@300;400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Inter:wght@300;400;500;600&display=swap');
 
 :root {
   --rose-poudre: #F5E6E0;
@@ -41,9 +41,15 @@ body.loaded {
     background: linear-gradient(135deg, var(--beige-clair) 0%, var(--rose-poudre) 100%) !important;
 }
 
-h1, h2, h3, h4 {
+/* v1.1.2.1 : Playfair reste aux grands titres (h1-h3). Les petits titres et TOUS les chiffres
+   passent en Inter : a petite taille, l'empattement rendait les montants illisibles. */
+h1, h2, h3 {
   font-family: 'Playfair Display', serif;
   font-weight: 500;
+}
+h4 {
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
 }
 
 /* Layout global */

@@ -2125,7 +2125,7 @@
   padding: 12px 10px; text-align: center;
 }
 .fc-lab { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.08em; color: #9c9187; font-weight: 700; }
-.fc-val { font-family: 'Playfair Display', serif; font-size: 1.3rem; color: var(--text-dark); margin-top: 4px; font-variant-numeric: tabular-nums; }
+.fc-val { font-family: 'Inter', sans-serif; font-size: 1.2rem; font-weight: 600; color: var(--text-dark); margin-top: 4px; font-variant-numeric: tabular-nums; }
 .fc-val small { font-size: 0.78rem; color: var(--text-light); }
 .fc-val-sm { font-size: 1rem; }
 .fc-body { display: flex; flex-direction: column; gap: 18px; }
@@ -2219,9 +2219,9 @@
 
 .clients-table .name-cell { font-weight: 400; color: inherit; }
 .clients-table .name-cell .annu-name {
-  font-family: 'Playfair Display', serif;
-  font-weight: 500;
-  font-size: 1.02rem;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 0.95rem;
   color: var(--beige-dore);
 }
 .clients-table .name-cell:hover .annu-name { text-decoration: underline; }
@@ -2239,9 +2239,10 @@
 }
 .annu-pill .annu-dot { width: 8px; height: 8px; }
 .annu-presta-total {
-  font-family: 'Playfair Display', serif;
-  font-size: 1.3rem;
-  font-weight: 500;
+  font-family: 'Inter', sans-serif;
+  font-size: 1.15rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 .annu-presta-cell { gap: 10px; }
 
@@ -2714,7 +2715,7 @@
 /* ==========================================================================
    v1.0.16.0 — RANGEE DE CHIFFRES CLES (traitement de la maquette)
    Quatre tuiles en tete de la vue d'ensemble : rail d'accent de 3px, libelle
-   en petites capitales, valeur en Playfair Display, note en dessous.
+   en petites capitales, valeur (Inter depuis v1.1.2.1), note en dessous.
    ========================================================================== */
 .ana-kpis {
   display: grid;
@@ -2752,13 +2753,13 @@
   line-height: 1.3;
 }
 .ana-kpi-v {
-  font-family: 'Playfair Display', serif;
-  font-size: 1.7rem;
+  font-family: 'Inter', sans-serif;
+  font-size: 1.55rem;
   font-weight: 600;
-  line-height: 1.05;
+  line-height: 1.1;
   color: var(--text-dark);
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
 }
 .ana-kpi-n {
   font-size: 0.76rem;
@@ -2871,8 +2872,8 @@
 }
 .ana-panel .ana-donut svg { width: 100%; max-width: 210px; height: auto; }
 .ana-panel .ana-donut-v {
-  font-family: 'Playfair Display', serif;
-  font-size: 27px;
+  font-family: 'Inter', sans-serif;
+  font-size: 25px;
   font-weight: 600;
   fill: var(--text-dark);
 }
@@ -3041,8 +3042,8 @@
   box-shadow: var(--shadow);
 }
 .ana-periode-titre {
-  font-family: 'Playfair Display', serif;
-  font-size: 1rem;
+  font-size: 0.95rem;
+  font-weight: 600;
   color: #8a6a4f;
 }
 .ana-periode-champs {
@@ -3126,9 +3127,10 @@
   color: #9c9187;
 }
 .evo-v {
-  font-family: 'Playfair Display', serif;
-  font-size: 1.35rem;
-  line-height: 1.1;
+  font-size: 1.3rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
   color: var(--text-dark);
   font-variant-numeric: tabular-nums;
 }
@@ -3220,7 +3222,6 @@
   justify-content: center;
   min-height: 220px;
   padding: 2rem 1rem;
-  font-family: 'Playfair Display', serif;
   font-style: italic;
   color: #9c9187;
   text-align: center;
@@ -3245,12 +3246,12 @@
   align-items: baseline;
   gap: 0.4rem;
   margin-bottom: 0.4rem;
-  font-family: 'Playfair Display', serif;
-  font-size: 0.95rem;
+  font-size: 0.85rem;
+  font-weight: 600;
 }
 .evo-bulle-titre span {
-  font-family: 'Inter', sans-serif;
   font-size: 0.65rem;
+  font-weight: 500;
   padding: 0.05rem 0.4rem;
   border-radius: 999px;
   background: #f3ede6;
@@ -3287,8 +3288,7 @@
 }
 .evo-detail-tete h4 {
   margin: 0;
-  font-family: 'Playfair Display', serif;
-  font-size: 1rem;
+  font-size: 0.95rem;
   color: var(--text-dark);
 }
 .evo-lien {
@@ -3328,9 +3328,8 @@
   color: #9c9187;
 }
 .evo-bloc-titre b {
-  font-family: 'Playfair Display', serif;
-  font-size: 1rem;
-  font-weight: 500;
+  font-size: 0.95rem;
+  font-weight: 600;
   letter-spacing: 0;
   text-transform: none;
   color: var(--text-dark);
@@ -3363,8 +3362,7 @@
   color: #7a5236;
 }
 .evo-reste b {
-  font-family: 'Playfair Display', serif;
-  font-size: 1.25rem;
+  font-size: 1.2rem;
   font-weight: 600;
   margin-left: 0.3rem;
   font-variant-numeric: tabular-nums;

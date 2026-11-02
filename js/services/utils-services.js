@@ -1882,7 +1882,7 @@ function generateGoogleAdsSection(metrics) {
         <div class="ana-kpis">
           
           <!-- v1.0.18.0 : memes tuiles que la vue d'ensemble - rail d'accent,
-               libelle en petites capitales, valeur en Playfair Display. -->
+               libelle en petites capitales, valeur en Inter (v1.1.2.1). -->
           <div class="ana-kpi is-vert">
             <div class="ana-kpi-k">Retour sur investissement</div>
             <div id="ga-kpi-roi-money" class="ana-kpi-v">${metrics.roi >= 0 ? '+' : ''}${Math.round(metrics.roiMoney).toLocaleString('fr-FR')} €</div>

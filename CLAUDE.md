@@ -79,7 +79,7 @@ de faire **Ctrl+Shift+R** (le cache HTTP du navigateur est distinct du cache du 
 
 ## Versioning
 - Format : `X.Y.Z.W` ou X.Y = version PWA, Z.W = heritage version Electron
-- Version actuelle : `1.1.2.0` (Analytics : graphique « Évolution » refait et pilote par les filtres du haut ; Gestion : vraie liste de categories)
+- Version actuelle : `1.1.2.1` (polices : Playfair reserve aux grands titres, chiffres et petits titres en Inter)
 - **OBLIGATOIRE** : a chaque modification demandee par l'utilisateur, proposer un bump de version et attendre validation
 - Mettre a jour la version dans 3 endroits : `package.json`, `index.html` (burger menu + footer)
 - Puis **`node scripts/estampiller-version.js`** : repose `?v=X.Y.Z.W` sur tous les

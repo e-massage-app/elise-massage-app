@@ -28,7 +28,7 @@ le navigateur et ecrasable par un vieil onglet.
 - [x] Accord de Jordan : creer la table (migration) et deployer la fonction (2026-11-02)
 - [x] Verifier la fonction deployee : preflight CORS 200, refus sans session (401), refus sans autorisation (401)
 - [x] Pousser la v1.1.1.0 (le front ne doit partir qu'APRES la fonction)
-- [ ] Elise se reconnecte une fois (les anciens jetons du client « bureau » ne servent plus)
-- [ ] Jordan : supprimer l'ancien client « Elise Massage Pro » (son secret est dans l'historique public).
+- [x] Elise se reconnecte une fois (fait le 2026-11-02 ; la fonction repond « connecte »)
+- [x] Jordan : supprimer l'ancien client « Elise Massage Pro » (fait le 2026-11-02 ; son secret, reste dans l'historique public, ne sert plus a rien).
       Jeton developpeur : Google ne l'exige plus (bandeau du Centre API, 2026-11-02), la fonction ne
       l'envoie que s'il est renseigne ; le regenerer reste possible mais n'est plus urgent

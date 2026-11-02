@@ -29,7 +29,11 @@ Retours n°1, 2 et 3 de `tasks/retours-app.md` (2026-11-02). Décisions de Jorda
 - [x] Gestion : liste de categories (ouvrir, filtrer, ajouter) + enregistrement de la nouvelle categorie
 - [x] Apercu avec donnees fictives (`tests/apercu-analytics.html`), ordinateur + telephone
 - [x] Version 1.1.2.0 (package.json, index.html x2, estampille, sw.js v72), tests (45/45)
-- [ ] Push apres accord de Jordan, puis verification sur l'app en ligne (lecture seule)
+- [x] Push (79cc939) et verification en ligne avec les vraies donnees (lecture seule) : 2026 = tuile CA,
+      2025 recalcule le graphique et la tuile, « Ce mois-ci » aller-retour, aucune erreur
+- [x] v1.1.2.1 (demande de Jordan : « les serifs ça devient illisible », option A) : Playfair garde les
+      grands titres (h1-h3) ; chiffres, h4 et petits titres en Inter (tuiles Analytics, carte Evolution,
+      anneaux, fiche cliente, Annuaire)
 
 ## Revue (2026-11-02)
 
