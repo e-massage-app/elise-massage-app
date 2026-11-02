@@ -119,12 +119,40 @@ test('je peux me verser (mois termine) : ce que le mois a rapporte, verdict sur 
   assert.equal(v.rapporte, 320.2);
   // deja du au 31/10 : URSSAF d'octobre (30/11) 128,40 + Ads d'octobre (01/11) 60
   assert.equal(v.totalAPayer, 188.4);
-  // reserve 2494,60 - 188,40 - matelas 1000
-  assert.equal(v.marge, 1306.2);
+  // ma reserve fin octobre : comptes 2494,60 moins ce qui est deja du, tout de suite
+  assert.equal(v.comptes, 2494.6);
+  assert.equal(v.reserve, 2306.2);
+  assert.equal(v.marge, 1306.2); // - matelas 1000
   assert.equal(v.total, 320.2);
   assert.equal(v.limiteParMatelas, false);
+  // le salaire n'est retire que « si je me verse »
+  assert.equal(v.salaireApres, 320.2);
   assert.equal(v.reserveApres, 1986);
   assert.equal(v.statut, 'alerte'); // 320,20 < 70 % de 500
+});
+
+test('ma reserve : l URSSAF d octobre sort fin octobre, novembre part de la sans la recompter', () => {
+  const d = avecSoldes(base());
+  const oct = G.bilanReserve(ctx(d), '2026-10', '2026-11-02');
+  // fin septembre : comptes 2300 - URSSAF de septembre 214 - Ads de septembre 100
+  assert.equal(oct.depart, 1986);
+  assert.equal(oct.rapporte, 320.2);
+  assert.equal(oct.arrivee, 2306.2);
+  assert.equal(oct.ecart, 0);
+  const nov = G.bilanReserve(ctx(d), '2026-11', '2026-11-02');
+  assert.equal(nov.depart, oct.arrivee);
+  assert.equal(nov.ecart, 0);
+  assert.ok(!G.aPayer(ctx(d), '2026-11', '2026-11-30').lignes.some(l => /octobre/.test(l.libelle)), 'payee le 30/11, plus due apres');
+});
+
+test('ma reserve : un salaire verse compte a sa vraie date, un releve inattendu apparait en ecart', () => {
+  const d = avecSoldes(base());
+  d.gestion.mouvements = [{ id: 'm1', date: '2026-11-03', espace: 'pro', sens: 'transfert', compte: 'pro', compteVers: 'perso', montant: 300, moisConcerne: '2026-10' }];
+  const nov = G.bilanReserve(ctx(d), '2026-11', '2026-11-05');
+  assert.equal(nov.verses.total, 300);
+  assert.equal(nov.ecart, 0);
+  d.gestion.soldes.push({ compte: 'caisse', date: '2026-11-04', montant: 600 }); // estimee 690
+  assert.equal(G.bilanReserve(ctx(d), '2026-11', '2026-11-05').ecart, -90);
 });
 
 test('je peux me verser (mois en cours) : bouge avec le mois, pas de verdict, meme marge qu en fin de mois', () => {
@@ -133,10 +161,11 @@ test('je peux me verser (mois en cours) : bouge avec le mois, pas de verdict, me
   assert.equal(v.jour, '2026-10-15');
   assert.equal(v.statut, null);
   assert.equal(v.progression, 0.6404);
-  // reserve au 15/10 : 2070 pro + 690 caisse
-  assert.equal(v.reserve, 2760);
+  // comptes au 15/10 : 2070 pro + 690 caisse
+  assert.equal(v.comptes, 2760);
   // deja du : URSSAF de septembre (31/10) 214 + abonnement (22/10) 50 + commission 1,40 + URSSAF 128,40 + Ads 60
   assert.equal(v.totalAPayer, 453.8);
+  assert.equal(v.reserve, 2306.2);
   assert.equal(v.marge, 1306.2);
   assert.equal(v.total, 320.2);
 });

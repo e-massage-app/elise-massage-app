@@ -1,4 +1,4 @@
-// ===== GESTION : ECRAN (v1.1.0.1) =====
+// ===== GESTION : ECRAN (v1.1.0.2) =====
 // Onglet « Gestion » : Pro (4 chiffres, detail au clic, courbe), Perso, Reglages.
 // Mots d'Elise, pas de jargon comptable (ni « resultat », ni « provision »).
 // Evenements par delegation (data-ge="action") : aucun onclick global ajoute.
@@ -171,13 +171,15 @@ function vuePro() {
   const tuileReste = tuile('frais', `Ce qu'il me reste en ${nomMois(m)} après les frais`, euros(p.reste),
     `${enCours ? 'mois en cours · ' : ''}${euros(p.frais)} de frais${p.adsInconnu ? ' · Google Ads en attente' : ''}`, p.reste < 0 ? 'negatif' : '');
 
+  // Ma reserve « a l'instantane » : ce qui est deja du en est deja retire ; le salaire, seulement « si je me verse »
   const matelas = C().nombreOuNull(R.matelas);
-  const jaugeMatelas = (res.montant !== null && matelas)
-    ? `<span class="ge-jauge" role="img" aria-label="${Math.round(res.montant / matelas * 100)} % du matelas"><span style="width:${Math.max(0, Math.min(100, res.montant / matelas * 100))}%"></span></span>` : '';
-  const aVenir = C().arrondi(v.totalAPayer + v.versesApres + v.resteAVerser);
-  const tuileReserve = tuile('reserve', enCours ? 'Ma réserve aujourd\'hui' : `Ma réserve fin ${nomMois(m)}`, res.montant === null ? 'À renseigner' : euros(res.montant),
-    res.montant === null ? 'compte pro + caisse'
-      : `${aVenir > 0 ? `${euros(-aVenir)} à venir → <strong>${euros(v.reserveApres)}</strong>` : 'rien à venir'}${matelas ? `<br>matelas ${euros(matelas)}` : ''}${res.incomplet ? ' · un solde manque' : ''}`, '', jaugeMatelas);
+  const jaugeMatelas = (v.reserve !== null && matelas)
+    ? `<span class="ge-jauge" role="img" aria-label="${Math.round(v.reserve / matelas * 100)} % du matelas"><span style="width:${Math.max(0, Math.min(100, v.reserve / matelas * 100))}%"></span></span>` : '';
+  const siJeMeVerse = v.salaireApres > 0
+    ? `${euros(-v.salaireApres)} si je me verse le salaire ${deMois(m)} → <strong>${euros(v.reserveApres)}</strong><br>` : '';
+  const tuileReserve = tuile('reserve', enCours ? 'Ma réserve aujourd\'hui' : `Ma réserve fin ${nomMois(m)}`, v.reserve === null ? 'À renseigner' : euros(v.reserve),
+    v.reserve === null ? 'compte pro + caisse'
+      : `${siJeMeVerse}${matelas ? `matelas ${euros(matelas)}` : ''}${v.reserveIncomplete ? ' · un solde manque' : ''}`, '', jaugeMatelas);
 
   const statuts = { ok: 'OK', tendu: 'Tendu', alerte: 'Alerte' };
   const jaugeBesoin = v.besoin
@@ -351,17 +353,23 @@ function detailFrais(p) {
     </div>`;
 }
 
-// Ce qui va encore sortir de la reserve : ce qui est du (URSSAF, Google Ads…) + ce que je peux encore me verser
-function aVenirReserve(v) {
-  if (v.reserve === null) return '';
-  const lignes = v.aPayer.map(l => ligne(`− ${esc(l.libelle)}`, euros(l.montant), { note: `prélevé le ${dateCourte(l.date)}` })).join('');
+// Comment ma reserve a bouge ce mois-ci : seulement des chiffres du mois, en partant de la fin du mois d'avant
+function bilanDuMois(c, v) {
+  const b = C().bilanReserve(c, v.mois, aujourdhui());
+  const quand = b.enCours ? 'aujourd\'hui' : `fin ${nomMois(v.mois)}`;
+  if (b.arrivee === null) return '';
+  if (b.depart === null) {
+    return `${ligne(`<strong>Ma réserve ${quand}</strong>`, `<strong>${euros(b.arrivee)}</strong>`, { classe: 'ge-total' })}
+      <p class="ge-aide">Point de départ : tes soldes recopiés. Le détail mois par mois commence le mois suivant.</p>`;
+  }
+  const precedent = E().decalerMois(v.mois, -1);
+  const autresMois = b.verses.lignes.filter(l => l.moisConcerne && l.moisConcerne !== v.mois);
   return `
-      <h3 class="ge-h3-sous">Ce qui va encore sortir</h3>
-      ${lignes}
-      ${v.versesApres ? ligne(`− Versé pour ${nomMois(v.mois)} après le ${dateCourte(v.jour)}`, euros(v.versesApres)) : ''}
-      ${v.resteAVerser ? ligne(`− Ce que je peux encore me verser pour ${nomMois(v.mois)}`, euros(v.resteAVerser)) : ''}
-      ${!lignes && !v.versesApres && !v.resteAVerser ? '<p class="ge-aide">Rien : tout ce qui est dû est déjà payé.</p>' : ''}
-      ${ligne('<strong>Ma réserve une fois tout payé</strong>', `<strong>${euros(v.reserveApres)}</strong>`, { classe: 'ge-total' })}`;
+      ${ligne(`Ma réserve fin ${nomMois(precedent)}`, euros(b.depart))}
+      ${ligne(`Ce ${C().queMois(v.mois)} m'a rapporté${b.enCours ? ' jusqu\'ici' : ''}`, euros(b.rapporte, { signe: true }), { note: 'ce que mes clientes m\'ont payé − tous les frais du mois (URSSAF et Google Ads compris)' })}
+      ${b.verses.total ? ligne(`Ce que je me suis versé en ${nomMois(v.mois)}`, euros(-b.verses.total), { note: autresMois.length ? `dont ${euros(autresMois.reduce((s, l) => s + l.montant, 0))} pour ${[...new Set(autresMois.map(l => nomMois(l.moisConcerne)))].join(', ')}` : '' }) : ''}
+      ${b.ecart && Math.abs(b.ecart) >= 1 ? ligne('Écart avec mes relevés', euros(b.ecart, { signe: true }), { note: 'un mouvement pas saisi, ou un relevé différent de l\'estimation' }) : ''}
+      ${ligne(`<strong>Ma réserve ${quand}</strong>`, `<strong>${euros(b.arrivee)}</strong>`, { classe: 'ge-total' })}`;
 }
 
 function detailReserve(c, res, jourRef, v) {
@@ -387,13 +395,20 @@ function detailReserve(c, res, jourRef, v) {
   ].sort((a, b) => a.date.localeCompare(b.date))
     .map(l => ligne(`${dateCourte(l.date)} · ${esc(l.libelle)}`, euros(l.montant, { signe: true }), { action: l.id ? boutonModifier(`data-ge="modifier-mouvement" data-valeur="${l.id}"`) : '' })).join('');
 
+  const categoriesDues = [...new Set(v.aPayer.map(l => l.categorie))].join(', ');
+  const quand = jourRef === aujourdhui() ? 'aujourd\'hui' : `au ${dateCourte(jourRef)}`;
+
   return `
     <div class="ge-carte">
-      <h3>Ma réserve ${jourRef === aujourdhui() ? 'aujourd\'hui' : `au ${dateCourte(jourRef)}`}</h3>
+      <h3>Ma réserve</h3>
+      ${bilanDuMois(c, v)}
+      ${v.salaireApres > 0 && v.reserve !== null ? ligne(`Si je me verse le salaire ${deMois(m)} (${euros(v.salaireApres)})`, euros(v.reserveApres)) : ''}
+      <p class="ge-aide">Ce que je dois déjà (URSSAF, Google Ads…) est retiré tout de suite, même s'il est prélevé plus tard. Mon salaire, seulement quand je me le verse.</p>
+      <h3 class="ge-h3-sous">Sur mes comptes ${quand}</h3>
       ${comptes}
-      ${ligne('<strong>Total</strong>', `<strong>${euros(res.montant)}</strong>`, { classe: 'ge-total' })}
+      ${ligne('<strong>Total sur mes comptes</strong>', `<strong>${euros(res.montant)}</strong>`, { classe: 'ge-total' })}
+      ${v.totalAPayer ? ligne('dont déjà dû, prélevé plus tard', euros(v.totalAPayer), { note: `${esc(categoriesDues)} · déjà retiré de ma réserve` }) : ''}
       <p class="ge-aide">Entre deux relevés, j'ajoute ce qui est entré et sorti : prestations, frais, URSSAF et Google Ads à leur date de prélèvement, dépôts, ce que tu te verses.</p>
-      ${aVenirReserve(v)}
       <h3 class="ge-h3-sous">La caisse en ${nomMois(m)}</h3>
       ${journal || '<p class="ge-aide">Aucun mouvement en liquide ce mois-ci.</p>'}
       <div class="ge-actions">
@@ -415,8 +430,8 @@ function detailVerser(v) {
     action: l.source === 'saisie' && l.id ? boutonModifier(`data-ge="modifier-mouvement" data-valeur="${l.id}"`) : ''
   })).join('');
   const limite = v.limiteParMatelas ? `
-      <p class="ge-info">Limité pour garder ton matelas de ${euros(v.matelas)} : ta réserve (${euros(v.reserve)}) moins ce qui est déjà dû
-        (${euros(v.totalAPayer)}) ne laisse que ${euros(Math.max(0, v.marge))} au-dessus du matelas.</p>` : '';
+      <p class="ge-info">Limité pour garder ton matelas de ${euros(v.matelas)} : ta réserve (${euros(v.reserve)}, déjà sans ce que tu dois)
+        ne laisse que ${euros(Math.max(0, v.marge))} au-dessus du matelas.</p>` : '';
   return `
     <div class="ge-carte">
       <h3>Ce que je peux me verser pour ${nomMois(v.mois)}</h3>

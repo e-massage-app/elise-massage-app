@@ -1,4 +1,4 @@
-// ===== GESTION : CALCULS (v1.1.0.1) =====
+// ===== GESTION : CALCULS (v1.1.0.2) =====
 // Fonctions pures : ni DOM, ni Supabase, ni date du jour implicite (on la passe).
 // Testees sous Node : tests/gestion-calculs.test.js.
 //
@@ -45,7 +45,8 @@ const REGLAGES_DEFAUT = {
 };
 
 function arrondi(n) {
-  return Math.round((Number(n) || 0) * 100) / 100;
+  // « || 0 » : jamais de -0 (affiche « -0 € »)
+  return Math.round((Number(n) || 0) * 100) / 100 || 0;
 }
 
 function nombreOuNull(v) {
@@ -258,6 +259,12 @@ function moisDuMouvement(mv) {
  * Ce qu'elle a pris pour elle au titre du mois : virements vers le perso + depenses perso payees
  * avec l'argent pro. Un salaire d'octobre vire le 3 novembre compte pour octobre (moisConcerne).
  */
+/** De l'argent pro qui part pour moi : virement vers le perso ou l'epargne, depense perso payee avec le pro. */
+function estPourMoi(mv) {
+  return (mv.sens === 'transfert' && COMPTES_RESERVE.includes(mv.compte) && !COMPTES_RESERVE.includes(mv.compteVers))
+    || (mv.sens === 'sortie' && mv.espace === 'perso' && COMPTES_RESERVE.includes(mv.compte));
+}
+
 function pourMoi(ctx, mois) {
   let total = 0;
   const lignes = [];
@@ -265,17 +272,28 @@ function pourMoi(ctx, mois) {
   const infoMois = ctx.gestion.mois[mois] || {};
 
   (ctx.gestion.mouvements || []).forEach(mv => {
-    if (moisDuMouvement(mv) !== mois) return;
-    const m = Math.abs(Number(mv.montant) || 0);
-    if (mv.sens === 'transfert' && COMPTES_RESERVE.includes(mv.compte) && !COMPTES_RESERVE.includes(mv.compteVers)) prendre(mv, m, 'saisie');
-    else if (mv.sens === 'sortie' && mv.espace === 'perso' && COMPTES_RESERVE.includes(mv.compte)) prendre(mv, m, 'saisie');
+    if (moisDuMouvement(mv) === mois && estPourMoi(mv)) prendre(mv, Math.abs(Number(mv.montant) || 0), 'saisie');
   });
-  (ctx.gestion.recurrents || []).filter(r => recurrentActif(r, mois)).forEach(r => {
-    if (r.sens === 'transfert' && COMPTES_RESERVE.includes(r.compte) && !COMPTES_RESERVE.includes(r.compteVers)) {
-      prendre({ ...r, libelle: r.nom }, montantRecurrent(r, infoMois), 'recurrent');
-    }
+  (ctx.gestion.recurrents || []).filter(r => recurrentActif(r, mois) && estPourMoi({ ...r, sens: r.sens || 'sortie' })).forEach(r => {
+    prendre({ ...r, libelle: r.nom }, montantRecurrent(r, infoMois), 'recurrent');
   });
   return { total: arrondi(total), lignes };
+}
+
+/** Ce qui est parti pour moi entre deux dates, a la vraie date (quel que soit le mois concerne). */
+function sortiesPourMoiEntre(ctx, debut, fin) {
+  const lignes = [];
+  (ctx.gestion.mouvements || []).forEach(mv => {
+    const d = _Enc.jourDe(mv.date);
+    if (d >= debut && d <= fin && estPourMoi(mv)) lignes.push({ ...mv, date: d, montant: Math.abs(Number(mv.montant) || 0), source: 'saisie' });
+  });
+  for (let m = debut.slice(0, 7); m <= fin.slice(0, 7); m = _Enc.decalerMois(m, 1)) {
+    if (`${m}-01` < debut) continue;
+    (ctx.gestion.recurrents || []).filter(r => recurrentActif(r, m) && estPourMoi({ ...r, sens: r.sens || 'sortie' })).forEach(r => {
+      lignes.push({ ...r, libelle: r.nom, date: `${m}-01`, montant: montantRecurrent(r, ctx.gestion.mois[m]), source: 'recurrent' });
+    });
+  }
+  return { lignes, total: arrondi(lignes.reduce((s, l) => s + l.montant, 0)) };
 }
 
 // ----- Comptes : soldes recopies + estimation entre deux saisies -----
@@ -331,11 +349,43 @@ function aPayer(ctx, mois, jour) {
       .filter(f => f.type === 'frais' && COMPTES_RESERVE.includes(f.compte) && f.date > jour)
       .forEach(f => lignes.push({
         libelle: f.source === 'calcul' || f.source === 'google' ? `${f.categorie} ${deMois(m)}` : [f.categorie, f.libelle].filter(Boolean).join(' · '),
+        categorie: f.categorie,
         montant: arrondi(-f.montant),
         date: f.date
       }));
   });
   return { lignes, total: arrondi(lignes.reduce((s, l) => s + l.montant, 0)) };
+}
+
+/**
+ * Ma reserve « a l'instantane » au jour J (Jordan, 2026-11-02, comme Revolut) : compte pro + caisse,
+ * moins ce qui est deja du mais pas encore preleve (URSSAF, Google Ads…). L'URSSAF d'octobre sort donc
+ * de la reserve fin octobre, et novembre part de la : elle n'apparait pas une deuxieme fois.
+ */
+function reserveInstantanee(ctx, jour) {
+  const comptes = reserve(ctx, jour);
+  const du = aPayer(ctx, jour.slice(0, 7), jour);
+  return {
+    montant: comptes.montant === null ? null : arrondi(comptes.montant - du.total),
+    comptes, du
+  };
+}
+
+/**
+ * Comment la reserve a bouge pendant le mois : reserve fin du mois precedent + ce que le mois a
+ * rapporte − ce qui est parti pour moi (a la vraie date) = reserve fin du mois (ou aujourd'hui).
+ * L'ecart restant vient des releves (mouvement non saisi, releve different de l'estimation).
+ */
+function bilanReserve(ctx, mois, aujourdhui) {
+  const enCours = mois >= aujourdhui.slice(0, 7);
+  const jour = enCours ? aujourdhui : _Enc.dernierJourDuMois(mois);
+  const depart = reserveInstantanee(ctx, _Enc.dernierJourDuMois(_Enc.decalerMois(mois, -1)));
+  const arrivee = reserveInstantanee(ctx, jour);
+  const rapporte = moisPro(ctx, mois).reste;
+  const verses = sortiesPourMoiEntre(ctx, `${mois}-01`, jour);
+  const ecart = depart.montant === null || arrivee.montant === null ? null
+    : arrondi(arrivee.montant - depart.montant - rapporte + verses.total);
+  return { mois, jour, enCours, depart: depart.montant, arrivee: arrivee.montant, rapporte, verses, ecart };
 }
 
 /**
@@ -358,10 +408,9 @@ function jePeuxMeVerser(ctx, mois, aujourdhui) {
     .filter(l => l.source === 'recurrent' || _Enc.jourDe(l.date) <= jour)
     .reduce((s, l) => s + l.montant, 0));
 
-  const res = reserve(ctx, jour);
-  const du = aPayer(ctx, mois, jour);
+  const res = reserveInstantanee(ctx, jour);
   const matelas = nombreOuNull(R.matelas) || 0;
-  const marge = res.montant === null ? null : arrondi(res.montant - du.total - matelas);
+  const marge = res.montant === null ? null : arrondi(res.montant - matelas);
 
   const plafond = Math.max(0, rapporte);
   const total = arrondi(marge === null ? plafond : Math.max(0, Math.min(plafond, versesAvant + Math.max(0, marge))));
@@ -377,16 +426,18 @@ function jePeuxMeVerser(ctx, mois, aujourdhui) {
 
   // Verse pour ce mois mais sorti de la reserve apres J (ex. le 3 novembre pour octobre)
   const versesApres = arrondi(verse.total - versesAvant);
+  // Le salaire du mois pas encore sorti a cette date : « si je me verse », jamais retire d'office
+  const salaireApres = arrondi(versesApres + resteAVerser);
 
   return {
     mois, enCours, jour, rapporte,
     verse: verse.total, versements: verse.lignes, versesAvant, versesApres,
-    reserve: res.montant, reserveIncomplete: res.incomplet,
-    aPayer: du.lignes, totalAPayer: du.total,
-    matelas, marge, total, resteAVerser,
+    comptes: res.comptes.montant, reserve: res.montant, reserveIncomplete: res.comptes.incomplet,
+    aPayer: res.du.lignes, totalAPayer: res.du.total,
+    matelas, marge, total, resteAVerser, salaireApres,
     enTrop: arrondi(Math.max(0, verse.total - total)),
     limiteParMatelas: marge !== null && total < plafond,
-    reserveApres: res.montant === null ? null : arrondi(res.montant - du.total - versesApres - resteAVerser),
+    reserveApres: res.montant === null ? null : arrondi(res.montant - salaireApres),
     besoin,
     progression: besoin ? Math.min(1, total / besoin) : null,
     statut
@@ -557,9 +608,12 @@ const GestionCalculs = {
   moisPro,
   pourMoi,
   moisDuMouvement,
+  sortiesPourMoiEntre,
   soldeCompte,
   reserve,
   aPayer,
+  reserveInstantanee,
+  bilanReserve,
   jePeuxMeVerser,
   aDeclarer,
   moisPerso,

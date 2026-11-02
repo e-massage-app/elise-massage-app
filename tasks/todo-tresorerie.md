@@ -29,7 +29,7 @@ est public, aucun montant personnel ne doit etre commite, ni dans le code ni dan
 | Versements | « Me verser de l'argent » porte le mois concerne (`mois_concerne`) : un virement du 3 novembre peut compter pour octobre |
 | Cloture | Supprimee en v1.1.0.1 (elle ne servait qu'a choisir le mois de calcul). La colonne `cloture_le` reste en base, inutilisee |
 | Courbe | v1.1.0.1 : « Ce qu'il me reste en <mois>, jour par jour » = paye − frais − verse, rouge sous zero. Charges fixes le 1er (le mois demarre sous zero), Google Ads au jour le jour, URSSAF et commission avec chaque paiement. Remplace la courbe de la reserve et la projection (qui supposait un versement fixe et faisait peur) |
-| Ma reserve | Tuile : « −X € à venir → Y € » = ce qui est deja du (URSSAF, Ads…) + ce qu'il reste a me verser ; detail « Ce qui va encore sortir » |
+| Ma reserve | v1.1.0.2 « a l'instantane » : compte pro + caisse − ce qui est deja du (URSSAF, Ads… retires tout de suite, comme Revolut). L'URSSAF d'octobre sort fin octobre, novembre part de la (plus de double affichage). Le salaire n'est jamais retire d'office : « −X € si je me verse le salaire de <mois> → Y ». Detail : reserve fin du mois d'avant + ce que le mois a rapporte − ce que je me suis verse (a la vraie date) ± ecart avec les releves ; puis « Sur mes comptes » (banque + caisse, dont deja du) |
 | Comptes | Compte pro, caisse especes, compte perso, epargne. Chaque mouvement dit d'ou part l'argent |
 | Soldes | Recopies depuis l'appli bancaire, actualisables a tout moment ; estimation entre deux saisies |
 | Charges fixes | Pas de « jour de prelevement » : une charge fixe compte pour le mois. Mensuelle ou annuelle (CFE) |
@@ -138,3 +138,12 @@ est public, aucun montant personnel ne doit etre commite, ni dans le code ni dan
 - Banc d'essai Node : un vieil onglet n'ecrase plus les jetons Google ni la cle `gestion`.
 - Apercu (`tests/apercu-gestion.html`) a 375 px et 1280 px : tuiles sans debordement, courbe
   rouge sous zero, rattachement d'un versement a octobre, alerte Google Ads.
+
+## Revue v1.1.0.2 (2026-11-02)
+
+- Retour de Jordan sur la v1.1.0.1 : le « à venir » de la reserve retirait le salaire comme s'il etait
+  verse, et l'URSSAF d'octobre apparaissait dans octobre ET dans novembre. Corrige (ligne « Ma reserve »).
+- `npm test` : 29 tests, dont le bilan du mois (ecart 0 sur octobre et novembre, salaire verse
+  le 3 novembre, releve inattendu = ecart).
+- Script `date-fns` retire de index.html : il plantait au chargement depuis avril (format CommonJS),
+  rien ne pouvait s'en servir. Verifie : plus d'erreur `require is not defined`, tous les modules chargent.
