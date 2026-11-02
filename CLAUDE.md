@@ -70,6 +70,18 @@ de faire **Ctrl+Shift+R** (le cache HTTP du navigateur est distinct du cache du 
   `tasks/todo-google-ads.md`. Ne JAMAIS remettre une cle Google dans le code (depot public)
 - `js/analytics/evolution-*.js` : graphique « Évolution » d'Analytics (calculs purs + ecran) ; les filtres
   du haut d'Analytics (Annee, Mois, « Ce mois-ci ») pilotent toute la page. Plan : `tasks/todo-analytics.md`
+- v1.2.0.0 (audit `tasks/audit-2026-11-02.md`) :
+  - `js/core/persistance.js` : les parametres ne s'ecrivent que s'ils ont change (plus d'ecrasement par une
+    vieille copie), lecture de toutes les tables par pages de 1000 (aucune limite), format de sauvegarde
+  - regles pures testees : `js/core/bons-cadeaux.js` (statut effectif, expiration), `js/core/rdv-prestations.js`
+    (lien prestation -> RDV par `rdv_id`), `js/core/abonnements.js` (id stable `abonnement_id`),
+    `js/core/google-ads-calculs.js` (un seul calcul du cache Google Ads), `js/core/regles-ecrans.js`
+  - sauvegarde : fonction Supabase `sauvegarde-hebdo` (lundi 06:00 UTC via pg_cron, e-mail Resend a Elise,
+    secrets RESEND_API_KEY / SAUVEGARDE_DESTINATAIRE / SAUVEGARDE_SECRET + Vault `sauvegarde_secret`),
+    `scripts/migration-sauvegarde-hebdo.sql`. Copie de securite avant migration : schema prive `sauvegarde`
+    (tables `*_20261102`, non expose par l'API)
+  - `scripts/migration-rdv-id.sql` (appliquee le 2026-11-02) : `prestations.rdv_id`, `depenses.abonnement_id`
+  - `tests/apercu-app.html` : le VRAI logiciel sur une fausse base en memoire (verifier qu'une version demarre)
 - `js/ui/calendrier-reglages.js` : picto ⚙ du calendrier (jours fermes, vacances / fermetures exceptionnelles,
   couleur / opacite / hachures). Cle `calendrier` de `parametres`, ecrite seule (dans CLES_PARAMETRES_A_PART).
   Un jour ferme est seulement colore : un RDV y reste possible. Apercu : `tests/apercu-calendrier.html`
@@ -82,7 +94,7 @@ de faire **Ctrl+Shift+R** (le cache HTTP du navigateur est distinct du cache du 
 
 ## Versioning
 - Format : `X.Y.Z.W` ou X.Y = version PWA, Z.W = heritage version Electron
-- Version actuelle : `1.1.3.0` (Calendrier : reglages ⚙ avec jours fermes, vacances et apparence ; Analytics : bloc « Jour de la semaine »)
+- Version actuelle : `1.2.0.0` (correctifs de l'audit du 2026-11-02 : parametres sans ecrasement, RDV/prestations/cartes cadeaux, Google Ads coherent, chargement sans limite, sauvegarde hebdo par e-mail)
 - **OBLIGATOIRE** : a chaque modification demandee par l'utilisateur, proposer un bump de version et attendre validation
 - Mettre a jour la version dans 3 endroits : `package.json`, `index.html` (burger menu + footer)
 - Puis **`node scripts/estampiller-version.js`** : repose `?v=X.Y.Z.W` sur tous les

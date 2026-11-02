@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aperçu App complète (données fictives)</title>
+  <!-- Outil de developpement : le VRAI logiciel (index.html et tous ses scripts) branche sur une
+       fausse base Supabase en memoire, avec des donnees FICTIVES. Aucune connexion a Supabase ni a
+       Google. Sert a verifier qu'une version demarre et que chaque onglet s'affiche sans erreur.
+       Ouvrir via le serveur local (elise-pwa-fichiers) : /tests/apercu-app -->
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/components.css">
+  <link rel="stylesheet" href="../css/views.css">
+  <link rel="stylesheet" href="../css/mobile.css">
+  <link rel="stylesheet" href="../css/gestion.css">
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+</head>
+<body>
+  <script>
+  // ----- Donnees fictives (snake_case, comme en base) -----
+  const U = 'u_apercu';
+  const auj = new Date();
+  const j = (n) => { const d = new Date(auj.getFullYear(), auj.getMonth(), auj.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  const BASE = {
+    clients: [
+      { id: 'id_c1', user_id: U, prenom: 'Camille', nom: 'Exemple', ville: 'Ajaccio', sexe: 'F', canal_acquisition: 'google-ads', tags: [] },
+      { id: 'id_c2', user_id: U, prenom: 'Louis', nom: 'Fictif', ville: 'Porto-Vecchio', sexe: 'H', canal_acquisition: 'bouche-a-oreille', tags: [] },
+      { id: 'id_c3', user_id: U, prenom: 'Nina', nom: 'Test', ville: 'Ajaccio', sexe: 'F', canal_acquisition: 'instagram', tags: [] }
+    ],
+    prospects: [{ id: 'id_p1', user_id: U, prenom: 'Prospect', nom: 'Masque', ville: 'Ajaccio' }],
+    collaborateurs: [{ id: 'id_k1', user_id: U, prenom: 'Partenaire', nom: 'HeadSpa', tags: ['partenaire'] }],
+    rdv: [
+      { id: 'id_r1', user_id: U, client_id: 'id_c1', date: j(-13), heure: '10:00', type: 'Massage Signature', duree: 60, statut: 'confirmé', transforme_en_prestation: true },
+      { id: 'id_r2', user_id: U, client_id: 'id_c2', date: j(3), heure: '14:00', type: 'Massage Signature', duree: 60, statut: 'confirmé', transforme_en_prestation: false },
+      { id: 'id_r3', user_id: U, client_id: 'id_c3', date: j(5), heure: '09:30', type: 'Massage Signature', duree: 60, statut: 'annulé', transforme_en_prestation: false },
+      { id: 'id_r4', user_id: U, client_id: 'id_c3', date: j(8), heure: '11:00', type: 'Massage Signature', duree: 60, statut: 'planifie', transforme_en_prestation: false, bon_cadeau_id: 'id_b1' }
+    ],
+    prestations: [
+      { id: 'id_pr1', user_id: U, client_id: 'id_c1', rdv_id: 'id_r1', date: j(-13), heure: '10:00', type: 'Massage Signature', duree: 60, prix: 80, tips: 5, moyen_paiement: 'Liquide', frais_deplacement: 12, distance_km: 20, adresse_massage: 'Domicile' },
+      { id: 'id_pr2', user_id: U, client_id: 'id_c2', date: j(-11), heure: '15:00', type: 'Massage Signature', duree: 60, prix: 0, tips: 10, moyen_paiement: 'Bon cadeau', bon_cadeau_id: 'id_b2' },
+      { id: 'id_pr3', user_id: U, client_id: 'id_c3', date: j(-40), heure: '09:00', type: 'Massage Signature', duree: 90, prix: 110, tips: 0, moyen_paiement: 'Carte bleue' },
+      { id: 'id_pr4', user_id: U, client_id: 'id_c1', date: j(-380), heure: '17:00', type: 'Massage Signature', duree: 60, prix: 75, tips: 0, moyen_paiement: 'Liquide' }
+    ],
+    depenses: [
+      { id: 'id_d1', user_id: U, date: j(-13), categorie: 'Transport', montant: 12, fournisseur: 'Frais kilometriques', prestation_id: 'id_pr1' },
+      { id: 'id_d2', user_id: U, date: j(-12), categorie: 'Loyer', montant: 30, fournisseur: 'Institut' },
+      { id: 'id_d3', user_id: U, date: j(-20), categorie: 'Huiles', montant: 24.5, fournisseur: 'Fournisseur' }
+    ],
+    bons_cadeaux: [
+      { id: 'id_b1', user_id: U, montant: 80, date_achat: j(-60), date_debut: j(-60), date_expiration: j(120), statut: 'actif', moyen_paiement: 'Virement', beneficiaire_nom: 'Nina Test', beneficiaire_client_id: 'id_c3', acheteur_nom: 'Acheteur Fictif' },
+      { id: 'id_b2', user_id: U, montant: 60, date_achat: j(-90), date_debut: j(-90), date_expiration: j(90), statut: 'utilise', moyen_paiement: 'Liquide', prestation_id: 'id_pr2', beneficiaire_client_id: 'id_c2' },
+      { id: 'id_b3', user_id: U, montant: 50, date_achat: j(-200), date_debut: j(-200), date_expiration: j(-15), statut: 'actif', moyen_paiement: 'Carte bleue', beneficiaire_nom: 'Ancienne Carte' }
+    ],
+    relances: [
+      { id: 'id_rel1', user_id: U, client_id: 'id_c3', groupe: 'Massages', intervalle_jours: 28, relancee: false }
+    ],
+    parametres: [
+      { user_id: U, cle: 'headSpaCollaborateurId', valeur: 'id_k1' },
+      { user_id: U, cle: 'abonnements', valeur: [{ id: 'abo_1', nom: 'PLATEFORME', montant: 59, jourPrelevement: 22, categorie: 'Abonnement', actif: true }] }
+    ],
+    gestion_mouvements: [], gestion_recurrents: [], gestion_mois: [], gestion_soldes: []
+  };
+  window.__base = BASE;
+  window.__journal = [];
+
+  // ----- Fausse base Supabase en memoire -----
+  function requete(table) {
+    const q = { table, filtres: [], op: 'select', lignes: null, plage: null, unique: false, conflit: null, tri: null };
+    const garde = r => q.filtres.every(f => f(r));
+    const executer = () => {
+      const t = (BASE[table] = BASE[table] || []);
+      let data = null;
+      if (q.op === 'select') {
+        data = t.filter(garde);
+        if (q.tri) data = data.slice().sort((a, b) => String(a[q.tri]).localeCompare(String(b[q.tri])));
+        if (q.plage) data = data.slice(q.plage[0], q.plage[1] + 1);
+      } else if (q.op === 'insert') {
+        const nouvelles = (Array.isArray(q.lignes) ? q.lignes : [q.lignes]).map(l => ({ ...l }));
+        t.push(...nouvelles); data = nouvelles;
+      } else if (q.op === 'update') {
+        data = t.filter(garde); data.forEach(r => Object.assign(r, q.lignes));
+      } else if (q.op === 'upsert') {
+        const cles = (q.conflit || 'id').split(',');
+        data = (Array.isArray(q.lignes) ? q.lignes : [q.lignes]).map(l => {
+          const r = t.find(x => cles.every(c => x[c] === l[c]));
+          if (r) { Object.assign(r, l); return r; }
+          t.push({ ...l }); return l;
+        });
+      } else if (q.op === 'delete') {
+        data = t.filter(garde); BASE[table] = t.filter(r => !garde(r));
+      }
+      if (q.op !== 'select') window.__journal.push({ table, op: q.op, n: (data || []).length });
+      if (q.unique) data = data && data.length ? data[0] : null;
+      return { data, error: null, count: Array.isArray(data) ? data.length : null };
+    };
+    const api = {
+      select() { return api; },
+      eq(c, v) { q.filtres.push(r => String(r[c]) === String(v)); return api; },
+      neq(c, v) { q.filtres.push(r => String(r[c]) !== String(v)); return api; },
+      in(c, vs) { q.filtres.push(r => vs.map(String).includes(String(r[c]))); return api; },
+      order(c) { q.tri = c; return api; },
+      range(a, b) { q.plage = [a, b]; return api; },
+      limit(n) { q.plage = [0, n - 1]; return api; },
+      single() { q.unique = true; return api; },
+      maybeSingle() { q.unique = true; return api; },
+      insert(l) { q.op = 'insert'; q.lignes = l; return api; },
+      update(l) { q.op = 'update'; q.lignes = l; return api; },
+      upsert(l, o) { q.op = 'upsert'; q.lignes = l; q.conflit = o && o.onConflict; return api; },
+      delete() { q.op = 'delete'; return api; },
+      then(ok, ko) { return Promise.resolve(executer()).then(ok, ko); }
+    };
+    return api;
+  }
+  const session = { user: { id: U, email: 'test@exemple.fr' }, access_token: 'apercu' };
+  window.supabaseClient = {
+    from: requete,
+    auth: {
+      getSession: async () => ({ data: { session } }),
+      getUser: async () => ({ data: { user: session.user } }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
+      signOut: async () => ({})
+    }
+  };
+  window.SUPABASE_CONFIG = { url: 'http://apercu.invalid', anonKey: 'apercu' };
+  // Google Ads : pas de reseau, « non connecte »
+  window.GoogleAdsApi = {
+    etat: async () => ({ connecte: false }),
+    appel: async () => new Response(JSON.stringify({ error: { message: 'Aperçu : pas de Google Ads' } }), { status: 401 }),
+    connecter: async () => {}, terminerConnexion: async () => {}, deconnecter: async () => {}
+  };
+  window.alert = (m) => console.warn('ALERTE :', m);
+
+  // ----- Le vrai index.html : son corps, puis ses scripts dans l'ordre -----
+  (async () => {
+    const html = await (await fetch('../index.html', { cache: 'no-store' })).text();
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const scripts = [...doc.querySelectorAll('script')];
+    scripts.forEach(s => s.remove());
+    const bandeau = '<div style="background:#333;color:#fff;padding:.4rem 1rem;font:12px Inter,sans-serif">Aperçu de l\'app complète avec des données fictives — rien n\'est enregistré</div>';
+    document.body.insertAdjacentHTML('beforeend', bandeau + doc.body.innerHTML);
+    document.body.className = doc.body.className;
+    const ignorer = /supabase-js|config\.js|supabase-client\.js|google-ads\.js|apexcharts/;
+    for (const s of scripts) {
+      const src = s.getAttribute('src');
+      if (src && ignorer.test(src)) continue;
+      await new Promise((ok, ko) => {
+        const el = document.createElement('script');
+        if (src) { el.src = '../' + src; el.onload = ok; el.onerror = () => ko(new Error('Script introuvable : ' + src)); }
+        else { el.textContent = s.textContent; }
+        document.body.appendChild(el);
+        if (!src) ok();
+      });
+    }
+    // Les scripts sont arrives apres le chargement de la page : on rejoue le signal de demarrage
+    document.dispatchEvent(new Event('DOMContentLoaded', { bubbles: true }));
+    window.__pret = true;
+  })().catch(e => console.error('Aperçu :', e));
+  </script>
+</body>
+</html>
