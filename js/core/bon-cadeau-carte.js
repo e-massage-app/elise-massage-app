@@ -1,8 +1,10 @@
 // ===== BON CADEAU A IMPRIMER : REGLES PURES (v1.2.1.0) =====
 // Ou et comment s'ecrivent les textes sur le bon d'Elise (assets/bon-cadeau/bon-vierge.pdf, son fichier
-// vectoriel dont les champs ont ete vides). Sans DOM ni PDF : la mesure du texte est fournie par
-// l'appelant (police du PDF, ou canvas pour l'apercu), donc l'apercu et le PDF coupent les lignes
-// exactement pareil. Teste sous Node (tests/bon-cadeau-carte.test.js). Plan : tasks/todo-bon-cadeau-pdf.md
+// vectoriel dont les champs ont ete vides). Sans DOM : la mesure du texte est fournie par l'appelant
+// (police du PDF, ou canvas pour l'apercu), donc l'apercu et le PDF coupent les lignes exactement
+// pareil ; pdf-lib aussi (creerPdf). Teste sous Node (tests/bon-cadeau-carte.test.js).
+// Plans : tasks/todo-bon-cadeau-pdf.md ; v1.3.0.0, partage avec la fonction Supabase « carte-cadeau »
+// (cartes payees sur le site) : tasks/todo-carte-cadeau-en-ligne.md
 //
 // Coordonnees en points PDF, origine en HAUT a gauche (le PDF les inverse au dessin).
 
@@ -41,7 +43,7 @@ const CLES = ['offertPar', 'pour', 'soin', 'message'];
 // (assets/bon-cadeau/BonCadeauEmoji.ttf, tiree de Twemoji par scripts/polices-bon-cadeau.py)
 const EST_EMOJI = /[\p{Extended_Pictographic}\u{1F1E6}-\u{1F1FF}]/u;
 // Sans effet en une couleur : variantes de presentation, teintes de peau, jointures, touches (1️⃣)
-const SANS_EFFET = /[︎️‍⃣\u{1F3FB}-\u{1F3FF}]/gu;
+const SANS_EFFET = /[\uFE0E\uFE0F\u200D\u20E3\u{1F3FB}-\u{1F3FF}]/gu;
 
 // Palette « Inserer un emoji » : ceux qui vont sur un bon cadeau, par groupe
 const EMOJIS = [
@@ -175,9 +177,72 @@ function composer(textes, mesure) {
   return sortie;
 }
 
+/**
+ * Ce qui empeche d'imprimer le bon : [{ cle, libelle, raison, caracteres? }] ; [] s'il est imprimable.
+ * raison : 'tropLong' (meme a la taille mini) ou 'caracteres' (aucune police ne les dessine).
+ */
+function problemes(compo, couvre) {
+  const sortie = [];
+  for (const cle of CLES) {
+    const libelle = CHAMPS[cle].libelle;
+    if (compo[cle].tropLong) { sortie.push({ cle, libelle, raison: 'tropLong' }); continue; }
+    const absents = introuvables(compo[cle].texte, couvre);
+    if (absents.length) sortie.push({ cle, libelle, raison: 'caracteres', caracteres: absents });
+  }
+  return sortie;
+}
+
+/**
+ * Le PDF du bon (v1.3.0.0) : les textes poses sur le fichier d'Elise, rien n'est aplati en image.
+ * Un seul dessin pour l'app (bouton 🖨️) et la fonction Supabase « carte-cadeau » (cartes payees
+ * sur le site) : pdf-lib et fontkit sont fournis par l'appelant (navigateur ou serveur).
+ * r : { modele, semi, fin, emoji } (octets du modele et des polices) + couvre(caractere, estEmoji).
+ * Leve une erreur si un texte ne tient pas ou contient un caractere impossible a imprimer.
+ */
+async function creerPdf({ PDFLib, fontkit }, r, textes) {
+  const { PDFDocument, rgb } = PDFLib;
+  const doc = await PDFDocument.load(r.modele);
+  doc.registerFontkit(fontkit);
+  const semi = await doc.embedFont(r.semi, { subset: true });
+  const fin = await doc.embedFont(r.fin, { subset: true });
+  const emoji = await doc.embedFont(r.emoji, { subset: true });
+
+  const compo = composer(textes, (t, taille, e) => (e ? emoji : semi).widthOfTextAtSize(t, taille));
+  const p = problemes(compo, r.couvre);
+  const tropLongs = p.filter(x => x.raison === 'tropLong');
+  if (tropLongs.length) throw new Error(`Texte trop long : ${tropLongs.map(x => x.libelle).join(', ')}`);
+  if (p.length) throw new Error(`Caractères impossibles à imprimer : ${p.flatMap(x => x.caracteres).join(' ')}`);
+
+  const page = doc.getPage(0);
+  const boite = page.getMediaBox();
+  const yPdf = y => boite.y + boite.height - y; // regles : origine en haut ; PDF : en bas
+  const couleur = rgb(...STYLE.couleur.map(v => v / 255));
+
+  for (const cle of CLES) {
+    const res = compo[cle];
+    res.lignes.forEach((ligne, i) => {
+      let x = boite.x + CHAMPS[cle].x0 + STYLE.marge;
+      for (const s of segments(ligne)) {
+        const police = s.emoji ? emoji : semi;
+        page.drawText(s.texte, { x, y: yPdf(res.lignesDeBase[i]), size: res.taille, font: police, color: couleur });
+        x += police.widthOfTextAtSize(s.texte, res.taille);
+      }
+    });
+  }
+  page.drawText(MENTION.texte, {
+    x: boite.x + MENTION.fin - fin.widthOfTextAtSize(MENTION.texte, MENTION.taille),
+    y: yPdf(MENTION.ligneDeBase), size: MENTION.taille, font: fin, color: couleur
+  });
+
+  doc.setTitle(`Bon cadeau${textes.pour ? ` pour ${textes.pour}` : ''}`);
+  doc.setAuthor('Elise Massage & Bien-être');
+  doc.setCreator('Logiciel Elise Massage');
+  return doc.save();
+}
+
 /** Nom de fichier : Bon-cadeau-Paul-2026-11-03.pdf */
 function nomDeFichier(pour, jour) {
-  const propre = String(pour || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+  const propre = String(pour || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
   return `Bon-cadeau${propre ? '-' + propre : ''}${jour ? '-' + jour : ''}.pdf`;
 }
@@ -185,7 +250,7 @@ function nomDeFichier(pour, jour) {
 const BonCadeauCarte = {
   PAGE, CHAMPS, STYLE, MENTION, CLES, EMOJIS,
   typographier, segments, introuvables, largeur, couper, ajuster, lignesDeBase,
-  soinDeMontant, textesParDefaut, composer, nomDeFichier
+  soinDeMontant, textesParDefaut, composer, problemes, creerPdf, nomDeFichier
 };
 
 racine.BonCadeauCarte = BonCadeauCarte;

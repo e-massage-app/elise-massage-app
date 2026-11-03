@@ -11,6 +11,8 @@
 --      secrets et Vault, voir l'en-tete de ce fichier) ;
 --   4. Google Ads : deployer supabase/functions/google-ads (secrets dans tasks/todo-google-ads.md),
 --      puis Elise se reconnecte.
+--   5. Cartes cadeaux payees sur le site : scripts/migration-carte-cadeau-en-ligne.sql (tache pg_cron),
+--      fonction supabase/functions/carte-cadeau (verify_jwt false) et secret SUMUP_API_KEY.
 --
 -- Les fichiers scripts/migration-*.sql sont l'historique des changements ; ce fichier-ci les
 -- contient tous. Identifiants : TEXT « id_<horodatage>_<aleatoire> » generes par l'app (pas d'UUID).
@@ -365,6 +367,50 @@ CREATE TABLE public.google_ads_connexion (
 REVOKE ALL ON public.google_ads_connexion FROM anon, authenticated;
 
 -- ============================================
+-- TABLE : commandes_carte_cadeau (v1.3.0.0, cartes payees sur le site : ecrite UNIQUEMENT par la
+-- fonction carte-cadeau ; Elise la lit). Detail des colonnes et tache pg_cron « carte-cadeau-relance » :
+-- scripts/migration-carte-cadeau-en-ligne.sql (a rejouer en entier lors d'une reconstruction)
+-- ============================================
+CREATE TABLE public.commandes_carte_cadeau (
+  id TEXT NOT NULL,
+  user_id UUID NOT NULL,
+  cree_le TIMESTAMPTZ NOT NULL DEFAULT now(),
+  statut TEXT NOT NULL DEFAULT 'en_attente'
+    CHECK (statut IN ('en_attente', 'payee', 'envoyee', 'echouee', 'expiree')),
+  essai BOOLEAN NOT NULL DEFAULT false,
+  origine TEXT,
+  montant NUMERIC NOT NULL CHECK (montant > 0),
+  prestation TEXT NOT NULL,
+  soin TEXT NOT NULL,
+  beneficiaire_prenom TEXT NOT NULL,
+  beneficiaire_nom TEXT NOT NULL,
+  beneficiaire_telephone TEXT,
+  acheteur_prenom TEXT NOT NULL,
+  acheteur_nom TEXT NOT NULL,
+  acheteur_email TEXT NOT NULL,
+  acheteur_telephone TEXT,
+  email_reception TEXT NOT NULL,
+  message TEXT,
+  papier BOOLEAN NOT NULL DEFAULT false,
+  remarques TEXT,
+  carte JSONB NOT NULL,
+  bon_cadeau_id TEXT NOT NULL,
+  sumup_checkout_id TEXT,
+  sumup_transaction_code TEXT,
+  paye_le TIMESTAMPTZ,
+  tentative_le TIMESTAMPTZ,
+  envoye_le TIMESTAMPTZ,
+  erreur TEXT,
+  alerte_le TIMESTAMPTZ,
+  CONSTRAINT commandes_carte_cadeau_pkey PRIMARY KEY (id),
+  CONSTRAINT commandes_carte_cadeau_sumup_checkout_id_key UNIQUE (sumup_checkout_id),
+  CONSTRAINT commandes_carte_cadeau_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE INDEX commandes_carte_cadeau_user_cree ON public.commandes_carte_cadeau USING btree (user_id, cree_le DESC);
+REVOKE ALL ON public.commandes_carte_cadeau FROM anon, authenticated;
+GRANT SELECT ON public.commandes_carte_cadeau TO authenticated;
+
+-- ============================================
 -- SECURITE : chaque utilisatrice ne voit et ne modifie que ses lignes
 -- ============================================
 ALTER TABLE public.clients ENABLE ROW LEVEL SECURITY;
@@ -381,6 +427,7 @@ ALTER TABLE public.gestion_recurrents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.gestion_mois ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.gestion_soldes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.google_ads_connexion ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.commandes_carte_cadeau ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY users_own_data ON public.clients FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 CREATE POLICY users_own_data ON public.prospects FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
@@ -396,6 +443,8 @@ CREATE POLICY users_own_data ON public.gestion_recurrents FOR ALL USING (auth.ui
 CREATE POLICY users_own_data ON public.gestion_mois FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 CREATE POLICY users_own_data ON public.gestion_soldes FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 -- google_ads_connexion : volontairement AUCUNE politique (seule la cle service_role y accede)
+-- commandes_carte_cadeau : Elise lit, seule la fonction carte-cadeau (service_role) ecrit
+CREATE POLICY elise_lit_ses_commandes ON public.commandes_carte_cadeau FOR SELECT TO authenticated USING (auth.uid() = user_id);
 
 -- ============================================
 -- DECLENCHEURS : updated_at (comme en production : relances, gestion_* et

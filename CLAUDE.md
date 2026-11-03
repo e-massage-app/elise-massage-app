@@ -78,6 +78,7 @@ de faire **Ctrl+Shift+R** (le cache HTTP du navigateur est distinct du cache du 
     (lien prestation -> RDV par `rdv_id`), `js/core/abonnements.js` (id stable `abonnement_id`),
     `js/core/google-ads-calculs.js` (un seul calcul du cache Google Ads), `js/core/regles-ecrans.js`
   - sauvegarde : fonction Supabase `sauvegarde-hebdo` (lundi 06:00 UTC via pg_cron, e-mail Resend a Elise,
+    compte Resend de Jordan depuis le 2026-11-03 : domaine elise-massage.fr, expediteur no-reply@,
     secrets RESEND_API_KEY / SAUVEGARDE_DESTINATAIRE / SAUVEGARDE_SECRET + Vault `sauvegarde_secret`),
     `scripts/migration-sauvegarde-hebdo.sql`. Copie de securite avant migration : schema prive `sauvegarde`
     (tables `*_20261102`, non expose par l'API)
@@ -92,6 +93,14 @@ de faire **Ctrl+Shift+R** (le cache HTTP du navigateur est distinct du cache du 
   Polices : `scripts/polices-bon-cadeau.py` (Raleway a chiffres alignes renommee, emojis PLEINS tires de
   Twemoji ; dessins alignes sur 4 octets, sinon le sous-ensemble de pdf-lib les abime). Textes imprimes
   gardes dans `bons_cadeaux.carte` (`scripts/migration-bon-cadeau-carte.sql`, appliquee le 2026-11-03)
+- Carte cadeau payee par CB sur le site (v1.3.0.0, plan `tasks/todo-carte-cadeau-en-ligne.md`) : fonction
+  `supabase/functions/carte-cadeau` (SumUp « hosted checkout », notification toujours reverifiee aupres de
+  SumUp, bon + PDF + e-mails rejouables sans doublon) ; regles pures `js/core/carte-cadeau-commande.js` ;
+  le PDF vient de `creerPdf` (`js/core/bon-cadeau-carte.js`), le MEME que le bouton 🖨️. Table
+  `commandes_carte_cadeau` + tache pg_cron `carte-cadeau-relance` (`scripts/migration-carte-cadeau-en-ligne.sql`).
+  Secret `SUMUP_API_KEY` : tant que c'est la cle du compte de test, commandes « essai » (aucun bon, rien a
+  Elise). Deployer en joignant les 3 fichiers `js/core` importes, chemins depuis la racine du depot
+  (point d'entree `supabase/functions/carte-cadeau/index.ts`)
 - ApexCharts est charge SANS version (`cdn.jsdelivr.net/npm/apexcharts` = la derniere, 8.x en nov. 2026) :
   tout apercu doit charger la meme URL, sinon on teste une autre bibliotheque que celle du logiciel
 - `tests/` : `npm test` (Node, sans dependance) ; `tests/apercu-gestion.html` et `tests/apercu-analytics.html`

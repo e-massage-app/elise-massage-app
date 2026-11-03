@@ -94,47 +94,11 @@ function chargerRessources() {
   return ressources;
 }
 
+// v1.3.0.0 : le dessin est dans js/core/bon-cadeau-carte.js, partage avec la fonction Supabase
+// « carte-cadeau » : un bon paye sur le site est identique a celui imprime ici
 async function creerPdf(textes) {
   const r = await chargerRessources();
-  const { PDFDocument, rgb } = window.PDFLib;
-  const doc = await PDFDocument.load(r.modele);
-  doc.registerFontkit(window.fontkit);
-  const semi = await doc.embedFont(r.semi, { subset: true });
-  const fin = await doc.embedFont(r.fin, { subset: true });
-  const emoji = await doc.embedFont(r.emoji, { subset: true });
-
-  const compo = C.composer(textes, (t, taille, e) => (e ? emoji : semi).widthOfTextAtSize(t, taille));
-  const tropLongs = C.CLES.filter(c => compo[c].tropLong);
-  if (tropLongs.length) throw new Error(`Texte trop long : ${tropLongs.map(c => C.CHAMPS[c].libelle).join(', ')}`);
-  const absents = C.CLES.flatMap(c => C.introuvables(compo[c].texte, r.couvre));
-  if (absents.length) throw new Error(`Caractères impossibles à imprimer : ${absents.join(' ')}`);
-
-  const page = doc.getPage(0);
-  const boite = page.getMediaBox();
-  const yPdf = y => boite.y + boite.height - y; // regles : origine en haut ; PDF : en bas
-  const couleur = rgb(...C.STYLE.couleur.map(v => v / 255));
-
-  for (const cle of C.CLES) {
-    const res = compo[cle];
-    res.lignes.forEach((ligne, i) => {
-      let x = boite.x + C.CHAMPS[cle].x0 + C.STYLE.marge;
-      for (const s of C.segments(ligne)) {
-        const police = s.emoji ? emoji : semi;
-        page.drawText(s.texte, { x, y: yPdf(res.lignesDeBase[i]), size: res.taille, font: police, color: couleur });
-        x += police.widthOfTextAtSize(s.texte, res.taille);
-      }
-    });
-  }
-  const m = C.MENTION;
-  page.drawText(m.texte, {
-    x: boite.x + m.fin - fin.widthOfTextAtSize(m.texte, m.taille),
-    y: yPdf(m.ligneDeBase), size: m.taille, font: fin, color: couleur
-  });
-
-  doc.setTitle(`Bon cadeau${textes.pour ? ` pour ${textes.pour}` : ''}`);
-  doc.setAuthor('Elise Massage & Bien-être');
-  doc.setCreator('Logiciel Elise Massage');
-  return doc.save();
+  return C.creerPdf({ PDFLib: window.PDFLib, fontkit: window.fontkit }, r, textes);
 }
 
 function proposerFichier(octets, nom) {

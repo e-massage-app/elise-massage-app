@@ -43,7 +43,7 @@ function statutEffectif(bon, aujourdhui) {
  * ignores) ; null si aucune ou si plusieurs (homonymes : on ne devine pas).
  */
 function ficheDuNom(clients, nom) {
-  const norme = v => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+  const norme = v => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .toLowerCase().replace(/\s+/g, ' ').trim();
   const cherche = norme(nom);
   if (!cherche) return null;
