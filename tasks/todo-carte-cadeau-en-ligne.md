@@ -1,4 +1,4 @@
-# Carte cadeau payee en ligne, bon recu tout de suite (plan, a valider par Jordan)
+# Carte cadeau payee en ligne, bon recu tout de suite (plan valide par Jordan le 2026-11-03)
 
 Demande de Jordan (2026-11-03) : « le but, c'est vraiment de gagner du temps et que ce soit
 instantane ». Le client paie par carte sur le site, le bon PDF (le vrai visuel d'Elise) part aussitot
@@ -10,8 +10,12 @@ teste et valide ensemble.
 
 1. Page Carte cadeau : le client compose la carte comme aujourd'hui, puis choisit comment payer :
    - **Carte bancaire** : « votre bon arrive par e-mail des le paiement » ;
-   - **Virement** : RIB par e-mail, bon envoye a reception (comme aujourd'hui, Elise s'en occupe) ;
-   - **Sur place** : a regler a l'institut (comme aujourd'hui).
+   - **Virement** : Elise envoie son RIB par e-mail ou SMS (a la main) ; le bon est fait a reception du
+     virement, donc avec un delai ;
+   - **Sur place** : paiement en especes a l'institut et retrait du bon imprime.
+   Ce que chaque choix implique est explique sur la page (delais, qui fait quoi). Quel que soit le
+   paiement (carte ou virement), le bon imprime peut aussi etre retire ensuite a l'institut,
+   gratuitement.
 2. Carte bancaire : le site appelle une fonction Supabase qui recalcule le prix (jamais celui envoye
    par le navigateur), enregistre la commande, cree le paiement SumUp et renvoie l'adresse de la page
    de paiement SumUp (« hosted checkout »). Le client y paie (3D Secure compris).
@@ -19,7 +23,7 @@ teste et valide ensemble.
    La fonction **redemande le statut a SumUp** avec la cle secrete ; si c'est paye et pas deja traite :
    - cree le bon dans `bons_cadeaux` (actif, valable 6 mois, « CB en ligne (SumUp) », textes du bon) ;
    - fabrique le PDF (meme modele, memes polices et memes regles que le bouton 🖨️ de l'app) ;
-   - l'envoie par e-mail a l'acheteur (copie a Elise) ;
+   - l'envoie par e-mail a l'acheteur SEULEMENT (Elise prevenue a part) ;
    - note la commande « envoyee ».
 4. Le client revient sur le site (`redirect_url`) : page « Merci, votre bon arrive par e-mail ». Elle
    redemande le statut (au cas ou la notification SumUp arriverait apres lui).
@@ -37,14 +41,19 @@ teste et valide ensemble.
       paiement (rejouable sans doublon), bon + PDF + e-mail ; repond vite a SumUp.
 - [ ] PDF cote serveur : reutiliser `js/core/bon-cadeau-carte.js` (regles pures, deja testees) et le
       modele `assets/bon-cadeau/` ; pdf-lib dans la fonction.
-- [ ] E-mails Resend depuis le domaine d'Elise (ex. `bons@elise-massage.fr`, reponse vers
-      `contact@elise-massage.fr`), PDF en piece jointe.
+- [ ] E-mails Resend depuis `no-reply@elise-massage.fr` (decision de Jordan : pas de reponses sur
+      cette adresse ; le message renvoie vers contact@ et le telephone), PDF en piece jointe.
 - [ ] Logiciel : les bons crees en ligne visibles comme les autres (+ mention « paye en ligne ») ;
       une commande payee mais non envoyee (erreur) signalee a Elise.
 
 **Site**
-- [ ] Choix du paiement dans le formulaire ; carte bancaire -> fonction puis page SumUp ; virement et
-      sur place -> envoi actuel (Web3Forms).
+- [ ] Choix du paiement dans le formulaire, chaque option expliquee ; carte bancaire -> fonction puis
+      page SumUp ; virement et sur place -> envoi actuel (Web3Forms).
+- [ ] « Le bon est envoye a VOTRE adresse (celle de l'acheteur), pas a celle du beneficiaire », ecrit
+      clairement ; champ « adresse de reception du bon », pre-rempli avec l'e-mail de l'acheteur et
+      modifiable.
+- [ ] Format papier : avec la carte bancaire, le PDF part tout de suite ET le bon imprime peut etre
+      retire a l'institut.
 - [ ] Liste des prix publiee a la construction (`soins.ts` reste la seule source des prix).
 - [ ] Page de retour « Merci » (paye / en cours / echec, avec que faire).
 
@@ -64,11 +73,13 @@ teste et valide ensemble.
 - [ ] Puis la vraie cle, et un vrai petit paiement de controle si Jordan le souhaite.
 - [ ] Ensuite seulement : CGV (droit de retractation de 14 jours pour la vente a distance, mediateur).
 
-## Questions pour Jordan et Elise
+## Decisions (Jordan et Elise, 2026-11-03)
 
-1. Plafond du montant libre en ligne (proposition : 300 EUR) ?
-2. Qui recoit le PDF : l'acheteur seulement (il l'offre), Elise en copie ?
-3. Format « version physique a retirer a l'institut » avec la carte bancaire : on envoie quand meme le
-   PDF tout de suite, et Elise imprime la carte pour le retrait ?
-4. Adresse d'envoi : `bons@elise-massage.fr` (reponse vers contact@) vous va ?
-5. Frais SumUp des paiements en ligne : a lire dans son compte une fois le paiement en ligne active.
+1. Montant libre : 50 EUR minimum, pas de plafond.
+2. Le PDF part a l'acheteur seulement, en le disant clairement ; adresse de reception modifiable.
+3. Carte bancaire + version papier : le PDF tout de suite ET le bon imprime a retirer.
+4. Expediteur : `no-reply@elise-massage.fr`.
+5. Frais SumUp en ligne : a lire dans son compte (Jordan suppose les memes qu'en CB).
+6. DNS : Jordan connecte son OVH pour que je pose les enregistrements de Resend (je les montre avant
+   d'enregistrer). Sans lien avec la bascule du site : la zone DNS reste chez OVH avant et apres,
+   seul le `www` changera ce jour-la.
