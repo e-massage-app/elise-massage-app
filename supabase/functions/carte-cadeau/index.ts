@@ -446,9 +446,15 @@ async function commander(req: Request, origine: string) {
   try { corps = JSON.parse(brut); } catch { return reponse(req, 400, { erreur: 'Formulaire illisible.' }); }
   if (corps.botcheck) return reponse(req, 400, { erreur: 'Formulaire refusé.' }); // pot de miel du site
 
+  // Site en ligne = compte SumUp reel ; essais = compte de test. Un client ne doit jamais tomber sur la
+  // page de paiement de test (site publie avant la vraie cle), ni un essai payer pour de vrai.
   const { code, essai } = await compteSumup();
-  if (!SITES.includes(origine) && !essai) {
-    return reponse(req, 403, { erreur: 'Paiement réel possible seulement depuis le site en ligne.' });
+  if (SITES.includes(origine) === essai) {
+    return reponse(req, 403, {
+      erreur: essai
+        ? `Le paiement par carte en ligne ouvre bientôt : choisissez le virement ou le paiement sur place, ou appelez-moi au ${INSTITUT.telephone}.`
+        : 'Paiement réel possible seulement depuis le site en ligne.',
+    });
   }
   const lu = K.lireCommande(corps, await lireTarifs(origine));
   if (lu.erreurs) return reponse(req, 400, { erreurs: lu.erreurs });
