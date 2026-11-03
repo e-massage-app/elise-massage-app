@@ -5695,6 +5695,7 @@ function showBonCadeauDetailsModal(bonId) {
 
     <div class="modal-actions">
       <button type="button" class="btn-secondary" onclick="closeModal()">Fermer</button>
+      <button type="button" class="btn-secondary" onclick="ouvrirBonCadeauPdf('${bon.id}')">🖨️ Bon à imprimer</button>
       ${statut === 'actif' ? `<button type="button" class="btn-primary" style="background: #28a745;" onclick="showMarquerBonUtiliseModal('${bon.id}')">✅ Marquer comme utilise</button>` : ''}
     </div>
   `;

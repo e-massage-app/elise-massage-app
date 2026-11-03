@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="../css/views.css">
   <link rel="stylesheet" href="../css/mobile.css">
   <link rel="stylesheet" href="../css/gestion.css">
+  <link rel="stylesheet" href="../css/bon-cadeau.css">
   <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 </head>
 <body>
@@ -56,7 +57,15 @@
     ],
     parametres: [
       { user_id: U, cle: 'headSpaCollaborateurId', valeur: 'id_k1' },
-      { user_id: U, cle: 'abonnements', valeur: [{ id: 'abo_1', nom: 'PLATEFORME', montant: 59, jourPrelevement: 22, categorie: 'Abonnement', actif: true }] }
+      { user_id: U, cle: 'abonnements', valeur: [{ id: 'abo_1', nom: 'PLATEFORME', montant: 59, jourPrelevement: 22, categorie: 'Abonnement', actif: true }] },
+      { user_id: U, cle: 'carteSoins', valeur: {
+        categories: [{ id: 'cat_m', nom: 'Massages', ordre: 1, statut: 'actif' }],
+        soins: [
+          { id: 'soin_1', nom: 'Massage Signature', categorieId: 'cat_m', statut: 'actif', variantes: [{ duree: 60, prix: 80 }, { duree: 90, prix: 110 }] },
+          { id: 'soin_2', nom: 'Massage Fictif', categorieId: 'cat_m', statut: 'actif', variantes: [{ duree: 30, prix: 45 }] }
+        ],
+        legacyTypeMapping: {}
+      } }
     ],
     gestion_mouvements: [], gestion_recurrents: [], gestion_mois: [], gestion_soldes: []
   };

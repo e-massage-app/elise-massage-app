@@ -171,3 +171,15 @@ clic et ne proposait rien sur le telephone de Jordan.
 fenetre, elle la recentrait (posee dans le flux) ou s'y faisait couper avec un ascenseur force (posee
 en absolu dans une fenetre `overflow: auto`, retour de Jordan sur la v1.1.2.1). Mesurer
 `scrollHeight`/`clientHeight` de la fenetre liste ouverte avant de livrer.
+
+---
+
+## 12. Un visuel d'Elise reste vectoriel, et ses emojis sont pleins
+
+**Declencheur** — bon cadeau a imprimer (2026-11-03) : une version allegee en image (475 Ko) a ete jugee
+« bas de gamme » ; puis les emojis Noto (en traits) « stylises » au lieu de pleins.
+
+**Regle** — sur un document imprime d'Elise, on pose le texte sur SON fichier vectoriel, sans jamais
+l'aplatir ni le recompresser. Les emojis s'impriment en formes pleines a la couleur du texte. Avant de
+montrer un PDF, le relire en fort zoom (pdf.js x6) : un emoji absent ou un « 8o € » ne se voit pas
+dans les chiffres.

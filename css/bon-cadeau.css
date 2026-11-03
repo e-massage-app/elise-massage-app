@@ -1,0 +1,209 @@
+/* ===== BON CADEAU A IMPRIMER (v1.2.1.0) : js/ui/bon-cadeau-pdf.js ===== */
+
+#bon-cadeau-pdf-modal {
+  max-width: 900px;
+}
+
+.bon-pdf__aide {
+  margin: -0.75rem 0 1.25rem;
+  color: var(--text-light);
+  font-size: 0.9rem;
+}
+
+/* Apercu a gauche, champs a droite ; « bon entier » : apercu sur toute la largeur, champs dessous */
+.bon-pdf__corps {
+  display: grid;
+  grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.bon-pdf__corps.entier {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.bon-pdf__visuel {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: center;
+}
+
+/* Par defaut : zoom sur le panneau de droite du bon (ou sont les champs).
+   Le bon fait 595,3 pt de large, le panneau 166,8 pt et commence a 428,4 pt. */
+.bon-pdf__apercu {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 166.83 / 283.465;
+  overflow: hidden;
+  border-radius: 6px;
+  box-shadow: 0 2px 10px rgba(74, 74, 74, 0.18);
+  background: #EFE6E6;
+}
+
+.bon-pdf__apercu img,
+.bon-pdf__textes,
+.bon-pdf__textes svg {
+  position: absolute;
+  top: 0;
+  height: 100%;
+}
+
+.bon-pdf__apercu img,
+.bon-pdf__textes {
+  width: 356.82%;
+  left: -256.82%;
+}
+
+.bon-pdf__textes svg {
+  left: 0;
+  width: 100%;
+}
+
+.entier .bon-pdf__apercu {
+  aspect-ratio: 595.276 / 283.465;
+}
+
+.entier .bon-pdf__apercu img,
+.entier .bon-pdf__textes {
+  width: 100%;
+  left: 0;
+}
+
+.bon-pdf__bascule {
+  background: none;
+  border: none;
+  color: var(--beige-dore);
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+}
+
+.bon-pdf__bascule:hover,
+.bon-pdf__bascule:focus-visible {
+  background: var(--beige-clair);
+}
+
+.bon-pdf__champs .form-group {
+  margin-bottom: 0.9rem;
+}
+
+.bon-pdf__champs select {
+  margin-bottom: 0.4rem;
+}
+
+.bon-pdf__champs textarea {
+  resize: vertical;
+  min-height: 4.5rem;
+}
+
+.bon-pdf__note {
+  display: block;
+  margin-top: 0.3rem;
+  color: var(--text-light);
+  font-size: 0.8rem;
+}
+
+.bon-pdf__alerte {
+  display: block;
+  color: #c0392b;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.bon-pdf__alerte:empty {
+  display: none;
+}
+
+.bon-pdf__alerte:not(:empty) {
+  margin-top: 0.3rem;
+}
+
+@media (max-width: 700px) {
+  .bon-pdf__corps {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .bon-pdf__visuel {
+    max-width: 320px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .entier .bon-pdf__visuel {
+    max-width: none;
+  }
+}
+
+/* « Inserer un emoji » : les emojis tels qu'ils seront imprimes (pleins, couleur du texte du bon) */
+.bon-pdf__emoji {
+  font-family: 'BonEmoji', sans-serif;
+  color: #C58375;
+}
+
+.bon-pdf__ouvrir-emojis {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  background: var(--white);
+  border: 1px solid var(--rose-accent);
+  border-radius: 999px;
+  color: var(--text-dark);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.bon-pdf__ouvrir-emojis:hover,
+.bon-pdf__ouvrir-emojis:focus-visible,
+.bon-pdf__ouvrir-emojis[aria-expanded="true"] {
+  background: var(--rose-poudre);
+}
+
+.bon-pdf__ouvrir-emojis .bon-pdf__emoji {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.bon-pdf__emojis {
+  margin-top: 0.5rem;
+  padding: 0.6rem 0.75rem 0.75rem;
+  background: #EFE6E6;
+  border-radius: 10px;
+}
+
+.bon-pdf__emojis[hidden] {
+  display: none;
+}
+
+.bon-pdf__groupe {
+  margin: 0.4rem 0 0.2rem;
+  color: var(--text-light);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.bon-pdf__grille {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(2.4rem, 1fr));
+  gap: 0.2rem;
+}
+
+.bon-pdf__grille .bon-pdf__emoji {
+  height: 2.4rem;
+  font-size: 1.45rem;
+  line-height: 1;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.bon-pdf__grille .bon-pdf__emoji:hover,
+.bon-pdf__grille .bon-pdf__emoji:focus-visible {
+  background: var(--white);
+}

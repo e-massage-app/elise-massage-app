@@ -2661,6 +2661,7 @@ function generateBonCadeauCard(bon, bonsExpirantBientot = []) {
   if (statut === 'actif') {
     actionsHtml = `
       <button class="btn-primary" onclick="attribuerRdvBonCadeau('${bon.id}')" style="background: var(--beige-dore);">📅 Attribuer RDV</button>
+      <button class="btn-secondary" onclick="ouvrirBonCadeauPdf('${bon.id}')" title="Bon cadeau à imprimer (PDF)">🖨️</button>
       <button class="btn-secondary" onclick="editBonCadeau('${bon.id}')">✏️</button>
       <button class="btn-secondary" onclick="rembourserBonCadeau('${bon.id}')">💸</button>
       <button class="btn-secondary" onclick="supprimerBonCadeau('${bon.id}')" style="color: #dc3545;" title="Supprimer">🗑️</button>

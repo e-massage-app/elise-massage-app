@@ -226,6 +226,7 @@ CREATE TABLE public.bons_cadeaux (
   date_utilisation TEXT,
   date_remboursement TEXT,
   force_utilise BOOLEAN DEFAULT false,
+  carte JSONB,  -- v1.2.1.0 : textes imprimes sur le bon (scripts/migration-bon-cadeau-carte.sql)
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now(),
   CONSTRAINT bons_cadeaux_pkey PRIMARY KEY (id),

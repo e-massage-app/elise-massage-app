@@ -86,6 +86,12 @@ de faire **Ctrl+Shift+R** (le cache HTTP du navigateur est distinct du cache du 
 - `js/ui/calendrier-reglages.js` : picto ⚙ du calendrier (jours fermes, vacances / fermetures exceptionnelles,
   couleur / opacite / hachures). Cle `calendrier` de `parametres`, ecrite seule (dans CLES_PARAMETRES_A_PART).
   Un jour ferme est seulement colore : un RDV y reste possible. Apercu : `tests/apercu-calendrier.html`
+- Bon cadeau a imprimer (v1.2.1.0, plan `tasks/todo-bon-cadeau-pdf.md`) : `js/ui/bon-cadeau-pdf.js` (fenetre,
+  apercu, PDF via pdf-lib 1.17.1 + fontkit 1.1.1 figes) + `js/core/bon-cadeau-carte.js` (regles pures testees).
+  Le texte est pose sur le PDF VECTORIEL d'Elise (`assets/bon-cadeau/bon-vierge.pdf`) : jamais d'image aplatie.
+  Polices : `scripts/polices-bon-cadeau.py` (Raleway a chiffres alignes renommee, emojis PLEINS tires de
+  Twemoji ; dessins alignes sur 4 octets, sinon le sous-ensemble de pdf-lib les abime). Textes imprimes
+  gardes dans `bons_cadeaux.carte` (`scripts/migration-bon-cadeau-carte.sql`, appliquee le 2026-11-03)
 - ApexCharts est charge SANS version (`cdn.jsdelivr.net/npm/apexcharts` = la derniere, 8.x en nov. 2026) :
   tout apercu doit charger la meme URL, sinon on teste une autre bibliotheque que celle du logiciel
 - `tests/` : `npm test` (Node, sans dependance) ; `tests/apercu-gestion.html` et `tests/apercu-analytics.html`
@@ -95,7 +101,7 @@ de faire **Ctrl+Shift+R** (le cache HTTP du navigateur est distinct du cache du 
 
 ## Versioning
 - Format : `X.Y.Z.W` ou X.Y = version PWA, Z.W = heritage version Electron
-- Version actuelle : `1.2.0.0` (correctifs de l'audit du 2026-11-02 : parametres sans ecrasement, RDV/prestations/cartes cadeaux, Google Ads coherent, chargement sans limite, sauvegarde hebdo par e-mail)
+- Version actuelle : `1.2.1.0` (bon cadeau a imprimer en PDF depuis l'app, sur le visuel d'Elise, emojis pleins)
 - **OBLIGATOIRE** : a chaque modification demandee par l'utilisateur, proposer un bump de version et attendre validation
 - Mettre a jour la version dans 3 endroits : `package.json`, `index.html` (burger menu + footer)
 - Puis **`node scripts/estampiller-version.js`** : repose `?v=X.Y.Z.W` sur tous les

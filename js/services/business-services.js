@@ -521,6 +521,20 @@ async function updateBonCadeau(bonData) {
   return maj;
 }
 
+/**
+ * v1.2.1.0 : enregistre les textes imprimes sur le bon cadeau (fenetre « Bon a imprimer »),
+ * sans toucher au reste du bon. Reimprimer donne ensuite le meme bon.
+ */
+async function enregistrerCarteBonCadeau(bonId, carte) {
+  const appData = DataManager.getAppData();
+  const index = appData.bonsCadeaux.findIndex(b => b.id === bonId);
+  if (index === -1) return null;
+  const maj = { ...appData.bonsCadeaux[index], carte, updatedAt: new Date().toISOString() };
+  if (!(await _persist('bons_cadeaux', 'update', maj, DataManager.mapBonCadeauToDb))) return null;
+  appData.bonsCadeaux[index] = maj;
+  return maj;
+}
+
 async function deleteBonCadeau(bonId) {
   const appData = DataManager.getAppData();
   const index = appData.bonsCadeaux.findIndex(b => b.id === bonId);
@@ -671,6 +685,7 @@ window.BusinessServices = {
   generateICSCalendar,
   createBonCadeau,
   updateBonCadeau,
+  enregistrerCarteBonCadeau,
   deleteBonCadeau,
   rembourserBonCadeau,
   forcerUtilisationBonExpire,

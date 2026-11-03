@@ -315,6 +315,8 @@ function mapBonCadeauFromDb(row) {
     dateUtilisation: row.date_utilisation,
     dateRemboursement: row.date_remboursement,
     forceUtilise: row.force_utilise,
+    // v1.2.1.0 : textes imprimes sur le bon (PDF) { offertPar, pour, soin, message }
+    carte: row.carte || null,
     createdAt: row.created_at
   };
 }
@@ -339,7 +341,8 @@ function mapBonCadeauToDb(obj) {
     prestation_id: obj.prestationId || null,
     date_utilisation: obj.dateUtilisation || null,
     date_remboursement: obj.dateRemboursement || null,
-    force_utilise: obj.forceUtilise || false
+    force_utilise: obj.forceUtilise || false,
+    carte: obj.carte || null
   };
   if (obj.id) row.id = obj.id;
   return row;
