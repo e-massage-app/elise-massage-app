@@ -108,6 +108,31 @@ function statutSumup(paiement, commande) {
   }
 }
 
+// Qui peut demander un paiement, et avec quel compte SumUp :
+// - le site en ligne (www) : compte reel seulement, un client ne voit jamais la page de paiement de test ;
+// - Cloudflare (elise-massage.pages.dev et ses essais) : les deux (tests de Jordan avant la bascule,
+//   puis vrai paiement de controle) ;
+// - le serveur de developpement : compte de test seulement.
+const ORIGINES = [
+  { motif: /^https:\/\/(www\.)?elise-massage\.fr$/, reel: true, test: false },
+  { motif: /^https:\/\/([a-z0-9-]+\.)?elise-massage\.pages\.dev$/, reel: true, test: true },
+  { motif: /^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3}):\d{2,5}$/, reel: false, test: true }
+];
+
+const origineConnue = origine => ORIGINES.some(o => o.motif.test(String(origine || '')));
+
+/**
+ * Pourquoi le paiement ne peut pas commencer : null s'il le peut ; 'origine' (site inconnu),
+ * 'test' (compte de test depuis le site en ligne) ou 'reel' (vrai compte depuis le developpement).
+ */
+function refusPaiement(origine, essai) {
+  const o = ORIGINES.find(x => x.motif.test(String(origine || '')));
+  if (!o) return 'origine';
+  if (essai && !o.test) return 'test';
+  if (!essai && !o.reel) return 'reel';
+  return null;
+}
+
 /** « jordan@exemple.fr » -> « jo•••@exemple.fr » (page « Merci » : rappeler l'adresse sans l'exposer). */
 function masquerEmail(adresse) {
   const [nom, domaine] = String(adresse || '').split('@');
@@ -120,7 +145,9 @@ function nouvelleReference(aleatoire) {
   return `cc_${Date.now().toString(36)}_${aleatoire}`;
 }
 
-const CarteCadeauCommande = { LIMITES, lireCommande, statutSumup, masquerEmail, nouvelleReference };
+const CarteCadeauCommande = {
+  LIMITES, lireCommande, statutSumup, origineConnue, refusPaiement, masquerEmail, nouvelleReference
+};
 
 racine.CarteCadeauCommande = CarteCadeauCommande;
 if (typeof module !== 'undefined' && module.exports) module.exports = CarteCadeauCommande;

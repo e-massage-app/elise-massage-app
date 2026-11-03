@@ -98,13 +98,21 @@ Essais du 2026-11-03 (compte SumUp de test, adresse `delivered@resend.dev`, qui 
   et celui d'Elise -> Delivered. Resend signale « Don't use no-reply » (voir questions).
 - l'app (tests/apercu-app) : le bouton 🖨️ fait toujours son PDF avec le dessin partage.
 
-Questions pour Jordan (dans le chat) :
-1. Bump de l'app en 1.3.0.0 (dessin du PDF partage avec la fonction) : a valider avant de pousser.
-2. Resend deconseille « no-reply » (risque de spams) : ajouter `Reply-To: contact@elise-massage.fr`
-   (l'expediteur reste no-reply, une reponse du client arrive chez Elise) ?
-3. Essai ensemble sur `essai.elise-massage.pages.dev` avec la carte de test, puis publication.
-4. Le compte reel : creer la cle API sur le compte d'Elise (pas le sandbox) et remplacer la valeur de
-   `SUMUP_API_KEY` ; un vrai petit paiement de controle (50 EUR minimum, rembourse ensuite depuis SumUp) ?
+Reponses de Jordan (2026-11-03, soir) :
+1. Bump 1.3.0.0 : OK (publie).
+2. `reply_to` : OK. Acheteur -> contact@elise-massage.fr ; e-mails d'Elise -> l'adresse de l'acheteur
+   (elle lui repond directement). Pied de l'e-mail : « Une question ? Repondez simplement a cet e-mail ».
+3. Essai sur SON telephone, sur `elise-massage.pages.dev` (le site Cloudflare, pas encore public).
+4. Vraie cle SumUp et paiement de controle : quand tout sera valide ensemble.
+5. Compte de test : le bon est AUSSI cree dans le logiciel (pour tout verifier), marque « [ESSAI] » dans
+   la description et les notes, a supprimer apres verification (il compte dans les encaissements tant
+   qu'il est la : moyen « Carte bleue »).
+
+Qui peut payer avec quel compte (`refusPaiement`, teste) : www = compte reel seulement ; Cloudflare
+(`elise-massage.pages.dev` et ses essais) = les deux ; serveur de developpement = test seulement.
+Essai du 2026-11-03 (soir) en local : paiement de test -> commande envoyee, bon « [ESSAI] Massage
+Signature 60 min » cree (80 EUR, Carte bleue, valable au 3 mai 2027, textes du bon, notes) -> OK, puis
+supprime (le mien).
 
 ## Ce que Jordan prepare (je lui donne tout pret, il valide et colle lui-meme)
 

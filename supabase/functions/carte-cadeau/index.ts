@@ -9,7 +9,8 @@
 //   GET  etat                   la cle SumUp repond-elle ? compte de test ou reel ?
 // Une notification ne prouve rien : le statut est TOUJOURS redemande a SumUp avec la cle secrete.
 //
-// Au paiement : le bon est cree dans bons_cadeaux (sauf compte SumUp de test), le PDF est fait avec le
+// Au paiement : le bon est cree dans bons_cadeaux (compte SumUp de test : marque [ESSAI], a supprimer
+// apres verification ; demande de Jordan, pour tout verifier jusqu'au logiciel), le PDF est fait avec le
 // MEME code que le bouton 🖨️ de l'app (js/core/bon-cadeau-carte.js : modele, polices et regles), puis
 // envoye a l'acheteur SEULEMENT (Elise est prevenue a part). Rejouable sans doublon : un seul envoi a
 // la fois (statut + tentative_le), id du bon fixe des la commande, cle d'idempotence chez Resend. Si
@@ -38,7 +39,9 @@ const SUMUP_API_KEY = Deno.env.get('SUMUP_API_KEY') ?? '';
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? '';
 const ELISE = Deno.env.get('SAUVEGARDE_DESTINATAIRE') ?? '';
 const UTILISATRICE = 'a202db6e-2f5c-4c33-9ce7-8b14dde15327'; // compte d'Elise dans le logiciel
-const EXPEDITEUR = 'Elise Massage <no-reply@elise-massage.fr>'; // pas de reponses ici (decision de Jordan)
+// Expediteur no-reply (decision de Jordan) ; les reponses vont a contact@ (reply_to) : Resend deconseille
+// un no-reply sans adresse de reponse (risque de courriers indesirables), Jordan d'accord le 2026-11-03
+const EXPEDITEUR = 'Elise Massage <no-reply@elise-massage.fr>';
 const SUMUP = 'https://api.sumup.com';
 const ICI = `${Deno.env.get('SUPABASE_URL')}/functions/v1/carte-cadeau`;
 // Modele et polices du bon : ceux de l'app publiee (meme fichiers que le bouton 🖨️)
@@ -50,13 +53,8 @@ const INSTITUT = {
   adresse: '3 Cours Général Leclerc, 20000 Ajaccio (à l’étage du salon « La Bouclette »)',
 };
 
-// Le site en ligne ; ses essais Cloudflare (branche.elise-massage.pages.dev) et le serveur de
-// developpement ne paient qu'avec le compte SumUp de test
-const SITES = ['https://www.elise-massage.fr', 'https://elise-massage.fr', 'https://elise-massage.pages.dev'];
-const SITES_ESSAI = [
-  /^https:\/\/[a-z0-9-]+\.elise-massage\.pages\.dev$/,
-  /^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3}):\d{2,5}$/,
-];
+// Le site en ligne. Qui peut payer avec quel compte SumUp : K.refusPaiement (js/core/carte-cadeau-commande.js)
+const SITES = ['https://www.elise-massage.fr', 'https://elise-massage.fr'];
 
 const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
   auth: { persistSession: false },
@@ -66,12 +64,10 @@ type Commande = Record<string, any>; // une ligne de commandes_carte_cadeau
 
 // ---------- Petits outils ----------
 
-const origineConnue = (o: string) => SITES.includes(o) || SITES_ESSAI.some((r) => r.test(o));
-
 function entetes(req: Request): Record<string, string> {
   const origine = req.headers.get('Origin') ?? '';
   return {
-    'Access-Control-Allow-Origin': origineConnue(origine) ? origine : SITES[0],
+    'Access-Control-Allow-Origin': K.origineConnue(origine) ? origine : SITES[0],
     'Access-Control-Allow-Headers': 'content-type',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Vary': 'Origin',
@@ -241,7 +237,7 @@ function courrielAcheteur(c: Commande, fin: string, transaction: string, piece: 
     ? 'Le bon imprimé vous attend aussi à l’institut : passez le retirer quand vous le souhaitez, c’est offert.'
     : 'Vous préférez un bon imprimé ? Passez le retirer à l’institut quand vous le souhaitez, c’est offert.';
   const reserver = `Pour réserver, ${c.beneficiaire_prenom} m’appelle au ${INSTITUT.telephone}, ou réserve directement sur Planity si le délai le permet.`;
-  const pied = `Cet e-mail part d’une adresse automatique : merci de ne pas y répondre. Une question ? ${INSTITUT.email} ou ${INSTITUT.telephone}.`;
+  const pied = `Une question ? Répondez simplement à cet e-mail, ou appelez-moi au ${INSTITUT.telephone}.`;
 
   const texte = [
     `Bonjour ${c.acheteur_prenom},`, '',
@@ -270,6 +266,7 @@ ${lignes.map(([k, v]) => `<tr><td style="padding:10px 14px;color:#6b6b70;font-si
 
   return {
     to: [c.email_reception],
+    reply_to: INSTITUT.email,
     subject: `${prefixe(c)}Votre carte cadeau pour ${c.beneficiaire_prenom} 🎁`,
     text: texte,
     html: corps,
@@ -282,7 +279,7 @@ function courrielElise(c: Commande, fin: string, transaction: string, piece: Rec
     'Bonjour Elise,', '',
     `Une carte cadeau vient d’être payée en ligne sur le site (${euros(c.montant)}, carte bancaire).`,
     c.essai
-      ? 'ESSAI (compte SumUp de test) : aucun bon n’a été créé dans le logiciel et rien n’a été payé pour de vrai.'
+      ? 'ESSAI (compte SumUp de test) : rien n’a été payé pour de vrai. Le bon d’essai est dans le logiciel (marqué [ESSAI]) : à supprimer après vérification.'
       : 'Le bon est déjà dans le logiciel (Bons cadeaux, payé en Carte bleue). Le PDF ci-joint a été envoyé au client.',
     ...(c.papier ? ['', '➡️ Version papier demandée : à imprimer, le client passera la retirer à l’institut.'] : []),
     '',
@@ -298,6 +295,7 @@ function courrielElise(c: Commande, fin: string, transaction: string, piece: Rec
   ].join('\n');
   return {
     to: [adresseElise(c)],
+    reply_to: c.acheteur_email, // Elise repond directement au client
     subject: `${prefixe(c)}🎁 Carte cadeau payée en ligne : ${c.soin} pour ${c.beneficiaire_prenom}`,
     text: texte,
     attachments: [piece],
@@ -307,6 +305,7 @@ function courrielElise(c: Commande, fin: string, transaction: string, piece: Rec
 async function alerterElise(c: Commande, erreur: string) {
   await envoyer({
     to: [adresseElise(c)],
+    reply_to: c.acheteur_email,
     subject: `${prefixe(c)}⚠️ Carte cadeau payée mais pas encore envoyée (${c.beneficiaire_prenom})`,
     text: [
       'Bonjour Elise,', '',
@@ -334,6 +333,7 @@ async function validiteMois(): Promise<number> {
 
 async function creerBon(c: Commande, jour: string, fin: string, transaction: string) {
   const notes = [
+    ...(c.essai ? ['ESSAI (compte SumUp de test, aucun argent réel) : bon à supprimer après vérification.'] : []),
     `Payé en ligne sur le site (carte bancaire, SumUp) le ${dateLisible(jour)}${transaction ? `, transaction ${transaction}` : ''}.`,
     `Bon PDF envoyé par e-mail à ${c.email_reception}.`,
     ...(c.papier ? ['Version papier demandée : bon imprimé à retirer à l’institut.'] : []),
@@ -354,7 +354,7 @@ async function creerBon(c: Commande, jour: string, fin: string, transaction: str
     acheteur_telephone: c.acheteur_telephone || null,
     acheteur_email: c.acheteur_email,
     beneficiaire_nom: nomComplet(c.beneficiaire_prenom, c.beneficiaire_nom),
-    description: c.soin,
+    description: `${c.essai ? '[ESSAI] ' : ''}${c.soin}`,
     // « Carte bleue » : un des moyens de l'app, compte dans les encaissements (js/core/encaissements.js)
     moyen_paiement: 'Carte bleue',
     notes,
@@ -394,7 +394,7 @@ async function livrer(c: Commande, paiement: Record<string, any>) {
   try {
     const jour = jourParis(new Date(prise.paye_le));
     const fin = BonsCadeaux.ajouterMois(jour, await validiteMois());
-    if (!prise.essai) await creerBon(prise, jour, fin, transaction);
+    await creerBon(prise, jour, fin, transaction);
     const pdf = await pdfDuBon(prise.carte);
     const piece = { filename: C.nomDeFichier(prise.carte.pour, jour), content: base64(pdf) };
     await envoyer(courrielAcheteur(prise, fin, transaction, piece), `carte-cadeau/${prise.id}/acheteur`);
@@ -446,14 +446,15 @@ async function commander(req: Request, origine: string) {
   try { corps = JSON.parse(brut); } catch { return reponse(req, 400, { erreur: 'Formulaire illisible.' }); }
   if (corps.botcheck) return reponse(req, 400, { erreur: 'Formulaire refusé.' }); // pot de miel du site
 
-  // Site en ligne = compte SumUp reel ; essais = compte de test. Un client ne doit jamais tomber sur la
-  // page de paiement de test (site publie avant la vraie cle), ni un essai payer pour de vrai.
+  // Un client ne tombe jamais sur la page de paiement de test (site publie avant la vraie cle), et le
+  // serveur de developpement ne paie jamais pour de vrai
   const { code, essai } = await compteSumup();
-  if (SITES.includes(origine) === essai) {
+  const refus = K.refusPaiement(origine, essai);
+  if (refus) {
     return reponse(req, 403, {
-      erreur: essai
+      erreur: refus === 'test'
         ? `Le paiement par carte en ligne ouvre bientôt : choisissez le virement ou le paiement sur place, ou appelez-moi au ${INSTITUT.telephone}.`
-        : 'Paiement réel possible seulement depuis le site en ligne.',
+        : 'Paiement refusé depuis cette adresse.',
     });
   }
   const lu = K.lireCommande(corps, await lireTarifs(origine));
@@ -578,7 +579,7 @@ Deno.serve(async (req: Request) => {
       return reponse(req, 200, { sumup: 'ok', essai });
     }
     if (route === 'commande' && req.method === 'POST') {
-      if (!origineConnue(origine)) return reponse(req, 403, { erreur: 'Origine refusée.' });
+      if (!K.origineConnue(origine)) return reponse(req, 403, { erreur: 'Origine refusée.' });
       return await commander(req, origine);
     }
     return reponse(req, 404, { erreur: 'Adresse inconnue.' });

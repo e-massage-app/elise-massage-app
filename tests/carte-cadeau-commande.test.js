@@ -93,6 +93,28 @@ test('statut SumUp : paye seulement si montant, devise et reference concordent',
   assert.equal(K.statutSumup(null, commande), 'anomalie');
 });
 
+test('qui peut payer : site en ligne = vrai compte, Cloudflare = les deux, developpement = test', () => {
+  // site en ligne : jamais la page de paiement de test pour un client
+  assert.equal(K.refusPaiement('https://www.elise-massage.fr', false), null);
+  assert.equal(K.refusPaiement('https://elise-massage.fr', false), null);
+  assert.equal(K.refusPaiement('https://www.elise-massage.fr', true), 'test');
+  // Cloudflare (production avant la bascule, et essais) : tests de Jordan et paiement de controle
+  for (const o of ['https://elise-massage.pages.dev', 'https://essai.elise-massage.pages.dev']) {
+    assert.equal(K.refusPaiement(o, true), null, o);
+    assert.equal(K.refusPaiement(o, false), null, o);
+  }
+  // developpement : compte de test seulement
+  assert.equal(K.refusPaiement('http://localhost:4321', true), null);
+  assert.equal(K.refusPaiement('http://192.168.1.20:4321', true), null);
+  assert.equal(K.refusPaiement('http://localhost:4321', false), 'reel');
+  // le reste : refuse
+  for (const o of ['https://pirate.example', 'https://elise-massage.pages.dev.pirate.example', 'http://www.elise-massage.fr', '', null]) {
+    assert.equal(K.refusPaiement(o, true), 'origine', String(o));
+    assert.equal(K.origineConnue(o), false, String(o));
+  }
+  assert.equal(K.origineConnue('https://essai.elise-massage.pages.dev'), true);
+});
+
 test('adresse masquee sur la page « Merci »', () => {
   assert.equal(K.masquerEmail('paul@exemple.fr'), 'pa•••@exemple.fr');
   assert.equal(K.masquerEmail('p@exemple.fr'), 'p•••@exemple.fr');

@@ -110,7 +110,7 @@ de faire **Ctrl+Shift+R** (le cache HTTP du navigateur est distinct du cache du 
 
 ## Versioning
 - Format : `X.Y.Z.W` ou X.Y = version PWA, Z.W = heritage version Electron
-- Version actuelle : `1.2.1.0` (bon cadeau a imprimer en PDF depuis l'app, sur le visuel d'Elise, emojis pleins)
+- Version actuelle : `1.3.0.0` (carte cadeau payee par CB sur le site : dessin du PDF partage avec la fonction `carte-cadeau`)
 - **OBLIGATOIRE** : a chaque modification demandee par l'utilisateur, proposer un bump de version et attendre validation
 - Mettre a jour la version dans 3 endroits : `package.json`, `index.html` (burger menu + footer)
 - Puis **`node scripts/estampiller-version.js`** : repose `?v=X.Y.Z.W` sur tous les
