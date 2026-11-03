@@ -14,19 +14,20 @@
     <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
 
     <!-- Styles CSS modulaires -->
-    <link rel="stylesheet" href="css/base.css?v=1.3.0.0">
-    <link rel="stylesheet" href="css/components.css?v=1.3.0.0">
-    <link rel="stylesheet" href="css/views.css?v=1.3.0.0">
-    <link rel="stylesheet" href="css/mobile.css?v=1.3.0.0">
-    <link rel="stylesheet" href="css/gestion.css?v=1.3.0.0">
-    <link rel="stylesheet" href="css/bon-cadeau.css?v=1.3.0.0">
+    <link rel="stylesheet" href="css/base.css?v=1.4.0.0">
+    <link rel="stylesheet" href="css/components.css?v=1.4.0.0">
+    <link rel="stylesheet" href="css/views.css?v=1.4.0.0">
+    <link rel="stylesheet" href="css/mobile.css?v=1.4.0.0">
+    <link rel="stylesheet" href="css/gestion.css?v=1.4.0.0">
+    <link rel="stylesheet" href="css/bon-cadeau.css?v=1.4.0.0">
+    <link rel="stylesheet" href="css/entete.css?v=1.4.0.0">
 
     <!-- Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="js/config.js?v=1.3.0.0"></script>
-    <script src="js/supabase-client.js?v=1.3.0.0"></script>
-    <script src="js/core/google-ads.js?v=1.3.0.0"></script>
-    <script src="js/auth.js?v=1.3.0.0"></script>
+    <script src="js/config.js?v=1.4.0.0"></script>
+    <script src="js/supabase-client.js?v=1.4.0.0"></script>
+    <script src="js/core/google-ads.js?v=1.4.0.0"></script>
+    <script src="js/auth.js?v=1.4.0.0"></script>
 
     <!-- Libraries externes -->
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
@@ -55,12 +56,47 @@
                 <div class="header-quote">
                     <p>"Pour un moment, rien qu'a vous."</p>
                 </div>
-                <!-- Actions desktop -->
-                <div class="header-actions desktop-only">
-                    <button class="btn-secondary" onclick="exportDataUI()">Exporter</button>
-                    <button class="btn-secondary" onclick="importDataUI()">Importer</button>
-                    <button class="btn-secondary" onclick="showParametresModal()" title="Parametres" style="padding: 0.5rem 0.75rem; font-size: 1.1rem;">&#9881;</button>
-                    <button class="btn-secondary" onclick="logout()" title="Deconnexion" style="padding: 0.5rem 0.75rem; font-size: 0.85rem; color: #e74c3c; border-color: #e74c3c;">Deconnexion</button>
+                <!-- v1.4.0.0 : cloche des notifications (aussi sur telephone), menu ⚙ (Parametres, Exporter,
+                     Importer : moins utilises, demande de Jordan) et deconnexion en picto -->
+                <div class="header-actions">
+                    <div class="notif">
+                        <button type="button" class="icone-btn" id="notif-bouton" aria-label="Notifications" aria-haspopup="true" aria-expanded="false" aria-controls="notif-panneau" title="Notifications">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a6 6 0 0 0-6 6v3.6L4.3 16h15.4L18 12.6V9a6 6 0 0 0-6-6z"/><path d="M10 19.3a2 2 0 0 0 4 0"/></svg>
+                            <span class="notif-pastille" id="notif-pastille" hidden></span>
+                        </button>
+                        <div class="notif-panneau" id="notif-panneau" hidden>
+                            <div class="notif-panneau__tete">
+                                <h4>Notifications</h4>
+                                <button type="button" class="notif-tout-lire" id="notif-tout-lire" hidden>Tout marquer comme lu</button>
+                            </div>
+                            <ul class="notif-liste" id="notif-liste"></ul>
+                        </div>
+                    </div>
+                    <div class="reglages desktop-only">
+                        <button type="button" class="icone-btn" id="reglages-bouton" aria-label="Réglages" aria-haspopup="true" aria-expanded="false" aria-controls="menu-reglages" title="Réglages">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <circle cx="12" cy="12" r="6.3"/><circle cx="12" cy="12" r="2.4"/>
+                                <g class="dents">
+                                <rect x="10.6" y="1.7" width="2.8" height="3.8" rx="0.8" transform="rotate(0 12 12)"/>
+                                <rect x="10.6" y="1.7" width="2.8" height="3.8" rx="0.8" transform="rotate(45 12 12)"/>
+                                <rect x="10.6" y="1.7" width="2.8" height="3.8" rx="0.8" transform="rotate(90 12 12)"/>
+                                <rect x="10.6" y="1.7" width="2.8" height="3.8" rx="0.8" transform="rotate(135 12 12)"/>
+                                <rect x="10.6" y="1.7" width="2.8" height="3.8" rx="0.8" transform="rotate(180 12 12)"/>
+                                <rect x="10.6" y="1.7" width="2.8" height="3.8" rx="0.8" transform="rotate(225 12 12)"/>
+                                <rect x="10.6" y="1.7" width="2.8" height="3.8" rx="0.8" transform="rotate(270 12 12)"/>
+                                <rect x="10.6" y="1.7" width="2.8" height="3.8" rx="0.8" transform="rotate(315 12 12)"/>
+                                </g>
+                            </svg>
+                        </button>
+                        <div class="menu-reglages" id="menu-reglages" hidden>
+                            <button type="button" onclick="showParametresModal()">Paramètres</button>
+                            <button type="button" onclick="exportDataUI()">Exporter les données</button>
+                            <button type="button" onclick="importDataUI()">Importer des données</button>
+                        </div>
+                    </div>
+                    <button type="button" class="icone-btn icone-btn--sortie desktop-only" onclick="logout()" aria-label="Se déconnecter" title="Se déconnecter">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4"/><path d="M15 8l4 4-4 4"/><path d="M19 12H9"/></svg>
+                    </button>
                 </div>
                 <!-- Burger menu mobile -->
                 <button class="burger-btn mobile-only" onclick="toggleMobileMenu()" aria-label="Menu">
@@ -73,7 +109,7 @@
         <div id="mobile-menu" class="mobile-menu">
             <div class="mobile-menu-header">
                 <span>Menu</span>
-                <div class="mobile-menu-version">v1.3.0.0</div>
+                <div class="mobile-menu-version">v1.4.0.0</div>
                 <button class="mobile-menu-close" onclick="closeMobileMenu()">&#10005;</button>
             </div>
             <div class="mobile-menu-nav">
@@ -89,10 +125,13 @@
             </div>
             <div class="mobile-menu-actions">
                 <button id="install-app-btn" class="mobile-action-item install-btn" onclick="installApp(); closeMobileMenu()" style="display:none;">Installer l'application</button>
-                <button class="mobile-action-item" onclick="exportDataUI(); closeMobileMenu()">Exporter les donnees</button>
-                <button class="mobile-action-item" onclick="importDataUI(); closeMobileMenu()">Importer des donnees</button>
-                <button class="mobile-action-item" onclick="showParametresModal(); closeMobileMenu()">Parametres</button>
-                <button class="mobile-action-item logout" onclick="logout()">Deconnexion</button>
+                <button class="mobile-action-item" onclick="showParametresModal(); closeMobileMenu()">Paramètres</button>
+                <button class="mobile-action-item mobile-action-item--sous" onclick="exportDataUI(); closeMobileMenu()">Exporter les données</button>
+                <button class="mobile-action-item mobile-action-item--sous" onclick="importDataUI(); closeMobileMenu()">Importer des données</button>
+                <button class="mobile-action-item logout" onclick="logout()">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4"/><path d="M15 8l4 4-4 4"/><path d="M19 12H9"/></svg>
+                    Se déconnecter
+                </button>
             </div>
         </div>
         <div id="mobile-menu-overlay" class="mobile-menu-overlay" onclick="closeMobileMenu()"></div>
@@ -617,7 +656,7 @@
 
     <!-- Footer version -->
     <footer class="app-footer">
-        <span>Elise Massage &mdash; v1.3.0.0</span>
+        <span>Elise Massage &mdash; v1.4.0.0</span>
     </footer>
 
     <!-- Modal Overlay -->
@@ -647,38 +686,40 @@
 
     <!-- Scripts JavaScript modulaires -->
     <!-- Core : Données et calculs -->
-    <script src="js/core/persistance.js?v=1.3.0.0"></script>
-    <script src="js/core/data-manager.js?v=1.3.0.0"></script>
-    <script src="js/core/encaissements.js?v=1.3.0.0"></script>
-    <script src="js/core/google-ads-calculs.js?v=1.3.0.0"></script>
-    <script src="js/core/regles-ecrans.js?v=1.3.0.0"></script>
-    <script src="js/core/bons-cadeaux.js?v=1.3.0.0"></script>
-    <script src="js/core/bon-cadeau-carte.js?v=1.3.0.0"></script>
-    <script src="js/core/rdv-prestations.js?v=1.3.0.0"></script>
-    <script src="js/core/abonnements.js?v=1.3.0.0"></script>
-    <script src="js/core/calculations.js?v=1.3.0.0"></script>
+    <script src="js/core/persistance.js?v=1.4.0.0"></script>
+    <script src="js/core/data-manager.js?v=1.4.0.0"></script>
+    <script src="js/core/encaissements.js?v=1.4.0.0"></script>
+    <script src="js/core/google-ads-calculs.js?v=1.4.0.0"></script>
+    <script src="js/core/regles-ecrans.js?v=1.4.0.0"></script>
+    <script src="js/core/bons-cadeaux.js?v=1.4.0.0"></script>
+    <script src="js/core/bon-cadeau-carte.js?v=1.4.0.0"></script>
+    <script src="js/core/rdv-prestations.js?v=1.4.0.0"></script>
+    <script src="js/core/abonnements.js?v=1.4.0.0"></script>
+    <script src="js/core/notifications-regles.js?v=1.4.0.0"></script>
+    <script src="js/core/calculations.js?v=1.4.0.0"></script>
     
     <!-- Services : Logique métier -->
-    <script src="js/services/business-services.js?v=1.3.0.0"></script>
-    <script src="js/services/client-services.js?v=1.3.0.0"></script>
-    <script src="js/services/utils-services.js?v=1.3.0.0"></script>
+    <script src="js/services/business-services.js?v=1.4.0.0"></script>
+    <script src="js/services/client-services.js?v=1.4.0.0"></script>
+    <script src="js/services/utils-services.js?v=1.4.0.0"></script>
     
     <!-- UI : Interface utilisateur -->
-    <script src="js/ui/modal-manager.js?v=1.3.0.0"></script>
-    <script src="js/ui/view-manager.js?v=1.3.0.0"></script>
-    <script src="js/ui/form-manager.js?v=1.3.0.0"></script>
-    <script src="js/ui/calendrier-reglages.js?v=1.3.0.0"></script>
-    <script src="js/ui/bon-cadeau-pdf.js?v=1.3.0.0"></script>
+    <script src="js/ui/modal-manager.js?v=1.4.0.0"></script>
+    <script src="js/ui/view-manager.js?v=1.4.0.0"></script>
+    <script src="js/ui/form-manager.js?v=1.4.0.0"></script>
+    <script src="js/ui/calendrier-reglages.js?v=1.4.0.0"></script>
+    <script src="js/ui/bon-cadeau-pdf.js?v=1.4.0.0"></script>
+    <script src="js/ui/notifications.js?v=1.4.0.0"></script>
     
     <!-- Analytics : ROI et statistiques -->
-    <script src="js/analytics/google-ads-roi.js?v=1.3.0.0"></script>
-    <script src="js/analytics/evolution-calculs.js?v=1.3.0.0"></script>
-    <script src="js/analytics/evolution-vue.js?v=1.3.0.0"></script>
-    <script src="js/gestion/gestion-calculs.js?v=1.3.0.0"></script>
-    <script src="js/gestion/gestion-donnees.js?v=1.3.0.0"></script>
-    <script src="js/gestion/gestion-vue.js?v=1.3.0.0"></script>
+    <script src="js/analytics/google-ads-roi.js?v=1.4.0.0"></script>
+    <script src="js/analytics/evolution-calculs.js?v=1.4.0.0"></script>
+    <script src="js/analytics/evolution-vue.js?v=1.4.0.0"></script>
+    <script src="js/gestion/gestion-calculs.js?v=1.4.0.0"></script>
+    <script src="js/gestion/gestion-donnees.js?v=1.4.0.0"></script>
+    <script src="js/gestion/gestion-vue.js?v=1.4.0.0"></script>
     
     <!-- Point d'entrée principal -->
-    <script src="js/app.js?v=1.3.0.0"></script>
+    <script src="js/app.js?v=1.4.0.0"></script>
 </body>
 </html>

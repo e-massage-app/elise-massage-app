@@ -411,6 +411,29 @@ REVOKE ALL ON public.commandes_carte_cadeau FROM anon, authenticated;
 GRANT SELECT ON public.commandes_carte_cadeau TO authenticated;
 
 -- ============================================
+-- TABLE : notifications (v1.4.0.0, cloche de l'app : ecrite par les fonctions Supabase, Elise lit et
+-- marque lu ; seule la colonne lu_le lui est modifiable). scripts/migration-notifications.sql
+-- ============================================
+CREATE TABLE public.notifications (
+  id TEXT NOT NULL,
+  user_id UUID NOT NULL,
+  cree_le TIMESTAMPTZ NOT NULL DEFAULT now(),
+  type TEXT NOT NULL,
+  titre TEXT NOT NULL,
+  texte TEXT,
+  lien JSONB,
+  lu_le TIMESTAMPTZ,
+  CONSTRAINT notifications_pkey PRIMARY KEY (id),
+  CONSTRAINT notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+);
+CREATE INDEX notifications_user_cree ON public.notifications USING btree (user_id, cree_le DESC);
+REVOKE ALL ON public.notifications FROM anon, authenticated;
+GRANT SELECT ON public.notifications TO authenticated;
+GRANT UPDATE (lu_le) ON public.notifications TO authenticated;
+-- Temps reel : nouvelles notifications poussees a l'app ouverte
+ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+
+-- ============================================
 -- SECURITE : chaque utilisatrice ne voit et ne modifie que ses lignes
 -- ============================================
 ALTER TABLE public.clients ENABLE ROW LEVEL SECURITY;
@@ -428,6 +451,7 @@ ALTER TABLE public.gestion_mois ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.gestion_soldes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.google_ads_connexion ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.commandes_carte_cadeau ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY users_own_data ON public.clients FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 CREATE POLICY users_own_data ON public.prospects FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
@@ -445,6 +469,9 @@ CREATE POLICY users_own_data ON public.gestion_soldes FOR ALL USING (auth.uid() 
 -- google_ads_connexion : volontairement AUCUNE politique (seule la cle service_role y accede)
 -- commandes_carte_cadeau : Elise lit, seule la fonction carte-cadeau (service_role) ecrit
 CREATE POLICY elise_lit_ses_commandes ON public.commandes_carte_cadeau FOR SELECT TO authenticated USING (auth.uid() = user_id);
+-- notifications : Elise lit et marque lu, les fonctions (service_role) ecrivent
+CREATE POLICY elise_lit_ses_notifications ON public.notifications FOR SELECT TO authenticated USING (auth.uid() = user_id);
+CREATE POLICY elise_marque_ses_notifications ON public.notifications FOR UPDATE TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
 -- ============================================
 -- DECLENCHEURS : updated_at (comme en production : relances, gestion_* et

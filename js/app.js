@@ -184,6 +184,7 @@ async function etapeDemarrage(nom, fn) {
 }
 
 let _formulairesPrets = false;
+let _notificationsDemarrees = false;
 
 // Charge les donnees puis ouvre l'app ; sinon ecran bloquant « Réessayer » (qui rappelle cette
 // fonction). Renvoie true si l'app est ouverte.
@@ -250,6 +251,12 @@ async function chargerEtOuvrir() {
   await etapeDemarrage('annuaire', () => ViewManager.initAnnuaireViewControls());
 
   await etapeDemarrage('recherche depenses', () => UtilsServices.setupDepensesSearch());
+
+  // v1.4.0.0 : cloche des notifications (une seule fois, meme apres « Réessayer »)
+  if (!_notificationsDemarrees && window.Notifications) {
+    _notificationsDemarrees = true;
+    await etapeDemarrage('notifications', () => Notifications.demarrer());
+  }
 
   revealApp();
   return true;

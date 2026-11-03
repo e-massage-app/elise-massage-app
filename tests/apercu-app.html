@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="../css/mobile.css">
   <link rel="stylesheet" href="../css/gestion.css">
   <link rel="stylesheet" href="../css/bon-cadeau.css">
+  <link rel="stylesheet" href="../css/entete.css">
   <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 </head>
 <body>
@@ -67,7 +68,16 @@
         legacyTypeMapping: {}
       } }
     ],
-    gestion_mouvements: [], gestion_recurrents: [], gestion_mois: [], gestion_soldes: []
+    gestion_mouvements: [], gestion_recurrents: [], gestion_mois: [], gestion_soldes: [],
+    // v1.4.0.0 : la cloche (une non lue qui ouvre la carte id_b1, une deja lue)
+    notifications: [
+      { id: 'n_1', user_id: U, cree_le: new Date(Date.now() - 6 * 60000).toISOString(), type: 'carte-cadeau',
+        titre: '🎁 Carte cadeau payée en ligne', texte: 'Massage Signature 60 min pour Nina Test, 80 €',
+        lien: { onglet: 'bons-cadeaux', bonId: 'id_b1' }, lu_le: null },
+      { id: 'n_2', user_id: U, cree_le: new Date(Date.now() - 30 * 3600000).toISOString(), type: 'carte-cadeau',
+        titre: '🎁 Carte cadeau payée en ligne', texte: 'Bon d’une valeur de 60 €', lien: { onglet: 'bons-cadeaux' },
+        lu_le: new Date().toISOString() }
+    ]
   };
   window.__base = BASE;
   window.__journal = [];
@@ -123,6 +133,8 @@
   const session = { user: { id: U, email: 'test@exemple.fr' }, access_token: 'apercu' };
   window.supabaseClient = {
     from: requete,
+    // Temps reel : rien n'arrive dans l'apercu (pas de serveur)
+    channel() { const c = { on() { return c; }, subscribe() { return c; } }; return c; },
     auth: {
       getSession: async () => ({ data: { session } }),
       getUser: async () => ({ data: { user: session.user } }),

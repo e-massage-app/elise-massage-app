@@ -123,12 +123,17 @@ supprime (le mien).
 
 ## Tests avant la mise en route (ensemble)
 
-- [ ] Tout dans le bac a sable SumUp (aucun vrai argent) : paiement reussi, refuse (montant de 11 EUR
-      = toujours refuse), abandonne, notification en double, notification en retard.
+- [x] Bac a sable SumUp (aucun vrai argent) : Jordan a fait le parcours sur PC et sur son telephone
+      depuis `elise-massage.pages.dev` (paiement reussi de 60 EUR, bon [ESSAI] bien arrive dans le
+      logiciel, supprime par Jordan).
 - [x] Verifier dans la doc et en bac a sable les valeurs exactes du statut d'un paiement (PAID ?).
-- [ ] Le PDF recu : identique a celui de l'app, vectoriel, 210 x 100 mm.
-- [ ] Puis la vraie cle, et un vrai petit paiement de controle si Jordan le souhaite.
-- [ ] Ensuite seulement : CGV (droit de retractation de 14 jours pour la vente a distance, mediateur).
+- [x] Le PDF recu : identique a celui de l'app, vectoriel, 210 x 100 mm.
+- [x] Vraie cle (2026-11-03) : `/etat` repond `essai: false`.
+- [x] v1.4.0.0 : la cloche du logiciel annonce la carte payee (table `notifications`, clic = le bon).
+- [ ] Paiement de controle de 50 EUR par Jordan sur `elise-massage.pages.dev` : SumUp, PDF, e-mail
+      d'Elise, bon dans le logiciel, cloche. Puis remboursement dans SumUp et bon marque rembourse.
+- [x] CGV (article 7 : paiement CB en ligne / sur place, retractation) et confidentialite ; mediateur
+      de la consommation : Jordan regardera plus tard.
 
 ## Decisions (Jordan et Elise, 2026-11-03)
 

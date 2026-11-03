@@ -98,9 +98,14 @@ de faire **Ctrl+Shift+R** (le cache HTTP du navigateur est distinct du cache du 
   SumUp, bon + PDF + e-mails rejouables sans doublon) ; regles pures `js/core/carte-cadeau-commande.js` ;
   le PDF vient de `creerPdf` (`js/core/bon-cadeau-carte.js`), le MEME que le bouton 🖨️. Table
   `commandes_carte_cadeau` + tache pg_cron `carte-cadeau-relance` (`scripts/migration-carte-cadeau-en-ligne.sql`).
-  Secret `SUMUP_API_KEY` : tant que c'est la cle du compte de test, commandes « essai » (aucun bon, rien a
-  Elise). Deployer en joignant les 3 fichiers `js/core` importes, chemins depuis la racine du depot
-  (point d'entree `supabase/functions/carte-cadeau/index.ts`)
+  Secret `SUMUP_API_KEY` = cle du VRAI compte d'Elise depuis le 2026-11-03 (avec une cle de test : bon
+  « [ESSAI] » dans le logiciel, mails a l'adresse du formulaire). Qui paie avec quel compte : `refusPaiement`
+  (www = reel seulement). Prix lus sur www pour une commande de www. Deployer en joignant les 3 fichiers
+  `js/core` importes, chemins depuis la racine du depot (point d'entree `supabase/functions/carte-cadeau/index.ts`)
+- Cloche des notifications (v1.4.0.0) : table generique `notifications` (`scripts/migration-notifications.sql`),
+  ecrite par les fonctions Supabase (id fixe = pas de doublon), lue en temps reel par `js/ui/notifications.js`
+  (regles pures `js/core/notifications-regles.js`, styles `css/entete.css`). `lien` : `{ onglet, bonId }` ouvre
+  l'onglet et le bon. En-tete : ⚙ (Parametres, Exporter, Importer) et deconnexion en pictos
 - ApexCharts est charge SANS version (`cdn.jsdelivr.net/npm/apexcharts` = la derniere, 8.x en nov. 2026) :
   tout apercu doit charger la meme URL, sinon on teste une autre bibliotheque que celle du logiciel
 - `tests/` : `npm test` (Node, sans dependance) ; `tests/apercu-gestion.html` et `tests/apercu-analytics.html`
@@ -110,7 +115,7 @@ de faire **Ctrl+Shift+R** (le cache HTTP du navigateur est distinct du cache du 
 
 ## Versioning
 - Format : `X.Y.Z.W` ou X.Y = version PWA, Z.W = heritage version Electron
-- Version actuelle : `1.3.0.0` (carte cadeau payee par CB sur le site : dessin du PDF partage avec la fonction `carte-cadeau`)
+- Version actuelle : `1.4.0.0` (cloche des notifications : carte cadeau payee en ligne ; menu ⚙ et deconnexion en pictos)
 - **OBLIGATOIRE** : a chaque modification demandee par l'utilisateur, proposer un bump de version et attendre validation
 - Mettre a jour la version dans 3 endroits : `package.json`, `index.html` (burger menu + footer)
 - Puis **`node scripts/estampiller-version.js`** : repose `?v=X.Y.Z.W` sur tous les

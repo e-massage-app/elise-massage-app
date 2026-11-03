@@ -1,0 +1,181 @@
+/* ===== css/entete.css (v1.4.0.0) ===== */
+/* En-tete : cloche des notifications, menu ⚙ (Parametres, Exporter, Importer) et deconnexion en
+   pictos ronds (demande de Jordan, 2026-11-03). Logique : js/ui/notifications.js */
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.icone-btn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  padding: 0;
+  border: 1px solid var(--rose-accent);
+  border-radius: 50%;
+  background: var(--white);
+  color: var(--text-dark);
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+.icone-btn svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.icone-btn .dents { fill: currentColor; stroke: none; }
+.icone-btn:hover,
+.icone-btn[aria-expanded="true"] { background: var(--rose-poudre); border-color: var(--beige-dore); }
+.icone-btn:focus-visible { outline: 2px solid var(--beige-dore); outline-offset: 2px; }
+.icone-btn--sortie:hover { color: #c0392b; border-color: #e6a59c; background: #fdf0ee; }
+
+/* ---------- Cloche ---------- */
+.notif,
+.reglages { position: relative; }
+
+.notif-pastille {
+  position: absolute;
+  top: -0.25rem;
+  right: -0.25rem;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: #e74c3c;
+  color: #fff;
+  font: 600 0.68rem/1.15rem 'Inter', sans-serif;
+  text-align: center;
+  box-shadow: 0 0 0 2px var(--white);
+}
+.notif-pastille[hidden] { display: none; }
+
+.notif-panneau,
+.menu-reglages {
+  position: absolute;
+  top: calc(100% + 0.55rem);
+  right: 0;
+  z-index: 1000;
+  background: var(--white);
+  border-radius: var(--border-radius);
+  box-shadow: 0 14px 40px rgba(74, 74, 74, 0.18);
+}
+.notif-panneau[hidden],
+.menu-reglages[hidden] { display: none; }
+
+.notif-panneau {
+  width: 23rem;
+  max-height: min(70vh, 32rem);
+  overflow-y: auto;
+}
+.notif-panneau__tete {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  background: var(--white);
+  border-bottom: 1px solid var(--rose-poudre);
+}
+.notif-panneau__tete h4 { margin: 0; font-size: 0.95rem; }
+.notif-tout-lire {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #a8763f;
+  font: inherit;
+  font-size: 0.8rem;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+.notif-tout-lire[hidden] { display: none; }
+
+.notif-liste { list-style: none; margin: 0; padding: 0.35rem; }
+.notif-item {
+  position: relative;
+  display: grid;
+  gap: 0.15rem;
+  width: 100%;
+  padding: 0.7rem 0.75rem 0.7rem 1.45rem;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-dark);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.notif-item:hover,
+.notif-item:focus-visible { background: var(--beige-clair); outline: none; }
+/* Non lue : point rouge et titre en gras */
+.notif-item--nouvelle::before {
+  content: '';
+  position: absolute;
+  left: 0.6rem;
+  top: 1.05rem;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: #e74c3c;
+}
+.notif-item__titre { font-size: 0.88rem; line-height: 1.35; }
+.notif-item--nouvelle .notif-item__titre { font-weight: 600; }
+.notif-item__texte { font-size: 0.8rem; line-height: 1.4; color: var(--text-light); }
+.notif-item__quand { font-size: 0.72rem; color: #9a9a9a; }
+.notif-vide { padding: 1.6rem 1rem; color: var(--text-light); font-size: 0.85rem; text-align: center; }
+
+/* ---------- Menu ⚙ ---------- */
+.menu-reglages {
+  display: grid;
+  min-width: 14rem;
+  padding: 0.35rem;
+}
+.menu-reglages button {
+  padding: 0.65rem 0.85rem;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-dark);
+  font: inherit;
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+}
+.menu-reglages button:hover,
+.menu-reglages button:focus-visible { background: var(--beige-clair); outline: none; }
+
+/* ---------- Menu du telephone : Exporter et Importer ranges sous Parametres ---------- */
+.mobile-action-item--sous { padding-left: 2.25rem; font-size: 0.85rem; }
+.mobile-action-item.logout { display: flex; align-items: center; gap: 0.55rem; }
+.mobile-action-item.logout svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---------- Telephone : la cloche a cote du menu ☰, le panneau sur toute la largeur ---------- */
+@media (max-width: 768px) {
+  .header-actions { margin-left: auto; margin-right: 0.6rem; }
+  .icone-btn { width: 2.4rem; height: 2.4rem; }
+  .notif-panneau {
+    position: fixed; /* top : sous l'en-tete, pose par notifications.js */
+    top: 3.6rem;
+    left: 0.75rem;
+    right: 0.75rem;
+    width: auto;
+  }
+}

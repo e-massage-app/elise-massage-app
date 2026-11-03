@@ -12,9 +12,10 @@
 // Au paiement : le bon est cree dans bons_cadeaux (compte SumUp de test : marque [ESSAI], a supprimer
 // apres verification ; demande de Jordan, pour tout verifier jusqu'au logiciel), le PDF est fait avec le
 // MEME code que le bouton 🖨️ de l'app (js/core/bon-cadeau-carte.js : modele, polices et regles), puis
-// envoye a l'acheteur SEULEMENT (Elise est prevenue a part). Rejouable sans doublon : un seul envoi a
-// la fois (statut + tentative_le), id du bon fixe des la commande, cle d'idempotence chez Resend. Si
-// l'envoi echoue, la notification repond 500 : SumUp la renvoie (1 min, 5 min, 20 min, 2 h).
+// envoye a l'acheteur SEULEMENT (Elise est prevenue a part, par e-mail et dans la cloche du logiciel,
+// table notifications, v1.4.0.0). Rejouable sans doublon : un seul envoi a la fois (statut +
+// tentative_le), id du bon fixe des la commande, cle d'idempotence chez Resend. Si l'envoi echoue, la
+// notification repond 500 : SumUp la renvoie (1 min, 5 min, 20 min, 2 h).
 //
 // Secrets : SUMUP_API_KEY (compte de test d'abord), RESEND_API_KEY, SAUVEGARDE_DESTINATAIRE (l'adresse
 // d'Elise) et SAUVEGARDE_SECRET (route relancer), les memes que les sauvegardes. SUPABASE_URL et
@@ -117,12 +118,12 @@ function compteSumup() {
 // ---------- Tarifs du site ----------
 
 // Prix : la liste publiee par le site a chaque construction (src/data/soins.ts, seule source des prix),
-// lue sur le deploiement Cloudflare d'ou vient la commande : celui de production pour
-// www.elise-massage.fr ; pour le serveur de developpement, la branche d'essai
-// (node scripts/publier.mjs --branche=essai, dans le depot du site)
+// lue sur le site d'ou vient la commande : www pour le site en ligne (jamais l'adresse technique
+// .pages.dev, demande de Jordan), le deploiement Cloudflare lui-meme pour le site de dev et ses essais ;
+// pour le serveur de developpement, la branche d'essai (node scripts/publier.mjs --branche=essai)
 function adresseTarifs(origine: string) {
+  if (SITES.includes(origine)) return 'https://www.elise-massage.fr/tarifs-carte-cadeau.json';
   if (/^https:\/\/([a-z0-9-]+\.)?elise-massage\.pages\.dev$/.test(origine)) return `${origine}/tarifs-carte-cadeau.json`;
-  if (SITES.includes(origine)) return 'https://elise-massage.pages.dev/tarifs-carte-cadeau.json';
   return 'https://essai.elise-massage.pages.dev/tarifs-carte-cadeau.json';
 }
 
@@ -322,6 +323,15 @@ async function alerterElise(c: Commande, erreur: string) {
   }, `carte-cadeau/${c.id}/alerte`);
 }
 
+// ---------- La cloche du logiciel (v1.4.0.0, scripts/migration-notifications.sql) ----------
+
+// id fixe par commande : une notification rejouee n'apparait qu'une fois ; un echec ici ne bloque rien
+async function notifier(id: string, champs: Record<string, unknown>) {
+  const { error } = await admin.from('notifications')
+    .upsert({ id, user_id: UTILISATRICE, ...champs }, { onConflict: 'id', ignoreDuplicates: true });
+  if (error) console.error('carte-cadeau, notification :', id, error.message);
+}
+
 // ---------- Le bon dans le logiciel ----------
 
 async function validiteMois(): Promise<number> {
@@ -402,12 +412,26 @@ async function livrer(c: Commande, paiement: Record<string, any>) {
     const { data: envoyee } = await admin.from('commandes_carte_cadeau')
       .update({ statut: 'envoyee', envoye_le: new Date().toISOString(), erreur: null })
       .eq('id', prise.id).select('*').maybeSingle();
+    await notifier(`n_cc_${prise.id}`, {
+      type: 'carte-cadeau',
+      titre: `${prefixe(prise)}🎁 Carte cadeau payée en ligne`,
+      texte: `${prise.soin} pour ${nomComplet(prise.beneficiaire_prenom, prise.beneficiaire_nom)}, ${euros(prise.montant)}`
+        + ` (offerte par ${nomComplet(prise.acheteur_prenom, prise.acheteur_nom)})`
+        + (prise.papier ? '. Version papier à préparer.' : ''),
+      lien: { onglet: 'bons-cadeaux', bonId: prise.bon_cadeau_id },
+    });
     return envoyee ?? prise;
   } catch (e) {
     const erreur = message(e);
     console.error('carte-cadeau, envoi :', prise.id, erreur);
     await admin.from('commandes_carte_cadeau').update({ erreur }).eq('id', prise.id);
     if (!prise.alerte_le) {
+      await notifier(`n_cce_${prise.id}`, {
+        type: 'carte-cadeau-erreur',
+        titre: `${prefixe(prise)}⚠️ Carte cadeau payée mais pas encore envoyée`,
+        texte: `${prise.soin} pour ${nomComplet(prise.beneficiaire_prenom, prise.beneficiaire_nom)} : ${erreur}`.slice(0, 300),
+        lien: { onglet: 'bons-cadeaux' },
+      });
       try {
         await alerterElise(prise, erreur);
         await admin.from('commandes_carte_cadeau').update({ alerte_le: new Date().toISOString() }).eq('id', prise.id);
