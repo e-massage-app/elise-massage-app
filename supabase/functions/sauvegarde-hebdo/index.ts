@@ -14,7 +14,9 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? '';
 const DESTINATAIRE = Deno.env.get('SAUVEGARDE_DESTINATAIRE') ?? '';
 const SECRET = Deno.env.get('SAUVEGARDE_SECRET') ?? '';
-const EXPEDITEUR = 'Elise Massage <onboarding@resend.dev>';
+// Domaine elise-massage.fr verifie dans Resend (compte de Jordan, 2026-11-03) : l'adresse de test
+// onboarding@resend.dev n'ecrivait qu'au titulaire du compte Resend
+const EXPEDITEUR = 'Elise Massage <no-reply@elise-massage.fr>';
 
 const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
   auth: { persistSession: false },

@@ -56,6 +56,15 @@ teste et valide ensemble.
       retire a l'institut.
 - [ ] Liste des prix publiee a la construction (`soins.ts` reste la seule source des prix).
 - [ ] Page de retour « Merci » (paye / en cours / echec, avec que faire).
+- [ ] « Pensez a regarder vos courriers indesirables (spams) » : sous le choix « carte bancaire » et
+      sur la page « Merci » (demande de Jordan).
+
+## Fait le 2026-11-03
+
+- [x] Resend : domaine `elise-massage.fr` ajoute au compte de Jordan (gamezoneyt, region Irlande) ;
+      enregistrements poses chez OVH (CNAME `send` et `rsend`, TXT `resend._domainkey`, TXT `_dmarc`
+      `v=DMARC1; p=none;`) et verifies sur le serveur DNS d'OVH. Les sauvegardes du lundi passeront par ce
+      compte (`no-reply@elise-massage.fr`) quand Jordan aura remplace la cle RESEND_API_KEY.
 
 ## Ce que Jordan prepare (je lui donne tout pret, il valide et colle lui-meme)
 
