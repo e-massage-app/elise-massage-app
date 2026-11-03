@@ -133,7 +133,8 @@ supprime (le mien).
 - [x] Paiement de controle de 50 EUR par Jordan sur `elise-massage.pages.dev` (2026-11-03, vrai compte) :
       page SumUp du vrai compte, page « Merci », PDF recu, Elise prevenue (appli SumUp, e-mail, cloche),
       bon dans le logiciel (Carte bleue, sans [ESSAI]), envoi 2,8 s apres le paiement. TOUT OK.
-- [ ] Remboursement du paiement de controle dans SumUp, puis bon passe en « rembourse » dans le logiciel.
+- [x] Paiement de controle rembourse dans SumUp ; bon SUPPRIME du logiciel par Jordan (pas « rembourse » :
+      qu'il ne compte nulle part).
 - Essais abandonnes du bac a sable (en attente) : clos a la main (« expiree ») apres le passage a la vraie
   cle, sinon le filet de securite les redemandait a SumUp toutes les 10 min pendant 24 h, en vain.
 - [x] CGV (article 7 : paiement CB en ligne / sur place, retractation) et confidentialite ; mediateur
