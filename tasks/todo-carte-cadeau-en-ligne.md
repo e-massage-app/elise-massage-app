@@ -83,7 +83,7 @@ poussee (bump de version a valider).
   dessin a l'octet pres) ; modele et polices lus sur l'app publiee (3 essais : GitHub Pages a repondu
   503 une fois pendant les essais).
 - Regles de commande pures et testees : `js/core/carte-cadeau-commande.js` (10 tests ; 159 en tout).
-- Filet de securite : tache pg_cron `carte-cadeau-relance` toutes les heures (toutes les 10 min jusqu'au
+- Filet de securite : tache pg_cron `carte-cadeau-relance` deux fois par jour (toutes les 10 min jusqu'au
   2026-11-04 : allegee pour la reserve disque de Supabase), n'appelle la fonction
   que s'il reste une commande non envoyee de moins de 24 h (notification perdue, client parti).
 - Bon cree au paiement (compte reel) : moyen « Carte bleue » (compte dans les encaissements ; un moyen

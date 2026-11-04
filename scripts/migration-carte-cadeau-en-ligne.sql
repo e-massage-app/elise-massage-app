@@ -46,13 +46,14 @@ drop policy if exists elise_lit_ses_commandes on public.commandes_carte_cadeau;
 create policy elise_lit_ses_commandes on public.commandes_carte_cadeau
   for select to authenticated using (auth.uid() = user_id);
 
--- Filet de securite : toutes les heures (a 7 min ; toutes les 10 min jusqu'au 2026-11-04, allegee pour
--- la reserve disque de l'offre gratuite de Supabase), s'il reste une commande des dernieres 24 h pas encore
+-- Filet de securite : deux fois par jour, 7 h 07 et 19 h 07 UTC (toutes les 10 min jusqu'au 2026-11-04,
+-- allegee pour la reserve disque de l'offre gratuite de Supabase ; 12 h d'ecart < 24 h de suivi : chaque
+-- commande est vue au moins une fois). S'il reste une commande des dernieres 24 h pas encore
 -- envoyee, la fonction redemande son statut a SumUp et l'envoie si elle est payee (notification
 -- perdue, client parti sans revenir sur le site). Rien n'est appele s'il n'y a rien a suivre.
 -- Meme mot de passe que la sauvegarde du lundi (Vault sauvegarde_secret = secret SAUVEGARDE_SECRET).
 select cron.unschedule('carte-cadeau-relance') where exists (select 1 from cron.job where jobname = 'carte-cadeau-relance');
-select cron.schedule('carte-cadeau-relance', '7 * * * *', $$
+select cron.schedule('carte-cadeau-relance', '7 7,19 * * *', $$
   select net.http_post(
     url := 'https://ixuwialfycbzvliezliv.supabase.co/functions/v1/carte-cadeau/relancer',
     headers := jsonb_build_object(
