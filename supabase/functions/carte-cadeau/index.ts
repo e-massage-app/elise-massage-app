@@ -5,7 +5,7 @@
 //   POST commande               formulaire du site -> { url } de la page de paiement SumUp (hosted checkout)
 //   GET  statut?commande=...    page « Merci » du site -> { statut, email, papier, essai }
 //   POST sumup                  notification SumUp (CHECKOUT_STATUS_CHANGED, seulement l'id du paiement)
-//   POST relancer               pg_cron toutes les 10 min (en-tete x-sauvegarde-secret) : filet de securite
+//   POST relancer               pg_cron toutes les heures (en-tete x-sauvegarde-secret) : filet de securite
 //   GET  etat                   la cle SumUp repond-elle ? compte de test ou reel ?
 // Une notification ne prouve rien : le statut est TOUJOURS redemande a SumUp avec la cle secrete.
 //
@@ -572,7 +572,7 @@ async function secretValide(recu: string): Promise<boolean> {
 }
 
 /**
- * Filet de securite (pg_cron, toutes les 10 min, scripts/migration-carte-cadeau-en-ligne.sql) : si la
+ * Filet de securite (pg_cron, toutes les heures, scripts/migration-carte-cadeau-en-ligne.sql) : si la
  * notification de SumUp n'arrive jamais et que le client ne revient pas sur le site, la commande payee
  * est quand meme envoyee. Commandes des dernieres 24 h pas encore envoyees.
  */
