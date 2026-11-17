@@ -7,6 +7,7 @@
 (function (racine) {
 
 const Carte = racine.BonCadeauCarte || (typeof require === 'function' ? require('./bon-cadeau-carte.js') : null);
+const Bons = racine.BonsCadeaux || (typeof require === 'function' ? require('./bons-cadeaux.js') : null);
 
 const LIMITES = { nom: 60, email: 120, telephone: 30, message: 160, remarques: 1000 };
 const EMAIL = /^[^\s@<>,;"]+@[^\s@<>,;"]+\.[^\s@<>,;"]+$/;
@@ -145,8 +146,39 @@ function nouvelleReference(aleatoire) {
   return `cc_${Date.now().toString(36)}_${aleatoire}`;
 }
 
+/**
+ * v1.4.1.0 (retour app n°7) : la fiche cliente de la personne qui RECOIT le bon (celle qui viendra se
+ * faire masser), comme pour un bon cree dans l'app. Une fiche au meme nom est reprise, sans doublon
+ * (BonsCadeaux.ficheDuNom : nom exact, pas d'homonyme).
+ * commande : ligne de commandes_carte_cadeau ; clients : fiches d'Elise [{ id, prenom, nom }].
+ * -> null (commande d'essai, ou sans nom), { id } (fiche existante), ou { id, fiche } (colonnes de la
+ *    table clients a creer). L'id est fixe par commande : deux notifications simultanees ne creent
+ *    qu'une fiche.
+ */
+function ficheBeneficiaire(commande, clients) {
+  const c = commande || {};
+  if (c.essai) return null; // un bon d'essai se supprime : pas de fiche a nettoyer ensuite
+  const prenom = texte(c.beneficiaire_prenom);
+  const nom = texte(c.beneficiaire_nom);
+  if (!prenom && !nom) return null;
+  const existante = Bons.ficheDuNom(clients, `${prenom} ${nom}`);
+  if (existante) return { id: existante.id };
+  return {
+    id: `id_${c.id}`,
+    fiche: {
+      prenom: prenom || null,
+      nom: nom || null,
+      telephone: texte(c.beneficiaire_telephone) || null,
+      notes: `Fiche créée automatiquement : carte cadeau payée en ligne (commande ${c.id}).`,
+      tags: [],
+      canal_acquisition: 'non-renseigne',
+    },
+  };
+}
+
 const CarteCadeauCommande = {
-  LIMITES, lireCommande, statutSumup, origineConnue, refusPaiement, masquerEmail, nouvelleReference
+  LIMITES, lireCommande, statutSumup, origineConnue, refusPaiement, masquerEmail, nouvelleReference,
+  ficheBeneficiaire
 };
 
 racine.CarteCadeauCommande = CarteCadeauCommande;

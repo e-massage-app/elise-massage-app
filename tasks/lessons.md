@@ -183,3 +183,31 @@ en absolu dans une fenetre `overflow: auto`, retour de Jordan sur la v1.1.2.1). 
 l'aplatir ni le recompresser. Les emojis s'impriment en formes pleines a la couleur du texte. Avant de
 montrer un PDF, le relire en fort zoom (pdf.js x6) : un emoji absent ou un « 8o € » ne se voit pas
 dans les chiffres.
+
+---
+
+## 13. Un outil pour Elise = son outil reel, zero manipulation
+
+**Declencheur** — dossier « Claude d'Elise » (2026-11-12) : j'ai livre une procedure d'installation en 5 etapes
+(Projet claude.ai, coller des instructions, televerser 6 fichiers, verifier la recherche web). Jordan : « Le but,
+c'est qu'elle ait juste a lui donner un zip et que ce soit regle [...] Il ne faut pas qu'elle ait quoi que ce soit
+installe. » Elise utilise Claude Code (dossier « Claude Code » sur son bureau, conversation dediee) et n'a aucune
+notion technique.
+
+**Regle** — avant de concevoir un livrable pour quelqu'un d'autre que Jordan, verifier QUEL outil il utilise
+vraiment et son niveau (demander a Jordan si on ne sait pas). Pour Elise : un zip que SON Claude installe lui-meme
+(`CLAUDE.md` + fichiers + `A-LIRE-PAR-CLAUDE-EN-PREMIER.md`) ; elle n'a qu'a dire « installe-le ». Tout ce qui est
+technique (fichiers, PDF via le navigateur deja installe) est fait par son Claude, jamais par elle.
+
+---
+
+## 14. « Ce qu'on a a faire » = seulement l'ouvert, de notre ressort
+
+**Declencheur** — 2026-11-12, « Nous, on a quoi a faire maintenant ? » : j'ai repropose des annonces Google de Noel
+(deja ecartees : recherches precises, budget), cite la story « nouveau site » comme en attente (deja livree) et un
+bilan programme de la campagne Ajaccio (Jordan ne le veut pas). « Tu me parles de plein de choses ou on n'a rien
+a faire. »
+
+**Regle** — avant de lister des taches, relire la memoire (pistes ecartees, decisions Ads) et ne garder que ce qui
+est reellement ouvert ET de notre ressort (site, logiciel). Un sujet livre ou ecarte n'apparait plus, meme en
+« bientot ».

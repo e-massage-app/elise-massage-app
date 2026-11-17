@@ -341,6 +341,34 @@ async function validiteMois(): Promise<number> {
   return Number.isInteger(mois) && mois > 0 ? mois : 6; // comme l'app (calculerDateExpiration)
 }
 
+// v1.4.1.0 (retour app n°7) : la fiche de la personne qui recoit le bon, comme pour un bon cree dans
+// l'app (regle : K.ficheBeneficiaire). Un echec ici ne bloque JAMAIS le bon : le bon est paye, et la
+// fiche se cree sinon depuis « Attribuer un RDV ».
+async function ficheBeneficiaire(c: Commande): Promise<string | null> {
+  try {
+    // toutes les fiches, par pages de 1000 (limite de l'API), pour ne pas rater un homonyme
+    const clients: { id: string; prenom: string | null; nom: string | null }[] = [];
+    for (let debut = 0; ; debut += 1000) {
+      const { data, error } = await admin.from('clients').select('id, prenom, nom')
+        .eq('user_id', UTILISATRICE).order('id').range(debut, debut + 999);
+      if (error) throw new Error(error.message);
+      clients.push(...(data ?? []));
+      if (!data || data.length < 1000) break;
+    }
+    const f = K.ficheBeneficiaire(c, clients);
+    if (!f) return null;
+    if (f.fiche) {
+      const { error } = await admin.from('clients')
+        .upsert({ id: f.id, user_id: UTILISATRICE, ...f.fiche }, { onConflict: 'id', ignoreDuplicates: true });
+      if (error) throw new Error(error.message);
+    }
+    return f.id;
+  } catch (e) {
+    console.error('carte-cadeau, fiche cliente :', c.id, (e as Error).message);
+    return null;
+  }
+}
+
 async function creerBon(c: Commande, jour: string, fin: string, transaction: string) {
   const notes = [
     ...(c.essai ? ['ESSAI (compte SumUp de test, aucun argent réel) : bon à supprimer après vérification.'] : []),
@@ -352,6 +380,7 @@ async function creerBon(c: Commande, jour: string, fin: string, transaction: str
     `Commande en ligne ${c.id}.`,
   ].join('\n');
   const carte = Object.fromEntries(C.CLES.map((cle: string) => [cle, C.typographier(c.carte[cle], C.CHAMPS[cle].multi)]));
+  const beneficiaireClientId = await ficheBeneficiaire(c);
   const { error } = await admin.from('bons_cadeaux').upsert({
     id: c.bon_cadeau_id,
     user_id: UTILISATRICE,
@@ -364,6 +393,7 @@ async function creerBon(c: Commande, jour: string, fin: string, transaction: str
     acheteur_telephone: c.acheteur_telephone || null,
     acheteur_email: c.acheteur_email,
     beneficiaire_nom: nomComplet(c.beneficiaire_prenom, c.beneficiaire_nom),
+    beneficiaire_client_id: beneficiaireClientId,
     description: `${c.essai ? '[ESSAI] ' : ''}${c.soin}`,
     // « Carte bleue » : un des moyens de l'app, compte dans les encaissements (js/core/encaissements.js)
     moyen_paiement: 'Carte bleue',

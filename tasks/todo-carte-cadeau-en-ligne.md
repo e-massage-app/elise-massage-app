@@ -151,3 +151,14 @@ supprime (le mien).
 6. DNS : Jordan connecte son OVH pour que je pose les enregistrements de Resend (je les montre avant
    d'enregistrer). Sans lien avec la bascule du site : la zone DNS reste chez OVH avant et apres,
    seul le `www` changera ce jour-la.
+
+## v1.4.1.0 (2026-11-17) : la fiche de la beneficiaire (retour app n°7)
+- [x] Un bon paye sur le site cree (ou reprend, meme nom sans homonyme) la fiche de la personne qui RECOIT
+  le bon : regle `CarteCadeauCommande.ficheBeneficiaire` (testee), id fixe `id_<commande>` (pas de doublon
+  si deux notifications arrivent ensemble), aucune fiche pour un bon d'essai. Un echec ne bloque jamais le bon.
+- [x] Fonction deployee en version 7 (2026-11-17). Relue avec get_edge_function : index.ts identique au
+  depot ; dans les js/core, 5 echappements `\uXXXX` sont arrives en caractere reel (equivalent en JS ;
+  les 39 tests de ces regles passent sur la copie relue). Au prochain deploiement : doubler les barres
+  obliques dans le JSON (`\u0300`).
+- [x] « Attribuer un RDV » : recherche par nom au lieu de la liste de toutes les fiches, et creation de la
+  fiche (apres confirmation) si le nom n'existe pas.

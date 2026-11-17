@@ -138,7 +138,7 @@ function lignesDeBase(champ, taille, nombre) {
 function soinDeMontant(montant) {
   const m = Number(montant) || 0;
   const valeur = Number.isInteger(m) ? String(m) : m.toFixed(2).replace('.', ',');
-  return `Bon d’une valeur de ${valeur} €`;
+  return `Bon d’une valeur de ${valeur}\u00a0€`; // \u00a0 : espace insecable, ecrite en clair
 }
 
 /**

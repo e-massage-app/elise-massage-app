@@ -124,3 +124,48 @@ test('adresse masquee sur la page « Merci »', () => {
 test('reference de commande : prefixe, horodatage et partie aleatoire', () => {
   assert.match(K.nouvelleReference('abc123'), /^cc_[0-9a-z]+_abc123$/);
 });
+
+// v1.4.1.0 (retour app n°7) : la fiche de la personne qui recoit le bon
+const commandeLigne = (modif = {}) => ({
+  id: 'cc_m3abc_x1y2z3', essai: false,
+  beneficiaire_prenom: 'Camille', beneficiaire_nom: 'Martin', beneficiaire_telephone: '06 11 22 33 44',
+  acheteur_prenom: 'Paul', acheteur_nom: 'Durand',
+  ...modif
+});
+
+test('fiche beneficiaire : creee avec prenom, nom et telephone, id fixe par commande', () => {
+  const f = K.ficheBeneficiaire(commandeLigne(), [{ id: 'id_1', prenom: 'Paul', nom: 'Durand' }]);
+  assert.equal(f.id, 'id_cc_m3abc_x1y2z3');
+  assert.equal(f.fiche.prenom, 'Camille');
+  assert.equal(f.fiche.nom, 'Martin');
+  assert.equal(f.fiche.telephone, '06 11 22 33 44');
+  assert.equal(f.fiche.canal_acquisition, 'non-renseigne');
+  assert.match(f.fiche.notes, /payée en ligne.*cc_m3abc_x1y2z3/);
+  // rejouee : meme id (l'upsert « ignoreDuplicates » ne cree pas de 2e fiche)
+  assert.equal(K.ficheBeneficiaire(commandeLigne(), []).id, f.id);
+});
+
+test('fiche beneficiaire : une fiche existante au meme nom est reprise (casse, accents, espaces)', () => {
+  const clients = [{ id: 'id_42', prenom: 'camille ', nom: 'MARTIN' }, { id: 'id_7', prenom: 'Paul', nom: 'Durand' }];
+  assert.deepEqual(K.ficheBeneficiaire(commandeLigne(), clients), { id: 'id_42' });
+  assert.deepEqual(K.ficheBeneficiaire(commandeLigne({ beneficiaire_prenom: 'Élise', beneficiaire_nom: '' }),
+    [{ id: 'id_9', prenom: 'Elise', nom: '' }]), { id: 'id_9' });
+});
+
+test('fiche beneficiaire : homonymes -> nouvelle fiche (on ne devine pas)', () => {
+  const clients = [{ id: 'a', prenom: 'Camille', nom: 'Martin' }, { id: 'b', prenom: 'Camille', nom: 'Martin' }];
+  assert.ok(K.ficheBeneficiaire(commandeLigne(), clients).fiche);
+});
+
+test('fiche beneficiaire : rien pour une commande d essai ou sans nom', () => {
+  assert.equal(K.ficheBeneficiaire(commandeLigne({ essai: true }), []), null);
+  assert.equal(K.ficheBeneficiaire(commandeLigne({ beneficiaire_prenom: ' ', beneficiaire_nom: '' }), []), null);
+  assert.equal(K.ficheBeneficiaire(null, []), null);
+});
+
+test('fiche beneficiaire : prenom seul, telephone absent', () => {
+  const f = K.ficheBeneficiaire(commandeLigne({ beneficiaire_nom: '', beneficiaire_telephone: null }), []);
+  assert.equal(f.fiche.prenom, 'Camille');
+  assert.equal(f.fiche.nom, null);
+  assert.equal(f.fiche.telephone, null);
+});

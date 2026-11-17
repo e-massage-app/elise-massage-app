@@ -2803,8 +2803,13 @@ function createClientAutocomplete(inputId, hiddenId) {
           const normalizedNom = (client.nom || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
           const normalizedPrenom = (client.prenom || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
           const normalizedSociete = (client.societe || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+          // v1.4.1.0 : \u00ab Marie Dup \u00bb ou \u00ab Dupont Marie \u00bb trouvent aussi la fiche (nom complet tape)
+          const espaces = s => s.replace(/\s+/g, ' ').trim();
+          const requeteComplete = espaces(normalizedQuery);
           return normalizedNom.includes(normalizedQuery) ||
             normalizedPrenom.includes(normalizedQuery) ||
+            espaces(`${normalizedPrenom} ${normalizedNom}`).includes(requeteComplete) ||
+            espaces(`${normalizedNom} ${normalizedPrenom}`).includes(requeteComplete) ||
             normalizedSociete.includes(normalizedQuery) ||
             (numericQuery.length > 0 && client.telephone && client.telephone.replace(/[^0-9+]/g, '').includes(numericQuery));
         });
@@ -5991,10 +5996,11 @@ function showAttribuerRdvBonCadeauModal(bonId) {
     }
   }
 
-  // Liste des clients pour sélection si pas de bénéficiaire
-  const clientsOptions = appData.clients.map(c =>
-    `<option value="${c.id}" ${c.id === beneficiaireClientId ? 'selected' : ''}>${c.prenom} ${c.nom}</option>`
-  ).join('');
+  // v1.4.1.0 (retour app n°7) : plus de liste deroulante de toutes les fiches (« long de faire defiler
+  // tout le monde ») mais la recherche de la prise de RDV. Si le nom du bon est exactement celui d'une
+  // fiche (sans homonyme), elle est deja choisie.
+  const ficheDuBon = !beneficiaireClientId ? BonsCadeaux.ficheDuNom(appData.clients, beneficiaireNom) : null;
+  const attribut = v => String(v || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
   // Liste des types de massage (depuis la carte des soins)
   const typesOptions = generateTypeOptions(null, null);
@@ -6025,13 +6031,16 @@ function showAttribuerRdvBonCadeauModal(bonId) {
 
       ${!beneficiaireClientId ? `
       <div class="form-group">
-        <label>Client bénéficiaire *</label>
-        <select id="attribuer-rdv-client" required>
-          <option value="">-- Sélectionnez un client --</option>
-          ${clientsOptions}
-        </select>
+        <label for="attribuer-rdv-client-nom">Client bénéficiaire *</label>
+        <div>
+          <input type="text" id="attribuer-rdv-client-nom" autocomplete="off"
+            placeholder="Taper le prénom ou le nom..."
+            value="${attribut(ficheDuBon ? `${ficheDuBon.prenom || ''} ${ficheDuBon.nom || ''}`.trim() : beneficiaireNom)}">
+          <input type="hidden" id="attribuer-rdv-client" value="${ficheDuBon ? ficheDuBon.id : ''}">
+        </div>
         <small style="color: #666;">
-          ${beneficiaireNom ? `Nom indiqué sur le bon : <strong>${beneficiaireNom}</strong>` : 'Le bénéficiaire sera lié à ce bon'}
+          ${beneficiaireNom ? `Nom indiqué sur le bon : <strong>${attribut(beneficiaireNom)}</strong>. ` : ''}Pas encore de fiche ?
+          Elle sera créée à l'enregistrement, avec le nom tapé.
         </small>
       </div>
       ` : `<input type="hidden" id="attribuer-rdv-client" value="${beneficiaireClientId}">`}
@@ -6084,6 +6093,9 @@ function showAttribuerRdvBonCadeauModal(bonId) {
     if (form) {
       form.addEventListener('submit', handleAttribuerRdvBonSubmit);
     }
+    if (document.getElementById('attribuer-rdv-client-nom')) {
+      createClientAutocomplete('attribuer-rdv-client-nom', 'attribuer-rdv-client');
+    }
   }, 100);
 }
 
@@ -6098,7 +6110,7 @@ async function handleAttribuerRdvBonSubmit(e) {
 // enregistre nulle part. L'adresse se renseigne en modifiant le RDV (frais de route).
 async function enregistrerRdvDuBonCadeau() {
   const bonId = document.getElementById('attribuer-rdv-bon-id').value;
-  const clientId = document.getElementById('attribuer-rdv-client').value;
+  let clientId = document.getElementById('attribuer-rdv-client').value;
   const date = document.getElementById('attribuer-rdv-date').value;
   const heure = document.getElementById('attribuer-rdv-heure').value;
   const typeSelect = document.getElementById('attribuer-rdv-type');
@@ -6106,9 +6118,21 @@ async function enregistrerRdvDuBonCadeau() {
   const duree = parseInt(document.getElementById('attribuer-rdv-duree').value) || 60;
   const notes = document.getElementById('attribuer-rdv-notes').value;
 
+  // v1.4.1.0 (retour app n°7) : aucune fiche choisie dans la recherche -> la fiche au nom tape, ou une
+  // nouvelle (meme regle que la creation d'un bon : BonsCadeaux.ficheDuNom puis createClientMinimal)
   if (!clientId) {
-    alert('Veuillez sélectionner un client');
-    return;
+    const nomTape = (document.getElementById('attribuer-rdv-client-nom')?.value || '').trim();
+    if (!nomTape) {
+      alert('Veuillez indiquer le client : tapez son prénom ou son nom.');
+      return;
+    }
+    let fiche = BonsCadeaux.ficheDuNom(DataManager.getAppData().clients, nomTape);
+    if (!fiche) {
+      if (!confirm(`Aucune fiche ne s'appelle « ${nomTape} ».\n\nCréer la fiche « ${nomTape} » ?`)) return;
+      fiche = await BusinessServices.createClientMinimal(nomTape);
+      if (!fiche) return; // echec deja signale par la sauvegarde
+    }
+    clientId = fiche.id;
   }
 
   const bon = DataManager.getBonCadeauById(bonId);
