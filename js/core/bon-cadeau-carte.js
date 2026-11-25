@@ -32,10 +32,21 @@ const STYLE = {
   couleur: [197, 131, 117]
 };
 
-// « Bon valable 6 mois » (decision de Jordan : pas de date), sur la ligne des reseaux sociaux :
-// meme ligne de base, capitales de meme hauteur (3,78 pt, Raleway : 0,71 em), meme ecart (8,5 pt)
-// qu'entre « @massagebienetre2a » et l'icone Facebook. Mesure a 2 400 dpi le 2026-11-03.
-const MENTION = { texte: 'Bon valable 6 mois', taille: 3.78 / 0.71, ligneDeBase: 276.04, fin: 234.0 };
+// Fin de validite, sur la ligne des reseaux sociaux : capitales et chiffres de meme hauteur (3,78 pt,
+// Raleway : 0,71 em), meme ecart (8,5 pt) qu'entre « @massagebienetre2a » et l'icone Facebook.
+// v1.4.2.0 (Jordan, 2026-11-25) : la DATE (« Expire le 25/05/2027 ») au lieu de « Bon valable 6 mois »,
+// garde pour un bon sans date de fin. « Valable jusqu'au... » ne tient pas : il mordrait sur la fleur.
+// CENTRE verticalement sur la ligne (Jordan) : la date n'a que des capitales et des chiffres, plus hauts
+// que les minuscules des reseaux sociaux ; posee sur leur ligne de base, elle paraissait decalee. Milieu
+// des chiffres (3,84 pt de haut) = milieu de l'icone Instagram et des minuscules voisines (274,5 pt).
+// Mesure a 2 400 dpi le 2026-11-25.
+const MENTION = { texte: 'Bon valable 6 mois', taille: 3.78 / 0.71, ligneDeBase: 276.42, fin: 234.0 };
+
+/** Texte de fin de validite : « Expire le 25/05/2027 » ; sans date valide, « Bon valable 6 mois ». */
+function mention(expiration) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(expiration || ''));
+  return m ? `Expire le ${m[3]}/${m[2]}/${m[1]}` : MENTION.texte;
+}
 
 const CLES = ['offertPar', 'pour', 'soin', 'message'];
 
@@ -197,9 +208,10 @@ function problemes(compo, couvre) {
  * Un seul dessin pour l'app (bouton 🖨️) et la fonction Supabase « carte-cadeau » (cartes payees
  * sur le site) : pdf-lib et fontkit sont fournis par l'appelant (navigateur ou serveur).
  * r : { modele, semi, fin, emoji } (octets du modele et des polices) + couvre(caractere, estEmoji).
+ * expiration : date de fin du bon (AAAA-MM-JJ), imprimee en bas (v1.4.2.0).
  * Leve une erreur si un texte ne tient pas ou contient un caractere impossible a imprimer.
  */
-async function creerPdf({ PDFLib, fontkit }, r, textes) {
+async function creerPdf({ PDFLib, fontkit }, r, textes, expiration) {
   const { PDFDocument, rgb } = PDFLib;
   const doc = await PDFDocument.load(r.modele);
   doc.registerFontkit(fontkit);
@@ -229,8 +241,9 @@ async function creerPdf({ PDFLib, fontkit }, r, textes) {
       }
     });
   }
-  page.drawText(MENTION.texte, {
-    x: boite.x + MENTION.fin - fin.widthOfTextAtSize(MENTION.texte, MENTION.taille),
+  const texteMention = mention(expiration);
+  page.drawText(texteMention, {
+    x: boite.x + MENTION.fin - fin.widthOfTextAtSize(texteMention, MENTION.taille),
     y: yPdf(MENTION.ligneDeBase), size: MENTION.taille, font: fin, color: couleur
   });
 
@@ -250,7 +263,7 @@ function nomDeFichier(pour, jour) {
 const BonCadeauCarte = {
   PAGE, CHAMPS, STYLE, MENTION, CLES, EMOJIS,
   typographier, segments, introuvables, largeur, couper, ajuster, lignesDeBase,
-  soinDeMontant, textesParDefaut, composer, problemes, creerPdf, nomDeFichier
+  soinDeMontant, textesParDefaut, composer, problemes, creerPdf, nomDeFichier, mention
 };
 
 racine.BonCadeauCarte = BonCadeauCarte;

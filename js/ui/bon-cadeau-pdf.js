@@ -43,7 +43,7 @@ function mesureApercu(texte, taille, emoji) {
   return contexte.measureText(texte).width * taille / 100;
 }
 
-function svgDuBon(compo) {
+function svgDuBon(compo, expiration) {
   let textes = '';
   for (const cle of C.CLES) {
     const r = compo[cle];
@@ -56,7 +56,7 @@ function svgDuBon(compo) {
     });
   }
   const m = C.MENTION;
-  textes += `<text x="${m.fin}" y="${m.ligneDeBase}" font-size="${m.taille}" font-family="BonMention" text-anchor="end">${esc(m.texte)}</text>`;
+  textes += `<text x="${m.fin}" y="${m.ligneDeBase}" font-size="${m.taille}" font-family="BonMention" text-anchor="end">${esc(C.mention(expiration))}</text>`;
   return `<svg viewBox="0 0 ${C.PAGE.largeur} ${C.PAGE.hauteur}" fill="${COULEUR_CSS}" style="white-space: pre" aria-hidden="true">${textes}</svg>`;
 }
 
@@ -96,9 +96,9 @@ function chargerRessources() {
 
 // v1.3.0.0 : le dessin est dans js/core/bon-cadeau-carte.js, partage avec la fonction Supabase
 // « carte-cadeau » : un bon paye sur le site est identique a celui imprime ici
-async function creerPdf(textes) {
+async function creerPdf(textes, expiration) {
   const r = await chargerRessources();
-  return C.creerPdf({ PDFLib: window.PDFLib, fontkit: window.fontkit }, r, textes);
+  return C.creerPdf({ PDFLib: window.PDFLib, fontkit: window.fontkit }, r, textes, expiration);
 }
 
 function proposerFichier(octets, nom) {
@@ -191,7 +191,7 @@ function ouvrirBonCadeauPdf(bonId) {
   const majApercu = () => {
     const compo = C.composer(lire(), mesureApercu);
     const zone = document.getElementById('bon-pdf-textes');
-    if (zone) zone.innerHTML = svgDuBon(compo);
+    if (zone) zone.innerHTML = svgDuBon(compo, bon.dateExpiration);
     let bloque = false;
     for (const cle of C.CLES) {
       const absents = couvre ? C.introuvables(compo[cle].texte, couvre) : [];
@@ -240,7 +240,7 @@ function ouvrirBonCadeauPdf(bonId) {
   });
   bouton.addEventListener('click', () => window.withButtonLoading(bouton, async () => {
     const valeurs = lire();
-    const octets = await creerPdf(valeurs);
+    const octets = await creerPdf(valeurs, bon.dateExpiration);
     const carte = Object.fromEntries(C.CLES.map(cle => [cle, C.typographier(valeurs[cle], C.CHAMPS[cle].multi)]));
     if (JSON.stringify(bon.carte || null) !== JSON.stringify(carte)) {
       await BusinessServices.enregistrerCarteBonCadeau(bon.id, carte);

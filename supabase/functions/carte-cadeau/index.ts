@@ -196,8 +196,9 @@ async function problemesImpression(carte: Record<string, string>) {
   });
 }
 
-async function pdfDuBon(carte: Record<string, string>) {
-  return C.creerPdf({ PDFLib, fontkit }, await chargerRessources(), carte) as Promise<Uint8Array>;
+// v1.4.2.0 : la date de fin du bon est imprimee en bas (« Expire le 25/05/2027 »)
+async function pdfDuBon(carte: Record<string, string>, expiration: string) {
+  return C.creerPdf({ PDFLib, fontkit }, await chargerRessources(), carte, expiration) as Promise<Uint8Array>;
 }
 
 function base64(octets: Uint8Array): string {
@@ -435,7 +436,7 @@ async function livrer(c: Commande, paiement: Record<string, any>) {
     const jour = jourParis(new Date(prise.paye_le));
     const fin = BonsCadeaux.ajouterMois(jour, await validiteMois());
     await creerBon(prise, jour, fin, transaction);
-    const pdf = await pdfDuBon(prise.carte);
+    const pdf = await pdfDuBon(prise.carte, fin);
     const piece = { filename: C.nomDeFichier(prise.carte.pour, jour), content: base64(pdf) };
     await envoyer(courrielAcheteur(prise, fin, transaction, piece), `carte-cadeau/${prise.id}/acheteur`);
     await envoyer(courrielElise(prise, fin, transaction, piece), `carte-cadeau/${prise.id}/elise`);

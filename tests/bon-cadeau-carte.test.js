@@ -112,3 +112,11 @@ test('nom de fichier sans accents ni espaces', () => {
   assert.equal(B.nomDeFichier('Hélène Martin', '2026-11-03'), 'Bon-cadeau-Helene-Martin-2026-11-03.pdf');
   assert.equal(B.nomDeFichier('', '2026-11-03'), 'Bon-cadeau-2026-11-03.pdf');
 });
+
+test('v1.4.2.0 : la date de fin du bon est imprimee, « Bon valable 6 mois » sans date', () => {
+  assert.equal(B.mention('2027-05-25'), 'Expire le 25/05/2027');
+  assert.equal(B.mention('2027-02-28T00:00:00'), 'Expire le 28/02/2027');
+  assert.equal(B.mention(''), 'Bon valable 6 mois');
+  assert.equal(B.mention(null), 'Bon valable 6 mois');
+  assert.equal(B.mention('25/05/2027'), 'Bon valable 6 mois');
+});
